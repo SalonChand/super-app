@@ -1,0 +1,138 @@
+/* client/src/index.css */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: #000000; /* True black background */
+  color: #ffffff;
+  display: flex;
+  justify-content: center; /* Centers the app on desktop screens */
+}
+
+/* Make it look like a mobile phone screen on desktops */
+.app-container {
+  width: 100%;
+  max-width: 480px; 
+  min-height: 100vh;
+  background-color: #121212; /* Dark grey app background */
+  position: relative;
+  padding-bottom: 60px; /* Space for bottom nav */
+}
+
+/* TOP HEADER */
+.top-header {
+  position: sticky;
+  top: 0;
+  background-color: #121212;
+  padding: 15px 20px;
+  border-bottom: 1px solid #262626;
+  z-index: 10;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+/* BOTTOM NAVIGATION BAR (Like Instagram) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  max-width: 480px;
+  background-color: #121212;
+  border-top: 1px solid #262626;
+  display: flex;
+  justify-content: space-around;
+  padding: 15px 0;
+  z-index: 10;
+}
+
+.bottom-nav a {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  opacity: 0.6;
+  transition: 0.2s;
+}
+
+.bottom-nav a:hover {
+  opacity: 1;
+  color: #0095f6; /* Instagram Blue */
+}
+
+/* MAIN CONTENT AREA */
+.content-area {
+  padding: 20px;
+}
+
+/* FORMS & INPUTS */
+.modern-input {
+  width: 100%;
+  background-color: #262626;
+  border: 1px solid #333;
+  color: white;
+  padding: 12px 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  outline: none;
+}
+
+.modern-input:focus {
+  border-color: #0095f6;
+}
+
+.modern-button {
+  width: 100%;
+  background-color: #0095f6;
+  color: white;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modern-button:hover {
+  background-color: #0077c5;
+}
+
+/* POST CARDS */
+.post-card {
+  background-color: #000000;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.post-header {
+  font-weight: bold;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.post-avatar {
+  width: 35px;
+  height: 35px;
+  background-color: #0095f6;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.post-text {
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.post-time {
+  font-size: 12px;
+  color: #8e8e8e;
+}

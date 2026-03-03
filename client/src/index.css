@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+body {
+  background-color: #000000;
+}
+
+/* THE INSTANT LIGHT MODE HACK */
+.light-theme {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #ffffff;
+}
+
+/* We re-invert the images and colorful gradients so they don't look weird! */
+.light-theme img, 
+.light-theme .bg-gradient-to-tr,
+.light-theme .text-blue-500,
+.light-theme .bg-blue-600 {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* STORY PROGRESS BAR ANIMATION */
+@keyframes storyProgress {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+.animate-story-bar {
+  animation: storyProgress 5s linear forwards;
+}
+
+/* AUDIO RECORDING WAVE ANIMATION */
+@keyframes audioWave {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+.animate-wave { animation: audioWave 1s ease-in-out infinite; }
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+
+/* Slide Animation for Mobile Menu */
+@keyframes slide-left {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* SPLASH SCREEN FADE OUT */
+@keyframes fadeOut {
+  0% { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; pointer-events: none; z-index: -100; display: none;}
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+}
