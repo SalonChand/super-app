@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import axios from 'axios'
 
-const backendUrl = `http://${window.location.hostname}:5000`;
+const backendUrl = https://superapp-backend-6106.onrender.com;
 axios.defaults.baseURL = backendUrl;
 
 // 🔥 START THE SERVICE WORKER TO ENABLE APP INSTALLATION 🔥

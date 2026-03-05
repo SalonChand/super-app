@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
 import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
 
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = https://superapp-backend-6106.onrender.com;
 const socket = io(BACKEND_URL);
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 

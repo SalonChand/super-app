@@ -4,7 +4,7 @@ import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, E
 import { Link } from 'react-router-dom'; 
 import './index.css'; 
 
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = https://superapp-backend-6106.onrender.com;
 const EMPTY_ARRAY = new Array();
 
 const STORY_FILTERS =[{ name: 'Normal', value: 'none' }, { name: 'Clarendon', value: 'contrast(1.2) saturate(1.3) sepia(0.2) hue-rotate(-10deg)' }, { name: 'Gingham', value: 'brightness(1.1) contrast(1.1) sepia(0.3) hue-rotate(-20deg)' }, { name: 'Moon', value: 'grayscale(100%) contrast(1.2) brightness(1.1)' }, { name: 'Warm', value: 'sepia(0.5) saturate(1.5) contrast(1.1)' }, { name: 'Neon', value: 'hue-rotate(90deg) saturate(2) contrast(1.2)' }];

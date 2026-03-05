@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Search as SearchIcon, User } from 'lucide-react';
 
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = https://superapp-backend-6106.onrender.com;
 
 function Search() {
     const currentUserId = localStorage.getItem('userId');
