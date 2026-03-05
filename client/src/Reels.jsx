@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, VolumeX, Play, MoreHorizontal, Plus, Send, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const BACKEND_URL = https://superapp-backend-6106.onrender.com;
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const EMPTY_ARRAY = new Array();
 
 let globalMuteState = true; 

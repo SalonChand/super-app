@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, UserPlus, Check } from 'lucide-react';
 
-const BACKEND_URL = https://superapp-backend-6106.onrender.com;
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const EMPTY_ARRAY = new Array();
 
 function Notifications() {

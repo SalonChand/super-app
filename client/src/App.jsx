@@ -15,7 +15,7 @@ import Reels from './Reels';
 import Communities from './Communities'; 
 import Notifications from './Notifications'; 
 
-const BACKEND_URL = https://superapp-backend-6106.onrender.com;
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const globalSocket = io(BACKEND_URL); 
 const EMPTY_ARRAY = new Array();
 const THEME_COLOR = '#3b82f6'; 

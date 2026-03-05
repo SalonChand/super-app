@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2 } from 'lucide-react';
 
-const BACKEND_URL = https://superapp-backend-6106.onrender.com;
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const EMPTY_ARRAY = new Array();
 
 // Helper to convert VAPID keys

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, Lock, X, Music, Settings as SettingsIcon } from 'lucide-react';
 
-const BACKEND_URL = https://superapp-backend-6106.onrender.com;
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
 function Profile() {
     const { id } = useParams(); 
