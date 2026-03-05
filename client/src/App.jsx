@@ -76,8 +76,10 @@ function AppContent() {
       }
   };
 
-  const clearNotifications = () => { setBadges(prev => ({ ...prev, total_notifications: 0 })); };
-  const clearChatBadge = () => { setBadges(prev => ({ ...prev, unread_messages: 0 })); };
+// 🔥 FIX: We wipe the red dot badge visually, but do NOT delete the database history!
+  const clearNotifications = () => { 
+      setBadges(prev => ({ ...prev, total_notifications: 0 })); 
+  };  const clearChatBadge = () => { setBadges(prev => ({ ...prev, unread_messages: 0 })); };
   const clearFriendsBadge = () => { setBadges(prev => ({ ...prev, pending_requests: 0 })); };
 
   const subscribeToPush = async () => {
