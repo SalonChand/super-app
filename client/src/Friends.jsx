@@ -38,7 +38,7 @@ function Friends() {
                             {pendingRequests.map(user => (
                                 <div key={user.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
                                     <Link to={`/profile/${user.id}`} className="flex items-center gap-3 hover:opacity-80 transition">
-                                        <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex items-center justify-center">{user.profile_pic_url ? <img src={`${BACKEND_URL}${user.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="text-zinc-500"/>}</div>
+                                        <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex items-center justify-center">{user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="text-zinc-500"/>}</div>
                                         <div><h4 className="font-bold text-white">{user.username}</h4><p className="text-xs text-zinc-500">Wants to connect</p></div>
                                     </Link>
                                     <button onClick={() => acceptRequest(user.id)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 px-4 rounded-full transition flex items-center gap-2 text-sm"><UserCheck size={16} /> Accept</button>
@@ -54,7 +54,7 @@ function Friends() {
                             {exploreUsers.map(user => (
                                 <div key={user.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
                                     <Link to={`/profile/${user.id}`} className="flex items-center gap-3 hover:opacity-80 transition">
-                                        <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex items-center justify-center">{user.profile_pic_url ? <img src={`${BACKEND_URL}${user.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="text-zinc-500"/>}</div>
+                                        <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex items-center justify-center">{user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="text-zinc-500"/>}</div>
                                         <div><h4 className="font-bold text-white">{user.username}</h4><p className="text-xs text-zinc-500">New to network</p></div>
                                     </Link>
                                     <button onClick={() => sendRequest(user.id)} className="bg-white text-black hover:bg-zinc-200 font-bold py-1.5 px-4 rounded-full transition flex items-center gap-2 text-sm"><UserPlus size={16} /> Add Friend</button>

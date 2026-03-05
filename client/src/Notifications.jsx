@@ -37,7 +37,7 @@ function Notifications() {
                             
                             <div className="relative">
                                 <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800">
-                                    {item.profile_pic_url ? <img src={`${BACKEND_URL}${item.profile_pic_url}`} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center w-full h-full font-bold text-zinc-500">{item.username.charAt(0).toUpperCase()}</div>}
+                                    {item.profile_pic_url ? <img src={`${item.profile_pic_url}`} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center w-full h-full font-bold text-zinc-500">{item.username.charAt(0).toUpperCase()}</div>}
                                 </div>
                                 <div className={`absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-zinc-900 ${item.type === 'message' ? 'bg-blue-500' : 'bg-pink-500'}`}>
                                     {item.type === 'message' ? <MessageCircle size={10} className="text-white" /> : <UserPlus size={10} className="text-white" />}

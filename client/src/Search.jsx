@@ -31,7 +31,7 @@ function Search() {
                 {results.map((user) => (
                     <Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition">
                         <div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">
-                            {user.profile_pic_url ? <img src={`${BACKEND_URL}${user.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="text-zinc-400" />}
+                            {user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="text-zinc-400" />}
                         </div>
                         <div><h4 className="font-bold text-white">{user.username}</h4><p className="text-sm text-zinc-500">View Profile</p></div>
                     </Link>

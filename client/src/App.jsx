@@ -164,7 +164,7 @@ function AppContent() {
           {currentUserId && (
             <Link to={`/profile/${currentUserId}`} className="mt-auto hidden xl:flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-full cursor-pointer transition">
               <div className="w-10 h-10 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
-                 {currentUser?.profile_pic_url ? ( <img src={`${BACKEND_URL}${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
+                 {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
               </div>
               <div><p className="font-bold text-sm" style={{ color: userThemeColor }}>My Profile</p><p className="text-zinc-500 text-xs">View & Edit</p></div>
             </Link>
@@ -245,7 +245,7 @@ function AppContent() {
 
                   <Link to={`/profile/${currentUserId}`} className="p-1.5 flex items-center justify-center">
                     {currentUser?.profile_pic_url ? ( 
-                        <img src={`${BACKEND_URL}${currentUser.profile_pic_url}`} className="w-[26px] h-[26px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
+                        <img src={`${currentUser.profile_pic_url}`} className="w-[26px] h-[26px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
                     ) : ( 
                         <User size={22} style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#a1a1aa' }} /> 
                     )}

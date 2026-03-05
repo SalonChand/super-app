@@ -80,8 +80,8 @@ function Profile() {
     if (errorMessage) return <div className="text-center p-10 mt-20 border border-red-500/50 bg-red-500/10 rounded-2xl m-4"><h3 className="text-red-500 font-bold text-xl mb-2">Oops! Something broke.</h3><p className="text-zinc-400">{errorMessage}</p></div>;
     if (!profileData) return <div className="text-white text-center p-10 mt-20 animate-pulse">Loading profile...</div>;
 
-    const avatarUrl = profileData.profile_pic_url ? `${BACKEND_URL}${profileData.profile_pic_url}` : null;
-    const coverUrl = profileData.cover_pic_url ? `${BACKEND_URL}${profileData.cover_pic_url}` : null;
+    const avatarUrl = profileData.profile_pic_url ? `${profileData.profile_pic_url}` : null;
+    const coverUrl = profileData.cover_pic_url ? `${profileData.cover_pic_url}` : null;
     const tempAvatarUrl = editAvatar ? URL.createObjectURL(editAvatar) : avatarUrl;
     const tempCoverUrl = editCover ? URL.createObjectURL(editCover) : coverUrl;
     
@@ -162,7 +162,7 @@ function Profile() {
                             <div className="w-full">
                                 <div className="flex items-center gap-2 mb-1"><span className="font-bold text-white">{post.username}</span><span className="text-zinc-500 text-sm">@{post.username.toLowerCase()}</span></div>
                                 <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{post.content}</p>
-                                {post.image_url && <img onClick={() => setViewingImage(`${BACKEND_URL}${post.image_url}`)} src={`${BACKEND_URL}${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
+                                {post.image_url && <img onClick={() => setViewingImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
                             </div>
                         </div>
                     ))

@@ -136,7 +136,7 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
                 <div className="w-[80%] pointer-events-auto flex flex-col gap-3 pb-2">
                     <div className="flex items-center gap-2">
                         <Link to={`/profile/${reel.user_id}`} className="w-10 h-10 rounded-full border border-zinc-500 bg-zinc-800 overflow-hidden shadow-lg hover:opacity-80 transition">
-                            {reel.profile_pic_url ? <img src={`${BACKEND_URL}${reel.profile_pic_url}`} className="w-full h-full object-cover" alt="Profile" /> : <div className="flex items-center justify-center h-full text-white font-bold">{reel.username.charAt(0).toUpperCase()}</div>}
+                            {reel.profile_pic_url ? <img src={`${reel.profile_pic_url}`} className="w-full h-full object-cover" alt="Profile" /> : <div className="flex items-center justify-center h-full text-white font-bold">{reel.username.charAt(0).toUpperCase()}</div>}
                         </Link>
                         
                         <Link to={`/profile/${reel.user_id}`} className="text-white font-bold text-[16px] hover:underline drop-shadow-md">
@@ -198,7 +198,7 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
                         {comments.map(c => (
                             <div key={c.id} className="flex gap-3">
                                 <Link to={`/profile/${c.user_id}`} className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
-                                    {c.profile_pic_url ? <img src={`${BACKEND_URL}${c.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}
+                                    {c.profile_pic_url ? <img src={`${c.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}
                                 </Link>
                                 <div className="flex-1">
                                     <p className="text-zinc-400 text-xs font-bold mb-0.5">{c.username}</p>
@@ -210,7 +210,7 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
 
                     <form onSubmit={submitComment} className="p-3 border-t border-zinc-800 bg-zinc-950 flex gap-3 pb-8 sm:pb-4">
                         <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
-                            {currentUserInfo?.profile_pic_url ? <img src={`${BACKEND_URL}${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={20} className="m-auto mt-2.5 text-zinc-500" />}
+                            {currentUserInfo?.profile_pic_url ? <img src={`${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={20} className="m-auto mt-2.5 text-zinc-500" />}
                         </div>
                         <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-4 text-white outline-none focus:border-blue-500 transition" />
                         <button type="submit" disabled={!newComment.trim()} className="bg-blue-600 text-white p-2.5 rounded-full disabled:opacity-50"><Send size={18} /></button>

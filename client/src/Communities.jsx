@@ -168,7 +168,7 @@ function Communities({ themeColor }) {
                                         <div key={friend.id} className="flex items-center justify-between bg-zinc-900 p-3 rounded-xl border border-zinc-800">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">
-                                                    {friend.profile_pic_url ? <img src={`${BACKEND_URL}${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}
+                                                    {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}
                                                 </div>
                                                 <span className="text-white font-bold text-sm">{friend.username}</span>
                                             </div>
@@ -237,13 +237,13 @@ function Communities({ themeColor }) {
                             <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/50 transition">
                                 <div className="flex items-center gap-2 mb-2">
                                     <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800">
-                                        {post.profile_pic_url ? <img src={`${BACKEND_URL}${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-zinc-500 text-xs">{post.username.charAt(0).toUpperCase()}</div>}
+                                        {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-zinc-500 text-xs">{post.username.charAt(0).toUpperCase()}</div>}
                                     </div>
                                     <Link to={`/profile/${post.user_id}`} className="text-sm font-bold text-white hover:underline">{post.username}</Link>
                                     <span className="text-xs text-zinc-600">• {formatTimeFriendly(post.created_at)}</span>
                                 </div>
                                 <p className="text-zinc-200 text-[15px] mb-3 leading-relaxed break-words whitespace-pre-wrap">{post.content}</p>
-                                {post.image_url && <img onClick={() => setViewingImage(`${BACKEND_URL}${post.image_url}`)} src={`${BACKEND_URL}${post.image_url}`} className="rounded-xl border border-zinc-800 max-h-80 w-auto object-cover cursor-pointer hover:opacity-90 transition"/>}
+                                {post.image_url && <img onClick={() => setViewingImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-xl border border-zinc-800 max-h-80 w-auto object-cover cursor-pointer hover:opacity-90 transition"/>}
                                 
                                 {/* ACTION BUTTONS */}
                                 <div className="flex items-center justify-between text-zinc-500 mt-2 max-w-sm pr-4">
@@ -273,7 +273,7 @@ function Communities({ themeColor }) {
                                             {commentsData[post.id] && commentsData[post.id].map(comment => (
                                                 <div key={comment.id} className="flex gap-3">
                                                     <Link to={`/profile/${comment.user_id}`} className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
-                                                        {comment.profile_pic_url ? <img src={`${BACKEND_URL}${comment.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}
+                                                        {comment.profile_pic_url ? <img src={`${comment.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}
                                                     </Link>
                                                     <div className="bg-zinc-900/50 p-3 rounded-2xl rounded-tl-sm w-full border border-zinc-800/50">
                                                         <div className="flex items-center gap-2 mb-1"><Link to={`/profile/${comment.user_id}`} className="font-bold text-white text-sm hover:underline">{comment.username}</Link><span className="text-zinc-600 text-xs">{formatTimeFriendly(comment.created_at)}</span></div>
