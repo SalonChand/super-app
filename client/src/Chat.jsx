@@ -5,14 +5,14 @@ import { Link } from 'react-router-dom';
 import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const socket = io('https://superapp-backend-6106.onrender.com');
+const socket = io(BACKEND_URL);
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
 function Chat({ themeColor }) {
     const userId = parseInt(localStorage.getItem('userId'));
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const [friends, setFriends] = useState([]);
-    const [requests, setRequests] = useState([]);
+    const[requests, setRequests] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const[messages, setMessages] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
@@ -23,17 +23,17 @@ function Chat({ themeColor }) {
     const[forwardingMessage, setForwardingMessage] = useState(null);
     const [hoveredMessageId, setHoveredMessageId] = useState(null);
     const [uploadingMedia, setUploadingMedia] = useState(false);
-    const [showGameMenu, setShowGameMenu] = useState(false);
+    const[showGameMenu, setShowGameMenu] = useState(false);
 
     const imageInputRef = useRef(null);
     const cameraInputRef = useRef(null);
     const docInputRef = useRef(null);
     
-    const [receivingCall, setReceivingCall] = useState(false);
+    const[receivingCall, setReceivingCall] = useState(false);
     const[callerInfo, setCallerInfo] = useState(null);
     const [callAccepted, setCallAccepted] = useState(false);
     const [activeCall, setActiveCall] = useState(false); 
-    const[isVideoCall, setIsVideoCall] = useState(false);
+    const [isVideoCall, setIsVideoCall] = useState(false);
     const [micEnabled, setMicEnabled] = useState(true);
     const [cameraEnabled, setCameraEnabled] = useState(true);
 
@@ -51,7 +51,7 @@ function Chat({ themeColor }) {
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
     const [isRecording, setIsRecording] = useState(false);
-    const [recordingDuration, setRecordingDuration] = useState(0);
+    const[recordingDuration, setRecordingDuration] = useState(0);
 
     const loadInbox = () => {
         axios.get(`${BACKEND_URL}/api/friends/list/${userId}`).then(res => {
@@ -108,7 +108,7 @@ function Chat({ themeColor }) {
         socket.on('call_ended', handleCallEnded);
         
         return () => { socket.off('message_updated', handleMessageUpdate); socket.off('incoming_call', handleIncomingCall); socket.off('call_accepted', handleCallAccepted); socket.off('ice_candidate', handleIceCandidate); socket.off('call_ended', handleCallEnded); };
-    }, [selectedUser, activeCall, receivingCall]);
+    },[selectedUser, activeCall, receivingCall]);
 
     const handleSelectUser = async (friend) => {
         setSelectedUser(friend);
@@ -150,7 +150,7 @@ function Chat({ themeColor }) {
     const handleGameMove = (msgId, index, gameType, choice = null) => { socket.emit('play_game_move', { messageId: msgId, index: index, userId: userId, gameType: gameType, choice: choice }); };
 
     // ===============================================
-    // 🔥 UPDATED WEBRTC ENGINE (WITH DETAILED HARDWARE ERROR CATCHING) 🔥
+    // 🔥 IPHONE / ANDROID CAMERA BUG FIX 🔥
     // ===============================================
     const initPeerConnection = () => { 
         const pc = new RTCPeerConnection({ iceServers:[{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }] }); 
@@ -162,7 +162,10 @@ function Chat({ themeColor }) {
     const startCall = async (video = false) => { 
         setIsVideoCall(video); isVideoCallRef.current = video; setActiveCall(true); isCallerRef.current = true; callStartTimeRef.current = null; pendingIceCandidates.current =[]; 
         try { 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: true }); 
+            // 🔥 THE FIX: Explicitly request ONLY audio if video is false! 🔥
+            const constraints = video ? { video: true, audio: true } : { video: false, audio: true };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints); 
+            
             setMyStream(stream); 
             const pc = initPeerConnection(); peerConnectionRef.current = pc; 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
@@ -170,7 +173,6 @@ function Chat({ themeColor }) {
             socket.emit('call_user', { userToCall: selectedUser.id, signalData: offer, from: userId, callerName: currentUserInfo?.username || "Unknown", isVideo: video }); 
         } catch (err) { 
             console.error("Start Call Error:", err); 
-            // 🔥 IT WILL NOW TELL YOU EXACTLY WHY YOUR PHONE DENIED IT! 🔥
             alert(`Hardware Error: ${err.name}\n${err.message}\n\nPlease check browser settings or close other apps using the camera.`); 
             setActiveCall(false); 
         } 
@@ -179,7 +181,10 @@ function Chat({ themeColor }) {
     const answerCall = async () => { 
         setCallAccepted(true); setActiveCall(true); setReceivingCall(false); isCallerRef.current = false; callStartTimeRef.current = Date.now(); pendingIceCandidates.current =[]; 
         try { 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: isVideoCall, audio: true }); 
+            // 🔥 THE FIX: Match the caller's media type exactly! 🔥
+            const constraints = isVideoCall ? { video: true, audio: true } : { video: false, audio: true };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints); 
+            
             setMyStream(stream); 
             const pc = initPeerConnection(); peerConnectionRef.current = pc; 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
@@ -188,7 +193,6 @@ function Chat({ themeColor }) {
             socket.emit('answer_call', { signal: answer, to: callerInfo.from }); 
         } catch (err) { 
             console.error("Answer Call Error:", err); 
-            // 🔥 IT WILL NOW TELL YOU EXACTLY WHY YOUR PHONE DENIED IT! 🔥
             alert(`Hardware Error: ${err.name}\n${err.message}`); 
             handleHangUp(true); 
         } 
@@ -230,10 +234,7 @@ function Chat({ themeColor }) {
             };
             mediaRecorderRef.current.start(); setIsRecording(true); setRecordingDuration(0);
             timerRef.current = setInterval(() => { setRecordingDuration((prev) => prev + 1); }, 1000);
-        } catch (err) { 
-            console.error(err); 
-            alert(`Microphone Error: ${err.name}\n${err.message}`); 
-        }
+        } catch (err) { console.error(err); alert(`Microphone Error: ${err.name}\n${err.message}`); }
     };
     const stopAndSendRecording = () => { if (mediaRecorderRef.current && isRecording) { mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); clearInterval(timerRef.current); setIsRecording(false); } };
     const cancelRecording = () => { if (mediaRecorderRef.current && isRecording) { setIsRecording(false); mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); clearInterval(timerRef.current); } };
@@ -249,7 +250,27 @@ function Chat({ themeColor }) {
     }
 
     if (activeCall) {
-        return ( <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col"><div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden"><video playsInline ref={remoteVideoRef} autoPlay className="absolute inset-0 w-full h-full object-cover" />{!isVideoCall && (<div className="flex flex-col items-center z-10"><div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border border-zinc-700"><User size={50} className="text-zinc-500" /></div><h2 className="text-white text-2xl font-bold">{callerInfo?.callerName || selectedUser?.username}</h2><p className="text-green-400 animate-pulse mt-2">Connected</p></div>)}{isVideoCall && (<div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl z-20"><video playsInline muted ref={myVideoRef} autoPlay className="w-full h-full object-cover transform -scale-x-100" /></div>)}</div><div className="h-28 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center gap-6 pb-safe"><button onClick={toggleMic} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${micEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{micEnabled ? <Mic size={24} /> : <MicOff size={24} />}</button><button onClick={() => handleHangUp(true)} className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/30 transition hover:scale-105"><PhoneOff size={28} /></button>{isVideoCall && (<button onClick={toggleCamera} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${cameraEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{cameraEnabled ? <Camera size={24} /> : <CameraOff size={24} />}</button>)}</div></div> );
+        return ( 
+            <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col">
+                <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+                    <video playsInline ref={remoteVideoRef} autoPlay className="absolute inset-0 w-full h-full object-cover" />
+                    {!isVideoCall && (
+                        <div className="flex flex-col items-center z-10"><div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border border-zinc-700"><User size={50} className="text-zinc-500" /></div><h2 className="text-white text-2xl font-bold">{callerInfo?.callerName || selectedUser?.username}</h2><p className="text-green-400 animate-pulse mt-2">Connected</p></div>
+                    )}
+                    {isVideoCall && myStream && (
+                        <div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl z-20">
+                            {/* 🔥 Muted local video stream ensures no echo! 🔥 */}
+                            <video playsInline muted ref={myVideoRef} autoPlay className="w-full h-full object-cover transform -scale-x-100" />
+                        </div>
+                    )}
+                </div>
+                <div className="h-28 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center gap-6 pb-safe">
+                    <button onClick={toggleMic} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${micEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{micEnabled ? <Mic size={24} /> : <MicOff size={24} />}</button>
+                    <button onClick={() => handleHangUp(true)} className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/30 transition hover:scale-105"><PhoneOff size={28} /></button>
+                    {isVideoCall && (<button onClick={toggleCamera} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${cameraEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{cameraEnabled ? <Camera size={24} /> : <CameraOff size={24} />}</button>)}
+                </div>
+            </div> 
+        );
     }
 
     if (selectedUser) {
@@ -352,7 +373,7 @@ function Chat({ themeColor }) {
                 
                 <div className="absolute bottom-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col z-20">
                     {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: themeColor }}><div><p className="text-xs font-bold" style={{ color: themeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate max-w-[250px]">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1"><X size={18}/></button></div> ) : null}
-                    {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: themeColor }}>Uploading file...</p>}
+                    {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: themeColor }}>Uploading...</p>}
                     
                     <form onSubmit={sendMessage} className="flex gap-2 items-center w-full p-3 pt-2">
                         {isRecording ? (
