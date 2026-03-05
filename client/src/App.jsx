@@ -18,21 +18,17 @@ import Notifications from './Notifications';
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const globalSocket = io(BACKEND_URL); 
 const EMPTY_ARRAY = new Array();
-const THEME_COLOR = '#3b82f6'; 
 
-// ========================================================
-// 🔥 NEW: THE NATIVE MOBILE SPLASH SCREEN 🔥
-// ========================================================
 function SplashScreen() {
     return (
         <div className="fixed inset-0 z-[999] bg-black flex flex-col items-center justify-center animate-fade-out" style={{ animationDelay: '1.5s', animationFillMode: 'forwards' }}>
             <img src="/logo.png" alt="SuperApp" className="w-24 h-24 rounded-2xl object-cover animate-pulse shadow-[0_0_40px_rgba(59,130,246,0.6)]" />
-            <h1 className="text-white font-extrabold text-3xl mt-4 tracking-tight" style={{ color: THEME_COLOR }}>SuperApp</h1>
+            <h1 className="text-white font-extrabold text-3xl mt-4 tracking-tight text-blue-500">SuperApp</h1>
+            <p className="text-zinc-500 text-sm font-medium mt-2 tracking-widest uppercase">From Nepal</p>
         </div>
     );
 }
 
-// Audio & Push Notification Setup
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -70,17 +66,13 @@ function AppContent() {
   const location = useLocation();
   const[mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [badges, setBadges] = useState({ unread_messages: 0, pending_requests: 0, total_notifications: 0 });
-  
-  // 🔥 SPLASH SCREEN TIMER STATE 🔥
-  const [showSplash, setShowSplash] = useState(true);
+  const[showSplash, setShowSplash] = useState(true);
 
   const userThemeColor = currentUser?.theme_color || '#3b82f6';
 
   const fetchBadges = () => {
       if (currentUserId) {
-          axios.get(`${BACKEND_URL}/api/activity/${currentUserId}`)
-               .then(res => setBadges(res.data))
-               .catch(e => console.error(e));
+          axios.get(`${BACKEND_URL}/api/activity/${currentUserId}`).then(res => setBadges(res.data)).catch(e => console.error(e));
       }
   };
 
@@ -114,14 +106,11 @@ function AppContent() {
   }, audioDeps);
 
   useEffect(() => {
-    // 🔥 Remove the Splash Screen exactly 2 seconds after the app loads! 🔥
     const timer = setTimeout(() => { setShowSplash(false); }, 2000);
-    
     if (currentUserId) { 
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`).then(res => setCurrentUser(res.data)).catch(err => console.error(err)); 
         fetchBadges();
     }
-    
     return () => clearTimeout(timer);
   },[currentUserId]);
   
@@ -130,7 +119,6 @@ function AppContent() {
   return (
       <div className="min-h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-x-hidden">
         
-        {/* 🔥 THE SPLASH SCREEN LAYER 🔥 */}
         {showSplash && <SplashScreen />}
 
         {/* DESKTOP SIDEBAR */}
@@ -144,12 +132,12 @@ function AppContent() {
             {currentUserId && (
                 <>
                     <NavItem to="/" icon={Home} label="Home" themeColor={userThemeColor} />
-                    <NavItem to="/search" icon={SearchIcon} label="Explore" themeColor={userThemeColor} />
-                    <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
-                    <NavItem to="/friends" onClick={clearFriendsBadge} icon={Users} label="Friends" badgeCount={badges.pending_requests} themeColor={userThemeColor} />
                     <NavItem to="/reels" icon={Clapperboard} label="Watch" themeColor={userThemeColor} />
+                    <NavItem to="/friends" onClick={clearFriendsBadge} icon={Users} label="Friends" badgeCount={badges.pending_requests} themeColor={userThemeColor} />
                     <NavItem to="/chat" onClick={clearChatBadge} icon={MessageCircle} label="Messages" badgeCount={badges.unread_messages} themeColor={userThemeColor} />
                     <NavItem to="/notifications" onClick={clearNotifications} icon={Bell} label="Notifications" badgeCount={badges.total_notifications} themeColor={userThemeColor} />
+                    <NavItem to="/search" icon={SearchIcon} label="Explore" themeColor={userThemeColor} />
+                    <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
                 </>
             )}
@@ -171,8 +159,8 @@ function AppContent() {
           )}
         </header>
 
-        {/* MAIN CONTENT AREA */}
-        <main className="w-full max-w-[600px] border-x border-zinc-800 min-h-screen relative bg-black">
+        {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
+        <main className="w-full max-w-[600px] border-x border-zinc-800 min-h-screen relative bg-black pb-[70px] sm:pb-0">
           {location.pathname !== '/reels' && (
               <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">
@@ -200,7 +188,6 @@ function AppContent() {
           </Routes>
         </main>
 
-        {/* MOBILE HAMBURGER MENU */}
         {mobileMenuOpen && (
             <div className="fixed inset-0 z-50 flex sm:hidden">
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setMobileMenuOpen(false)}></div>
@@ -218,8 +205,8 @@ function AppContent() {
             </div>
         )}
 
-        {/* 🔥 MOBILE NAV (6 ICONS, WITH NOTIFICATIONS BETWEEN CHAT & PROFILE) 🔥 */}
-        <nav className="sm:hidden fixed bottom-0 w-full bg-black border-t border-zinc-800 flex justify-around items-center px-1 py-3 pb-safe z-30">
+        {/* 🔥 MOBILE BOTTOM NAV (ABSOLUTELY FIXED TO SCREEN BOTTOM) 🔥 */}
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-zinc-800 flex justify-around items-center px-1 py-3 pb-safe z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
           {currentUserId ? (
               <>
                   <Link to="/" className="p-1.5 transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#a1a1aa' }}><Home size={22} /></Link>
@@ -232,8 +219,6 @@ function AppContent() {
                       <MessageCircle size={22} />
                       {badges.unread_messages > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
                   </Link>
-
-                  {/* 🔥 NEW: NOTIFICATIONS ICON 🔥 */}
                   <Link to="/notifications" onClick={clearNotifications} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#a1a1aa' }}>
                       <Bell size={22} />
                       {badges.total_notifications > 0 && (
@@ -242,7 +227,6 @@ function AppContent() {
                           </span>
                       )}
                   </Link> 
-
                   <Link to={`/profile/${currentUserId}`} className="p-1.5 flex items-center justify-center">
                     {currentUser?.profile_pic_url ? ( 
                         <img src={`${currentUser.profile_pic_url}`} className="w-[26px] h-[26px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
