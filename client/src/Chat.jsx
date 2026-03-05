@@ -4,16 +4,16 @@ import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
 import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
 
-// Make sure to use your Render URL here!
+// 🔥 EXPLICIT RENDER URLS 🔥
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const socket = io(BACKEND_URL);
+const socket = io('https://superapp-backend-6106.onrender.com');
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
 function Chat({ themeColor }) {
     const userId = parseInt(localStorage.getItem('userId'));
-    const [currentUserInfo, setCurrentUserInfo] = useState(null);
+    const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const [friends, setFriends] = useState([]);
-    const [requests, setRequests] = useState([]);
+    const[requests, setRequests] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [messages, setMessages] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
@@ -21,16 +21,16 @@ function Chat({ themeColor }) {
     const [viewingImage, setViewingImage] = useState(null);
 
     const[replyingTo, setReplyingTo] = useState(null);
-    const [forwardingMessage, setForwardingMessage] = useState(null);
+    const[forwardingMessage, setForwardingMessage] = useState(null);
     const [hoveredMessageId, setHoveredMessageId] = useState(null);
     const[uploadingMedia, setUploadingMedia] = useState(false);
-    const [showGameMenu, setShowGameMenu] = useState(false);
+    const[showGameMenu, setShowGameMenu] = useState(false);
 
     const imageInputRef = useRef(null);
     const cameraInputRef = useRef(null);
     const docInputRef = useRef(null);
     
-    // 🔥 UPGRADED WEBRTC CALLING STATES 🔥
+    // WEBRTC CALLING STATES
     const[receivingCall, setReceivingCall] = useState(false);
     const [callerInfo, setCallerInfo] = useState(null);
     const [callAccepted, setCallAccepted] = useState(false);
@@ -41,7 +41,6 @@ function Chat({ themeColor }) {
 
     const myVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
-    // State to force re-render of local video tag!
     const[myStream, setMyStream] = useState(null);
     const peerConnectionRef = useRef(null);
 
@@ -50,7 +49,6 @@ function Chat({ themeColor }) {
     const isVideoCallRef = useRef(false);
     const pendingIceCandidates = useRef([]);
 
-    // VOICE RECORDER STATES
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
@@ -59,7 +57,6 @@ function Chat({ themeColor }) {
 
     const loadInbox = () => {
         axios.get(`${BACKEND_URL}/api/friends/list/${userId}`).then(res => {
-            // Filter out any duplicate friends manually just in case!
             const uniqueFriends = Array.from(new Set(res.data.map(a => a.id))).map(id => res.data.find(a => a.id === id));
             setFriends(uniqueFriends);
         }).catch(err => console.error(err));
@@ -83,14 +80,13 @@ function Chat({ themeColor }) {
     
     const chatDeps = Array.of(selectedUser ? selectedUser.id : null);
     useEffect(() => { loadMessages(); }, chatDeps);
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); },[messages]);
 
-    // 🔥 FIX 1: Attach local stream immediately when state changes!
     useEffect(() => {
         if (activeCall && myVideoRef.current && myStream) {
             myVideoRef.current.srcObject = myStream;
         }
-    }, [activeCall, myStream]);
+    },[activeCall, myStream]);
 
     useEffect(() => {
         const handleMessageUpdate = () => { loadMessages(); loadInbox(); };
@@ -114,7 +110,7 @@ function Chat({ themeColor }) {
         socket.on('call_ended', handleCallEnded);
         
         return () => { socket.off('message_updated', handleMessageUpdate); socket.off('incoming_call', handleIncomingCall); socket.off('call_accepted', handleCallAccepted); socket.off('ice_candidate', handleIceCandidate); socket.off('call_ended', handleCallEnded); };
-    }, [selectedUser, activeCall, receivingCall]);
+    },[selectedUser, activeCall, receivingCall]);
 
     const handleSelectUser = async (friend) => {
         setSelectedUser(friend);
@@ -186,40 +182,20 @@ function Chat({ themeColor }) {
     const executeForward = (targetFriendId) => { socket.emit('send_private_message', { senderId: userId, receiverId: targetFriendId, content: forwardingMessage.content, media_url: forwardingMessage.media_url, media_type: forwardingMessage.media_type, isForwarded: true }); setForwardingMessage(null); alert("Message forwarded!"); };
     const deleteMessage = (msgId) => { if(window.confirm("Delete this message for everyone?")) { socket.emit('delete_message', { messageId: msgId, senderId: userId, receiverId: selectedUser.id }); setHoveredMessageId(null); } };
 
-    // ===============================================
-    // 🔥 FIX 2: UPGRADED WEBRTC ENGINE 🔥
-    // ===============================================
     const initPeerConnection = () => { 
-        // We added Twilio's open TURN servers to force audio through mobile firewalls!
-        const pc = new RTCPeerConnection({ 
-            iceServers:[
-                { urls: 'stun:stun.l.google.com:19302' }, 
-                { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }
-            ] 
-        }); 
-        pc.onicecandidate = (event) => { 
-            if (event.candidate) { 
-                const sendTo = callerInfo ? callerInfo.from : selectedUser.id; 
-                socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); 
-            } 
-        }; 
-        pc.ontrack = (event) => { 
-            if (remoteVideoRef.current) { 
-                remoteVideoRef.current.srcObject = event.streams[0]; 
-            } 
-        }; 
+        const pc = new RTCPeerConnection({ iceServers:[{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }] }); 
+        pc.onicecandidate = (event) => { if (event.candidate) { const sendTo = callerInfo ? callerInfo.from : selectedUser.id; socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); } }; 
+        pc.ontrack = (event) => { if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; } }; 
         return pc; 
     };
-
+    
     const startCall = async (video = false) => { 
         setIsVideoCall(video); isVideoCallRef.current = video; setActiveCall(true); isCallerRef.current = true; callStartTimeRef.current = null; pendingIceCandidates.current =[]; 
         try { 
             const stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: true }); 
-            setMyStream(stream); // Set state immediately!
-            
+            setMyStream(stream); 
             const pc = initPeerConnection(); peerConnectionRef.current = pc; 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
-            
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer); 
             socket.emit('call_user', { userToCall: selectedUser.id, signalData: offer, from: userId, callerName: currentUserInfo?.username || "Unknown", isVideo: video }); 
         } catch (err) { console.error(err); alert("Camera/Mic permission denied."); setActiveCall(false); } 
@@ -229,11 +205,9 @@ function Chat({ themeColor }) {
         setCallAccepted(true); setActiveCall(true); setReceivingCall(false); isCallerRef.current = false; callStartTimeRef.current = Date.now(); pendingIceCandidates.current =[]; 
         try { 
             const stream = await navigator.mediaDevices.getUserMedia({ video: isVideoCall, audio: true }); 
-            setMyStream(stream); // Set state immediately!
-            
+            setMyStream(stream); 
             const pc = initPeerConnection(); peerConnectionRef.current = pc; 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
-            
             await pc.setRemoteDescription(new RTCSessionDescription(callerInfo.signal)); 
             const answer = await pc.createAnswer(); await pc.setLocalDescription(answer); 
             socket.emit('answer_call', { signal: answer, to: callerInfo.from }); 
@@ -265,19 +239,15 @@ function Chat({ themeColor }) {
             <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col">
                 <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
                     <video playsInline ref={remoteVideoRef} autoPlay className="absolute inset-0 w-full h-full object-cover" />
-                    
                     {!isVideoCall && (
                         <div className="flex flex-col items-center z-10"><div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border border-zinc-700"><User size={50} className="text-zinc-500" /></div><h2 className="text-white text-2xl font-bold">{callerInfo?.callerName || selectedUser?.username}</h2><p className="text-green-400 animate-pulse mt-2">Connected</p></div>
                     )}
-                    
-                    {/* 🔥 FIX: Local video frame guarantees it re-renders because it uses 'myStream' directly 🔥 */}
                     {isVideoCall && myStream && (
                         <div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl z-20">
                             <video playsInline muted ref={myVideoRef} autoPlay className="w-full h-full object-cover transform -scale-x-100" />
                         </div>
                     )}
                 </div>
-                
                 <div className="h-28 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center gap-6 pb-safe">
                     <button onClick={toggleMic} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${micEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{micEnabled ? <Mic size={24} /> : <MicOff size={24} />}</button>
                     <button onClick={() => handleHangUp(true)} className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/30 transition hover:scale-105"><PhoneOff size={28} /></button>
@@ -294,7 +264,7 @@ function Chat({ themeColor }) {
         return (
             <div className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full relative bg-black">
                 {viewingImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
-                {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${BACKEND_URL}${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><span className="text-white font-bold">{friend.username}</span><Send size={18} className="ml-auto" style={{ color: themeColor }} /></div>))}</div></div> ) : null}
+                {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${BACKEND_URL}${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><span className="text-white font-bold">{friend.username}</span><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
 
                 <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
