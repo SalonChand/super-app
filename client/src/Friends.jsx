@@ -21,8 +21,25 @@ function Friends() {
     const acceptRequest = (requesterId) => {
         axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: requesterId, receiver_id: currentUserId }).then(() => loadFriendsData()).catch(err => console.error(err));
     };
-    const sendRequest = (receiverId) => {
-        axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: receiverId }).then(() => loadFriendsData()).catch(err => console.error(err));
+    const sendRequest = async (receiverId) => {
+        try {
+            const reqId = parseInt(currentUserId);
+            const recId = parseInt(receiverId);
+            
+            console.log(`Attempting to send request from ${reqId} to ${recId}...`);
+            
+            const res = await axios.post(`${BACKEND_URL}/api/friends/request`, { 
+                requester_id: reqId, 
+                receiver_id: recId 
+            });
+            
+            console.log("Response:", res.data);
+            loadFriendsData(); // Refresh the list to remove them from Explore!
+            
+        } catch (err) {
+            console.error("Full Error Object:", err);
+            alert(`Failed to send request: ${err.response?.data?.error || err.message}`);
+        }
     };
 
     if (!currentUserId) return <div className="p-8 text-center text-zinc-500">Please log in.</div>;

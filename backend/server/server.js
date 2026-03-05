@@ -149,7 +149,25 @@ app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId 
 app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
 
 // CONNECTIONS
-app.post('/api/friends/request', async (req, res) => { try { await pool.query('INSERT INTO connections (requester_id, receiver_id, status) VALUES (?, ?, "pending")',[req.body.requester_id, req.body.receiver_id]); io.to(req.body.receiver_id.toString()).emit('activity_updated'); res.json({ message: "Request sent!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/friends/request', async (req, res) => { 
+    try { 
+        const { requester_id, receiver_id } = req.body;
+        
+        // Prevent users from sending requests to themselves!
+        if (requester_id === receiver_id) {
+             return res.status(400).json({ error: "You cannot friend yourself." });
+        }
+
+        // INSERT IGNORE prevents a crash if they already sent a request!
+        await pool.query('INSERT IGNORE INTO connections (requester_id, receiver_id, status) VALUES (?, ?, "pending")', [requester_id, receiver_id]); 
+        
+        io.to(receiver_id.toString()).emit('activity_updated'); 
+        res.status(201).json({ message: "Request sent!" }); 
+    } catch (err) { 
+        console.error("🔥 Friend Request Error:", err.message);
+        res.status(500).json({ error: "Failed to send request. Check server logs." }); 
+    } 
+});
 app.post('/api/friends/remove', async (req, res) => { try { const { user1, user2 } = req.body; await pool.query(`DELETE FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); io.to(user1.toString()).emit('activity_updated'); io.to(user2.toString()).emit('activity_updated'); res.json({ message: "Unfriended" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/friends/accept', async (req, res) => { try { await pool.query('UPDATE connections SET status = "accepted" WHERE requester_id = ? AND receiver_id = ?',[req.body.requester_id, req.body.receiver_id]); await pool.query('UPDATE messages SET is_request = false WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',[req.body.requester_id, req.body.receiver_id, req.body.receiver_id, req.body.requester_id]); io.to(req.body.requester_id.toString()).emit('activity_updated'); res.json({ message: "Request accepted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/status/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const[connections] = await pool.query(`SELECT * FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); if (connections.length === 0) return res.json({ status: 'none' }); const conn = connections[0]; if (conn.status === 'accepted') return res.json({ status: 'friends' }); if (conn.requester_id == user1) return res.json({ status: 'sent_request' }); return res.json({ status: 'received_request', requester_id: conn.requester_id }); } catch (err) { res.status(500).json({ error: "Server error." }); } });

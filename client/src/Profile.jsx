@@ -44,8 +44,28 @@ function Profile() {
 
     useEffect(() => { loadProfileData(); }, [id]);
 
-    const sendFriendRequest = () => axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: id }).then(() => setFriendStatus('sent_request'));
-    const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
+const sendFriendRequest = async () => {
+        try {
+            // Force them to be numbers, just in case localStorage saved them weirdly!
+            const reqId = parseInt(currentUserId);
+            const recId = parseInt(id);
+            
+            console.log(`Attempting to send request from ${reqId} to ${recId}...`);
+            
+            const res = await axios.post(`${BACKEND_URL}/api/friends/request`, { 
+                requester_id: reqId, 
+                receiver_id: recId 
+            });
+            
+            console.log("Response:", res.data);
+            setFriendStatus('sent_request');
+            
+        } catch (err) {
+            console.error("Full Error Object:", err);
+            alert(`Failed to send request: ${err.response?.data?.error || err.message}`);
+        }
+    };
+        const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
     
     // 🔥 NEW: UNFRIEND LOGIC 🔥
     const unfriendUser = () => {
