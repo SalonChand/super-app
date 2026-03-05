@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, Lock, X, Music, Settings as SettingsIcon } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, Lock, X, Music, Settings as SettingsIcon, Image as ImageIcon } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+const EMPTY_ARRAY = new Array();
 
-function Profile() {
+function Profile({ themeColor }) {
     const { id } = useParams(); 
     const currentUserId = localStorage.getItem('userId');
     const isMyProfile = id === currentUserId; 
@@ -23,9 +24,15 @@ function Profile() {
     const[editCover, setEditCover] = useState(null); 
     const[editAnthem, setEditAnthem] = useState(''); 
     
+    // 🔥 POST CREATION STATES 🔥
+    const[newPost, setNewPost] = useState('');
+    const[selectedImage, setSelectedImage] = useState(null); 
+    const[previewUrl, setPreviewUrl] = useState(null); 
     const fileInputRef = useRef(null);
     const avatarInputRef = useRef(null);
     const coverInputRef = useRef(null); 
+
+    const deps = Array.of(id);
 
     const loadProfileData = () => {
         if (!id || id === 'undefined') { setErrorMessage("Invalid User ID"); return; }
@@ -44,30 +51,9 @@ function Profile() {
 
     useEffect(() => { loadProfileData(); }, [id]);
 
-const sendFriendRequest = async () => {
-        try {
-            // Force them to be numbers, just in case localStorage saved them weirdly!
-            const reqId = parseInt(currentUserId);
-            const recId = parseInt(id);
-            
-            console.log(`Attempting to send request from ${reqId} to ${recId}...`);
-            
-            const res = await axios.post(`${BACKEND_URL}/api/friends/request`, { 
-                requester_id: reqId, 
-                receiver_id: recId 
-            });
-            
-            console.log("Response:", res.data);
-            setFriendStatus('sent_request');
-            
-        } catch (err) {
-            console.error("Full Error Object:", err);
-            alert(`Failed to send request: ${err.response?.data?.error || err.message}`);
-        }
-    };
-        const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
+    const sendFriendRequest = () => axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: id }).then(() => setFriendStatus('sent_request'));
+    const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
     
-    // 🔥 NEW: UNFRIEND LOGIC 🔥
     const unfriendUser = () => {
         if(window.confirm(`Are you sure you want to unfriend ${profileData.username}?`)) {
             axios.post(`${BACKEND_URL}/api/friends/remove`, { user1: currentUserId, user2: id })
@@ -97,11 +83,33 @@ const sendFriendRequest = async () => {
         return <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-pink-500 hover:underline my-2 bg-zinc-900 w-fit p-2 rounded-full px-4"><Music size={16} /> Play Profile Anthem</a>;
     };
 
+    // 🔥 HANDLE POST CREATION 🔥
+    const handleImageSelect = (e) => { 
+        const file = e.target.files[0]; 
+        if (file) { setSelectedImage(file); setPreviewUrl(URL.createObjectURL(file)); } 
+    };
+    const removeImage = () => { 
+        setSelectedImage(null); setPreviewUrl(null); 
+        if (fileInputRef.current) fileInputRef.current.value = ''; 
+    };
+    const handlePost = async (e) => {
+        e.preventDefault(); 
+        if (!newPost.trim() && !selectedImage) return; 
+        try {
+            const formData = new FormData(); 
+            formData.append('user_id', currentUserId); 
+            formData.append('content', newPost);
+            if (selectedImage) formData.append('image', selectedImage);
+            await axios.post(`${BACKEND_URL}/api/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setNewPost(''); removeImage(); loadProfileData(); 
+        } catch (error) { console.error("Error creating post:", error); }
+    };
+
     if (errorMessage) return <div className="text-center p-10 mt-20 border border-red-500/50 bg-red-500/10 rounded-2xl m-4"><h3 className="text-red-500 font-bold text-xl mb-2">Oops! Something broke.</h3><p className="text-zinc-400">{errorMessage}</p></div>;
     if (!profileData) return <div className="text-white text-center p-10 mt-20 animate-pulse">Loading profile...</div>;
 
-    const avatarUrl = profileData.profile_pic_url ? `${profileData.profile_pic_url}` : null;
-    const coverUrl = profileData.cover_pic_url ? `${profileData.cover_pic_url}` : null;
+    const avatarUrl = profileData.profile_pic_url ? `${BACKEND_URL}${profileData.profile_pic_url}` : null;
+    const coverUrl = profileData.cover_pic_url ? `${BACKEND_URL}${profileData.cover_pic_url}` : null;
     const tempAvatarUrl = editAvatar ? URL.createObjectURL(editAvatar) : avatarUrl;
     const tempCoverUrl = editCover ? URL.createObjectURL(editCover) : coverUrl;
     
@@ -117,12 +125,14 @@ const sendFriendRequest = async () => {
                 </div>
             )}
 
+            {/* COVER PHOTO */}
             <div className="h-32 sm:h-48 w-full relative overflow-hidden bg-zinc-900">
                 {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-r from-blue-900 to-purple-900"></div>}
                 {isMyProfile && !isEditing && ( <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link> )}
                 {isEditing && ( <div onClick={() => coverInputRef.current.click()} className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer hover:bg-black/70 transition z-10"><Camera size={32} className="text-white drop-shadow-md" /><span className="text-white font-bold drop-shadow-md mt-1 text-sm">Edit Cover</span><input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => setEditCover(e.target.files[0])}/></div> )}
             </div>
 
+            {/* PROFILE INFO */}
             <div className="px-4 relative pb-4 border-b border-zinc-800">
                 <div className="flex justify-between items-start">
                     <div className="relative -mt-12 sm:-mt-16 w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-black bg-zinc-800 flex items-center justify-center overflow-hidden z-20">
@@ -132,15 +142,13 @@ const sendFriendRequest = async () => {
 
                     <div className="mt-3">
                         {isMyProfile ? (
-                            isEditing ? <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><Check size={18} /> Save</button>
+                            isEditing ? <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white font-bold py-1.5 px-4 rounded-full transition" style={{ backgroundColor: themeColor }}><Check size={18} /> Save</button>
                             : <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800"><Edit3 size={18} /> Edit Profile</button>
                         ) : (
                             <>
-                                {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>}
+                                {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white font-bold py-1.5 px-4 rounded-full transition" style={{ backgroundColor: themeColor }}><UserPlus size={18} /> Add Friend</button>}
                                 {friendStatus === 'sent_request' && <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed"><Clock size={18} className="text-zinc-400" /> Request Sent</button>}
-                                {friendStatus === 'received_request' && <button onClick={acceptFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserCheck size={18} /> Accept Request</button>}
-                                
-                                {/* 🔥 NEW: HOVER TO UNFRIEND BUTTON 🔥 */}
+                                {friendStatus === 'received_request' && <button onClick={acceptFriendRequest} className="flex items-center gap-2 text-white font-bold py-1.5 px-4 rounded-full transition" style={{ backgroundColor: themeColor }}><UserCheck size={18} /> Accept Request</button>}
                                 {friendStatus === 'friends' && (
                                     <button onClick={unfriendUser} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-green-500 font-bold py-1.5 px-4 rounded-full hover:text-red-500 hover:border-red-500 transition group">
                                         <UserCheck size={18} className="group-hover:hidden" />
@@ -173,6 +181,43 @@ const sendFriendRequest = async () => {
                 </div>
             </div>
 
+            {/* 🔥 FIX: POST CREATOR IS NOW GUARANTEED VISIBLE ON YOUR PROFILE! 🔥 */}
+            {isMyProfile && (
+                <div className="p-4 border-b border-zinc-800 bg-zinc-950/30 flex gap-4">
+                    <div className="w-12 h-12 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700">
+                        {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{profileData.username.charAt(0).toUpperCase()}</span>}
+                    </div>
+                    
+                    <form onSubmit={handlePost} className="w-full pt-1">
+                        <textarea 
+                            className="w-full bg-transparent text-xl text-white placeholder-zinc-500 outline-none resize-none overflow-hidden" 
+                            value={newPost} 
+                            onChange={(e) => setNewPost(e.target.value)} 
+                            placeholder="What's on your mind?" 
+                            rows="2" 
+                        />
+                        
+                        {previewUrl && (
+                            <div className="relative mt-2 mb-2 w-fit">
+                                <img src={previewUrl} className="max-h-64 rounded-2xl object-cover border border-zinc-700" />
+                                <button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full hover:bg-black transition"><X size={18} className="text-white" /></button>
+                            </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
+                            <div className="flex gap-4 text-zinc-400">
+                                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
+                                <button type="button" onClick={() => fileInputRef.current.click()} className="hover:text-white transition"><ImageIcon size={22} /></button>
+                            </div>
+                            <button type="submit" disabled={!newPost.trim() && !selectedImage} className="text-white font-bold py-1.5 px-6 rounded-full transition disabled:opacity-50" style={{ backgroundColor: themeColor }}>
+                                Post
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {/* User's Feed */}
             <div className="w-full">
                 <h3 className="p-4 font-bold text-lg border-b border-zinc-800">Posts</h3>
                 {displayedPosts.length === 0 ? <p className="text-zinc-500 text-center p-8">No posts yet.</p> : (
@@ -182,7 +227,7 @@ const sendFriendRequest = async () => {
                             <div className="w-full">
                                 <div className="flex items-center gap-2 mb-1"><span className="font-bold text-white">{post.username}</span><span className="text-zinc-500 text-sm">@{post.username.toLowerCase()}</span></div>
                                 <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{post.content}</p>
-                                {post.image_url && <img onClick={() => setViewingImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
+                                {post.image_url && <img onClick={() => setViewingImage(`${BACKEND_URL}${post.image_url}`)} src={`${BACKEND_URL}${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
                             </div>
                         </div>
                     ))
