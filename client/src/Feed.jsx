@@ -38,8 +38,12 @@ function Feed() {
 
     const[stories, setStories] = useState([]);
     const[viewingStory, setViewingStory] = useState(null); 
+    const[viewingStoryList, setViewingStoryList] = useState([]); // all stories for current user
+    const[viewingStoryIndex, setViewingStoryIndex] = useState(0);
     const[storyReply, setStoryReply] = useState(''); 
-    const[videoProgress, setVideoProgress] = useState(0); 
+    const[videoProgress, setVideoProgress] = useState(0);
+    const[editingStory, setEditingStory] = useState(null); // { id, caption }
+    const[storyMenuOpen, setStoryMenuOpen] = useState(false);
     
     const storyInputRef = useRef(null);
     const[draftFile, setDraftFile] = useState(null);
@@ -93,10 +97,37 @@ function Feed() {
     }, [viewingStory?.id]);
 
     const goToNextStory = () => {
-        setVideoProgress(0); 
-        const currentIndex = stories.findIndex(s => s.id === viewingStory.id);
-        if (currentIndex !== -1 && currentIndex + 1 < stories.length) setViewingStory(stories[currentIndex + 1]);
-        else setViewingStory(null); 
+        setVideoProgress(0);
+        const nextIndex = viewingStoryIndex + 1;
+        if (nextIndex < viewingStoryList.length) {
+            setViewingStoryIndex(nextIndex);
+            setViewingStory(viewingStoryList[nextIndex]);
+        } else setViewingStory(null);
+    };
+    const goToPrevStory = () => {
+        setVideoProgress(0);
+        const prevIndex = viewingStoryIndex - 1;
+        if (prevIndex >= 0) {
+            setViewingStoryIndex(prevIndex);
+            setViewingStory(viewingStoryList[prevIndex]);
+        }
+    };
+    const deleteStory = async (storyId) => {
+        if (!window.confirm('Delete this story?')) return;
+        try {
+            await axios.delete(`${BACKEND_URL}/api/stories/${storyId}`, { data: { userId } });
+            setStories(prev => prev.filter(s => s.id !== storyId));
+            goToNextStory();
+        } catch(e) { console.error(e); }
+    };
+    const saveStoryCaption = async () => {
+        if (!editingStory) return;
+        try {
+            await axios.put(`${BACKEND_URL}/api/stories/${editingStory.id}`, { userId, caption: editingStory.caption });
+            setStories(prev => prev.map(s => s.id === editingStory.id ? { ...s, caption: editingStory.caption } : s));
+            setViewingStory(prev => ({ ...prev, caption: editingStory.caption }));
+            setEditingStory(null);
+        } catch(e) { console.error(e); }
     };
 
     const handleVideoTimeUpdate = (e) => { setVideoProgress((e.target.currentTime / e.target.duration) * 100); };
@@ -205,40 +236,87 @@ function Feed() {
         stories.forEach(s => { if(!seenUsers.has(s.user_id)) { uniqueStories.push(s); seenUsers.add(s.user_id); } });
         uniqueStories.sort((a, b) => Number(a.user_has_viewed) > 0 ? 1 : -1);
     }
-    const openStoryViewer = (user_id) => { setVideoProgress(0); setViewingStory(stories.find(s => s.user_id === user_id)); };
+    const openStoryViewer = (user_id) => {
+        const userStories = stories.filter(s => s.user_id === user_id);
+        if (!userStories.length) return;
+        setViewingStoryList(userStories);
+        setViewingStoryIndex(0);
+        setViewingStory(userStories[0]);
+        setVideoProgress(0);
+        setStoryMenuOpen(false);
+    };
 
     return (
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
 
             {/* ===== STORY VIEWER MODAL ===== */}
             {viewingStory && (
-                <div className="fixed inset-0 bg-black z-50 flex items-center justify-center" onClick={goToNextStory}>
-                    <div className="relative w-full max-w-sm h-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                        {/* Progress bar */}
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-700 z-10">
-                            <div className="h-full bg-white transition-all duration-100" style={{ width: `${videoProgress}%` }} />
+                <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+                    {/* Left/Right tap zones */}
+                    <div className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer" onClick={goToPrevStory} />
+                    <div className="absolute inset-y-0 right-0 w-1/3 z-20 cursor-pointer" onClick={goToNextStory} />
+
+                    <div className="relative w-full max-w-sm h-full max-h-[90vh] flex flex-col">
+                        {/* Multi-segment progress bars */}
+                        <div className="absolute top-2 left-0 right-0 flex gap-1 px-2 z-30">
+                            {viewingStoryList.map((s, i) => (
+                                <div key={s.id} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
+                                    <div className="h-full bg-white rounded-full transition-all duration-100"
+                                        style={{ width: i < viewingStoryIndex ? '100%' : i === viewingStoryIndex ? (viewingStory.media_type === 'video' ? `${videoProgress}%` : '100%') : '0%' }} />
+                                </div>
+                            ))}
                         </div>
+
                         {/* Header */}
-                        <div className="absolute top-3 left-0 right-0 flex items-center justify-between px-4 z-10">
+                        <div className="absolute top-6 left-0 right-0 flex items-center justify-between px-4 z-30">
                             <Link to={`/profile/${viewingStory.user_id}`} className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
                                     {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white text-xs font-bold">{viewingStory.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
                                 <span className="text-white text-sm font-bold">{viewingStory.username}</span>
                             </Link>
-                            <button onClick={() => setViewingStory(null)} className="text-white"><X size={22} /></button>
+                            <div className="flex items-center gap-2">
+                                {/* Edit/Delete menu for own stories */}
+                                {viewingStory.user_id == userId && (
+                                    <div className="relative z-40">
+                                        <button onClick={(e) => { e.stopPropagation(); setStoryMenuOpen(p => !p); }} className="text-white p-1"><MoreHorizontal size={20} /></button>
+                                        {storyMenuOpen && (
+                                            <div className="absolute right-0 top-8 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden w-36" onClick={e => e.stopPropagation()}>
+                                                <button onClick={() => { setEditingStory({ id: viewingStory.id, caption: viewingStory.caption || '' }); setStoryMenuOpen(false); }}
+                                                    className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-white text-sm flex items-center gap-2"><Edit2 size={14}/> Edit Caption</button>
+                                                <button onClick={() => { deleteStory(viewingStory.id); setStoryMenuOpen(false); }}
+                                                    className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-red-400 text-sm flex items-center gap-2 border-t border-zinc-700"><Trash2 size={14}/> Delete</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <button onClick={() => { setViewingStory(null); setStoryMenuOpen(false); }} className="text-white"><X size={22} /></button>
+                            </div>
                         </div>
+
                         {/* Media */}
                         <div className="flex-1 flex items-center justify-center bg-black" style={{ filter: viewingStory.filter_css || 'none' }}>
                             {viewingStory.media_type === 'video'
-                                ? <video src={viewingStory.media_url} autoPlay className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
-                                : <img src={viewingStory.media_url} className="w-full h-full object-contain" />
+                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
+                                : <img key={viewingStory.id} src={viewingStory.media_url} className="w-full h-full object-contain" />
                             }
                         </div>
+
+                        {/* Edit caption inline */}
+                        {editingStory && editingStory.id === viewingStory.id && (
+                            <div className="absolute bottom-20 left-4 right-4 z-40 flex gap-2" onClick={e => e.stopPropagation()}>
+                                <input value={editingStory.caption} onChange={e => setEditingStory(p => ({...p, caption: e.target.value}))}
+                                    placeholder="Add a caption..." className="flex-1 bg-black/70 text-white placeholder-white/50 rounded-full px-4 py-2 text-sm outline-none border border-white/20" autoFocus />
+                                <button onClick={saveStoryCaption} className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-bold">Save</button>
+                                <button onClick={() => setEditingStory(null)} className="text-white/60 px-2 text-sm">✕</button>
+                            </div>
+                        )}
+
                         {/* Caption */}
-                        {viewingStory.caption && <div className="absolute bottom-20 left-4 right-4 text-white text-center text-sm font-medium drop-shadow">{viewingStory.caption}</div>}
+                        {viewingStory.caption && !editingStory && <div className="absolute bottom-20 left-4 right-4 text-white text-center text-sm font-medium drop-shadow z-10">{viewingStory.caption}</div>}
+
                         {/* Like + Reply */}
-                        <div className="absolute bottom-4 left-0 right-0 flex items-center gap-2 px-4">
+                        <div className="absolute bottom-4 left-0 right-0 flex items-center gap-2 px-4 z-30">
                             <button onClick={(e) => { e.stopPropagation(); handleStoryLike(viewingStory.id); }} className={`flex items-center gap-1 ${viewingStory.user_liked ? 'text-pink-500' : 'text-white'}`}>
                                 <Heart size={20} className={viewingStory.user_liked ? 'fill-pink-500' : ''} />
                                 <span className="text-xs">{viewingStory.like_count > 0 ? viewingStory.like_count : ''}</span>
@@ -247,7 +325,6 @@ function Feed() {
                                 <input value={storyReply} onChange={e => setStoryReply(e.target.value)} placeholder="Reply..." className="flex-1 bg-white/20 text-white placeholder-white/60 rounded-full px-3 py-1.5 text-sm outline-none" />
                                 <button type="submit" className="text-white"><Send size={18} /></button>
                             </form>
-                            <button onClick={goToNextStory} className="text-white opacity-60 text-xs">Next</button>
                         </div>
                     </div>
                 </div>
