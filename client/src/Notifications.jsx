@@ -18,16 +18,11 @@ function Notifications() {
     const userId = localStorage.getItem('userId');
     const[activity, setActivity] = useState([]);
 
-    // 🔥 FIX: We fetch the raw history, regardless of if the badge was cleared!
+    // Fetch permanent notification history (never disappears)
     const fetchActivity = () => {
         if (!userId) return;
-        axios.get(`${BACKEND_URL}/api/activity/${userId}`)
-             .then(res => {
-                 // Set the actual list of notifications to stay on screen permanently
-                 if (res.data && res.data.feed) {
-                     setActivity(res.data.feed);
-                 }
-             })
+        axios.get(`${BACKEND_URL}/api/notifications/${userId}`)
+             .then(res => { if (Array.isArray(res.data)) setActivity(res.data); })
              .catch(err => console.error(err));
     };
 
