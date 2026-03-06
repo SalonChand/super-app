@@ -196,6 +196,48 @@ function Feed() {
 
     return (
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+            
+            {viewingPostImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingPostImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingPostImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
+
+            {viewingStory && (
+                <div className="fixed inset-0 z-[110] bg-black flex items-center justify-center animate-fade-in" onClick={() => setViewingStory(null)}>
+                    <div className="relative w-full max-w-sm h-screen max-h-[800px] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="absolute top-0 left-0 w-full pt-2 px-2 z-20 flex gap-1"><div className="h-1 bg-white/30 w-full rounded-full overflow-hidden"><div className={`h-full bg-white ${viewingStory.media_type === 'image' ? 'animate-story-bar' : ''}`} style={viewingStory.media_type === 'video' ? { width: `${videoProgress}%`, transition: 'width 0.1s linear' } : {}} onAnimationEnd={viewingStory.media_type === 'image' ? () => setViewingStory(null) : undefined}></div></div></div>
+                        <div className="p-4 pt-6 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between z-10 absolute w-full top-0">
+                            <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border-2 border-white">{viewingStory.profile_pic_url ? <img src={`${viewingStory.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={20} className="m-auto mt-2 text-zinc-500" />}</div><span className="text-white font-bold text-sm drop-shadow-md">{viewingStory.username}</span></div>
+                            <button onClick={() => setViewingStory(null)} className="text-white bg-black/30 rounded-full p-1"><X size={22} /></button>
+                        </div>
+                        {viewingStory.media_type === 'video' ? <video src={viewingStory.media_url} className="w-full h-full object-cover" style={{ filter: viewingStory.filter_class }} autoPlay playsInline onTimeUpdate={e => setVideoProgress((e.target.currentTime / e.target.duration) * 100)} onEnded={() => setViewingStory(null)} /> : <img src={`${viewingStory.media_url}`} className="w-full h-full object-cover" style={{ filter: viewingStory.filter_class }} />}
+                        {viewingStory.caption && <div className="absolute bottom-24 left-0 w-full px-4 text-center"><p className="text-white font-bold text-lg drop-shadow-lg">{viewingStory.caption}</p></div>}
+                        <div className="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/80 to-transparent flex items-center gap-3">
+                            <button onClick={() => handleStoryLike(viewingStory.id)} className={`text-white p-2 rounded-full transition ${viewingStory.user_liked ? 'text-pink-500' : 'hover:text-pink-400'}`}><Heart size={24} className={viewingStory.user_liked ? 'fill-pink-500 text-pink-500' : ''} /></button>
+                            <form onSubmit={(e) => handleStoryReply(e, viewingStory.user_id)} className="flex-1 flex gap-2"><input value={storyReply} onChange={e => setStoryReply(e.target.value)} placeholder="Reply..." className="flex-1 bg-white/20 text-white placeholder-white/60 rounded-full px-4 py-2 text-sm outline-none backdrop-blur-sm" /><button type="submit" className="text-white p-2"><Send size={20} /></button></form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="p-4 border-b border-zinc-800 flex gap-4 overflow-x-auto items-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {userId && (
+                    <>
+                        <input type="file" accept="image/*, video/mp4, video/webm" ref={storyInputRef} onChange={startStoryDraft} className="hidden" />
+                        <div onClick={() => storyInputRef.current.click()} className="w-24 h-36 flex-shrink-0 rounded-2xl bg-zinc-900 border border-zinc-800 relative flex flex-col items-center justify-center cursor-pointer overflow-hidden hover:border-zinc-600 transition group">
+                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center mb-2 group-hover:bg-zinc-700 transition">{currentUserInfo?.profile_pic_url ? <img src={`${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover rounded-full" /> : <Plus size={22} className="text-zinc-400" />}</div>
+                            <span className="text-xs text-zinc-400 font-medium">Your Story</span>
+                        </div>
+                    </>
+                )}
+                {uniqueStories.map(story => {
+                    return (
+                        <div key={story.id} onClick={() => openStoryViewer(story.user_id)} className={`w-24 h-36 flex-shrink-0 rounded-2xl relative flex flex-col items-end justify-end cursor-pointer overflow-hidden hover:scale-105 transition-transform duration-300 group ${story.user_has_viewed ? 'border-2 border-zinc-700' : 'border-2 border-blue-500'}`}>
+                            {story.media_type === 'video' ? <video src={story.media_url} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" style={{ filter: story.filter_class }} autoPlay muted loop playsInline /> : <img src={`${story.media_url}`} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" style={{ filter: story.filter_class }} />}
+                            <div className="absolute top-2 left-2 w-8 h-8 rounded-full border-2 border-transparent bg-zinc-800 overflow-hidden shadow-lg z-10">{story.profile_pic_url ? <img src={`${story.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-1 text-zinc-500" />}</div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
+                            <span className="absolute bottom-2 left-2 right-2 text-xs text-white font-medium truncate drop-shadow-md z-10">{story.username}</span>
+                        </div>
+                    );
+                })}
+            </div>
 
             <div>
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
