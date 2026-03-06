@@ -5,7 +5,18 @@ import { Link } from 'react-router-dom';
 import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const socket = io('https://superapp-backend-6106.onrender.com');
+let socket;
+try {
+    socket = io('https://superapp-backend-6106.onrender.com', {
+        reconnectionAttempts: 5,
+        reconnectionDelay: 3000,
+        timeout: 10000,
+    });
+    socket.on('connect_error', () => {});
+    socket.on('error', () => {});
+} catch(e) {
+    socket = { emit: () => {}, on: () => {}, off: () => {} };
+}
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
 function Chat({ themeColor }) {
@@ -80,7 +91,7 @@ function Chat({ themeColor }) {
         }
     };
     
-        useEffect(() => { loadMessages(); }, [selectedUser?.id]);
+    useEffect(() => { loadMessages(); }, [selectedUser?.id]);
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
     useEffect(() => {

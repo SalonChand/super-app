@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell } from 'lucide-react';
@@ -14,6 +14,29 @@ import Search from './Search';
 import Reels from './Reels'; 
 import Communities from './Communities'; 
 import Notifications from './Notifications'; 
+
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error('App crashed:', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h1 className="text-white text-2xl font-bold mb-2">Something went wrong</h1>
+          <p className="text-zinc-500 mb-6">A page crashed. Your data is safe.</p>
+          <button onClick={() => { this.setState({ hasError: false }); window.location.href = '/'; }}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-full transition">
+            Go Home
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const globalSocket = io(BACKEND_URL, {
@@ -261,5 +284,5 @@ function AppContent() {
   );
 }
 
-function App() { return ( <Router><AppContent /></Router> ); }
+function App() { return ( <ErrorBoundary><Router><AppContent /></Router></ErrorBoundary> ); }
 export default App;

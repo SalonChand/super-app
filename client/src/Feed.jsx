@@ -69,7 +69,7 @@ function Feed() {
     };
     useEffect(fetchData, []);
 
-        useEffect(() => {
+    useEffect(() => {
         if (viewingStory && userId) {
             axios.post(`${BACKEND_URL}/api/stories/${viewingStory.id}/view`, { userId: userId }).catch(err => console.error(err));
             setStories(prevStories => prevStories.map(s => s.user_id === viewingStory.user_id ? { ...s, user_has_viewed: 1 } : s));
@@ -184,7 +184,7 @@ function Feed() {
         try { await axios.post(`${BACKEND_URL}/api/messages/send`, { senderId: userId, receiverId: storyOwnerId, content: `Replying to your story: "${storyReply}"` }); setStoryReply(''); alert("Reply sent to their Messages!"); } catch (error) { console.error(error); }
     };
 
-    const uniqueStories = new Array(); const seenUsers = new Set();
+    const uniqueStories = []; const seenUsers = new Set();
     if (Array.isArray(stories)) {
         stories.forEach(s => { if(!seenUsers.has(s.user_id)) { uniqueStories.push(s); seenUsers.add(s.user_id); } });
         uniqueStories.sort((a, b) => Number(a.user_has_viewed) > 0 ? 1 : -1);

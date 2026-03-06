@@ -46,7 +46,7 @@ function Profile() {
     const avatarInputRef = useRef(null);
     const coverInputRef = useRef(null);
 
-        const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const loadProfileData = async () => {
         if (!id || id === 'undefined') { setErrorMessage("Invalid User ID"); return; }
         setIsRefreshing(true);
