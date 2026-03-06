@@ -196,9 +196,6 @@ function Feed() {
 
     return (
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
-            {/* Pull to refresh indicator */}}
-                </div>
-            </div>
 
             <div>
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
