@@ -238,7 +238,7 @@ app.get('/api/stories', async (req, res) => {
         await pool.query('DELETE FROM stories WHERE created_at < NOW() - INTERVAL 1 DAY');
         // Get friend IDs of current user
         const [friendRows] = await pool.query(
-            'SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS friend_id FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = "accepted"',
+            `SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS friend_id FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,
             [currentUserId, currentUserId, currentUserId]
         );
         const friendIds = friendRows.map(r => r.friend_id);
