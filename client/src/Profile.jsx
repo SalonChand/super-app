@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { usePullToRefresh } from './usePullToRefresh';
 import { useParams, Link } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
 
@@ -46,7 +47,8 @@ function Profile() {
 
     const fileInputRef = useRef(null);
     const avatarInputRef = useRef(null);
-    const coverInputRef = useRef(null); 
+    const coverInputRef = useRef(null);
+    const scrollRef = useRef(null);
 
     const deps = Array.of(id);
 
@@ -69,6 +71,7 @@ function Profile() {
     };
 
     useEffect(() => { loadProfileData(); }, [id]);
+    const { pulling, pullDistance, threshold } = usePullToRefresh(loadProfileData, scrollRef);
 
     const sendFriendRequest = () => axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: id }).then(() => setFriendStatus('sent_request'));
     const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
@@ -143,7 +146,17 @@ function Profile() {
     const displayedPosts = canSeeDetails ? userPosts : userPosts.slice(0, 1);
 
     return (
-        <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
+        <div ref={scrollRef} className="w-full pb-20 sm:pb-0 animate-fade-in relative">
+            {pulling && (
+                <div className="flex items-center justify-center transition-all" style={{ height: pullDistance, opacity: pullDistance / threshold }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400" style={{ transform: `rotate(${(pullDistance / threshold) * 360}deg)` }}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                </div>
+            )}
+            {isRefreshing && !pulling && (
+                <div className="flex items-center justify-center py-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 animate-spin"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                </div>
+            )}
             {viewingImage && (
                 <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
                     <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>
@@ -154,7 +167,6 @@ function Profile() {
             <div className="h-32 sm:h-48 w-full relative overflow-hidden bg-zinc-900">
                 {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-r from-blue-900 to-purple-900"></div>}
                 {isMyProfile && !isEditing && ( <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link> )}
-                {!isEditing && ( <button onClick={loadProfileData} disabled={isRefreshing} className="absolute top-4 left-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md" title="Refresh profile"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRefreshing ? 'animate-spin' : ''}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button> )}
                 {isEditing && ( <div onClick={() => coverInputRef.current.click()} className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer hover:bg-black/70 transition z-10"><Camera size={32} className="text-white drop-shadow-md" /><span className="text-white font-bold drop-shadow-md mt-1 text-sm">Edit Cover</span><input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => setEditCover(e.target.files[0])}/></div> )}
             </div>
 

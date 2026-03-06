@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon } from 'lucide-react';
 import { Link } from 'react-router-dom'; 
-import './index.css'; 
+import './index.css';
+import { usePullToRefresh } from './usePullToRefresh';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const EMPTY_ARRAY = new Array();
@@ -55,6 +56,7 @@ function Feed() {
     const [drawColor, setDrawColor] = useState('#ef4444');
     const isDrawing = useRef(false);
 
+    const scrollRef = useRef(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const fetchData = async () => {
         setIsRefreshing(true);
@@ -70,6 +72,7 @@ function Feed() {
         } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
     useEffect(fetchData, EMPTY_ARRAY);
+    const { pulling, pullDistance, threshold } = usePullToRefresh(fetchData, scrollRef);
 
     const viewDeps = Array.of(viewingStory ? viewingStory.id : null);
     useEffect(() => {
@@ -195,7 +198,18 @@ function Feed() {
     const openStoryViewer = (user_id) => { setVideoProgress(0); setViewingStory(stories.find(s => s.user_id === user_id)); };
 
     return (
-        <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+        <div ref={scrollRef} className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+            {/* Pull to refresh indicator */}
+            {pulling && (
+                <div className="flex items-center justify-center py-3 transition-all" style={{ height: pullDistance, opacity: pullDistance / threshold }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-zinc-400 ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${(pullDistance / threshold) * 360}deg)` }}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                </div>
+            )}
+            {isRefreshing && !pulling && (
+                <div className="flex items-center justify-center py-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 animate-spin"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                </div>
+            )}
             
             {viewingPostImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingPostImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingPostImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
             
@@ -243,11 +257,8 @@ function Feed() {
                 </div>
             )}
 
-            <div className="p-4 border-b border-zinc-800 flex gap-4 overflow-x-auto items-center justify-between" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="p-4 border-b border-zinc-800 flex gap-4 overflow-x-auto items-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <div className="flex gap-4 overflow-x-auto items-center flex-1" style={{ scrollbarWidth: 'none' }}>
-                <button onClick={fetchData} disabled={isRefreshing} className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition" title="Refresh feed">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-zinc-400 ${isRefreshing ? 'animate-spin' : ''}`}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </button>
                 {userId && (
                     <>
                         <input type="file" accept="image/*, video/mp4, video/webm" ref={storyInputRef} onChange={startStoryDraft} className="hidden" />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { usePullToRefresh } from './usePullToRefresh';
 // 🔥 BUG FIX: EVERY SINGLE ICON IS NOW IMPORTED PERFECTLY! 🔥
 import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, VolumeX, Play, MoreHorizontal, Plus, Send, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -232,6 +233,7 @@ function Reels() {
     const [caption, setCaption] = useState('');
     const userId = localStorage.getItem('userId');
     const fileInputRef = useRef(null);
+    const scrollRef = useRef(null);
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -247,6 +249,7 @@ function Reels() {
     };
 
     useEffect(loadReels, EMPTY_ARRAY);
+    const { pulling, pullDistance, threshold } = usePullToRefresh(loadReels, scrollRef);
 
     const handleLike = async (reelId) => {
         if (!userId) return alert("Please log in to like videos!");
@@ -277,7 +280,12 @@ function Reels() {
     };
 
     return (
-        <div className="w-full relative bg-black h-[calc(100dvh-60px)] sm:h-screen overflow-hidden">
+        <div ref={scrollRef} className="w-full relative bg-black h-[calc(100dvh-60px)] sm:h-screen overflow-hidden">
+            {pulling && (
+                <div className="absolute top-0 left-0 w-full flex items-center justify-center z-50 pointer-events-none transition-all" style={{ height: pullDistance, opacity: pullDistance / threshold }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: `rotate(${(pullDistance / threshold) * 360}deg)` }}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                </div>
+            )}
             
             <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-50 pointer-events-none">
                 <h2 className="text-white font-extrabold text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Watch</h2>
