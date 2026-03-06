@@ -102,18 +102,25 @@ function AppContent() {
       }
   };
 
-  const audioDeps = Array.of(currentUserId);
   useEffect(() => {
       if (currentUserId) {
           try { globalSocket.emit('join_private_room', currentUserId); } catch(e) {}
-          const handleNotification = () => { playNotificationSound(); fetchBadges(); };
+          const handleNotification = () => {
+              playNotificationSound();
+              axios.get(`${BACKEND_URL}/api/activity/${currentUserId}`)
+                  .then(res => setBadges(res.data)).catch(() => {});
+          };
           globalSocket.on('message_updated', handleNotification);
           globalSocket.on('activity_updated', handleNotification);
           globalSocket.on('incoming_call', handleNotification);
           subscribeToPush();
-          return () => { globalSocket.off('message_updated', handleNotification); globalSocket.off('activity_updated', handleNotification); globalSocket.off('incoming_call', handleNotification); };
+          return () => {
+              globalSocket.off('message_updated', handleNotification);
+              globalSocket.off('activity_updated', handleNotification);
+              globalSocket.off('incoming_call', handleNotification);
+          };
       }
-  }, audioDeps);
+  }, [currentUserId]);
 
   useEffect(() => {
     const timer = setTimeout(() => { setShowSplash(false); }, 500);
