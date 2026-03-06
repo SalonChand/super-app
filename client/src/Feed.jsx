@@ -47,6 +47,8 @@ function Feed() {
     const [draftFilter, setDraftFilter] = useState(STORY_FILTERS[0].value);
     const [draftSong, setDraftSong] = useState(SONG_LIST[0]);
     const [showStoryEditor, setShowStoryEditor] = useState(false);
+    const [storyVisibility, setStoryVisibility] = useState('public');
+    const [visibleToFriends, setVisibleToFriends] = useState([]);
 
     const canvasRef = useRef(null);
     const[isDrawingMode, setIsDrawingMode] = useState(false);
@@ -151,7 +153,7 @@ function Feed() {
     const clearCanvas = () => { if (canvasRef.current) { const ctx = canvasRef.current.getContext('2d'); ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); } };
 
     const startStoryDraft = (e) => { const file = e.target.files[0]; if (file) { setDraftFile(file); setDraftPreviewUrl(URL.createObjectURL(file)); setShowStoryEditor(true); setIsDrawingMode(false); } };
-    const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSong(SONG_LIST[0]); if (storyInputRef.current) storyInputRef.current.value = ''; };
+    const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSong(SONG_LIST[0]); setStoryVisibility('public'); setVisibleToFriends([]); if (storyInputRef.current) storyInputRef.current.value = ''; };
     const uploadFinalStory = async () => {
         const formData = new FormData(); formData.append('user_id', userId);
         if (canvasRef.current && !draftFile.type.startsWith('video')) {
@@ -169,7 +171,7 @@ function Feed() {
             const blob = await new Promise(resolve => mergeCanvas.toBlob(resolve, 'image/jpeg', 0.9));
             formData.append('media', blob, 'story.jpg'); formData.append('filter_class', 'none'); 
         } else { formData.append('media', draftFile); if (draftFilter !== 'none') formData.append('filter_class', draftFilter); }
-        if (draftCaption.trim()) formData.append('caption', draftCaption); if (draftSong !== 'No Music') formData.append('song_name', draftSong);
+        if (draftCaption.trim()) formData.append('caption', draftCaption); if (draftSong !== 'No Music') formData.append('song_name', draftSong); formData.append('visibility', storyVisibility); if (storyVisibility === 'selected' && visibleToFriends.length > 0) formData.append('visible_to', JSON.stringify(visibleToFriends));
         try { await axios.post(`${BACKEND_URL}/api/stories`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); closeStoryEditor(); fetchData(); } catch (err) { console.error(err); }
     };
 
@@ -268,6 +270,36 @@ function Feed() {
                             <button onClick={() => setIsDrawingMode(!isDrawingMode)} className={`p-2 rounded-full border ${isDrawingMode ? 'border-blue-500 text-blue-400' : 'border-zinc-700 text-zinc-400'}`}><Paintbrush size={16} /></button>
                             {DRAW_COLORS.map(c => <button key={c} onClick={() => setDrawColor(c)} style={{ background: c }} className={`w-6 h-6 rounded-full border-2 ${drawColor === c ? 'border-white' : 'border-transparent'}`} />)}
                             <button onClick={() => { const ctx = canvasRef.current?.getContext('2d'); if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); }} className="p-2 rounded-full border border-zinc-700 text-zinc-400 ml-auto"><Undo size={16} /></button>
+                        </div>
+                        {/* Visibility Picker */}
+                        <div className="mb-3">
+                            <p className="text-zinc-400 text-xs mb-2 font-medium uppercase tracking-wider">Who can see this?</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { value: 'public', label: '🌍 Everyone' },
+                                    { value: 'friends', label: '👥 Friends Only' },
+                                    { value: 'only_me', label: '🔒 Only Me' },
+                                    { value: 'selected', label: '✅ Selected' },
+                                ].map(opt => (
+                                    <button key={opt.value} onClick={() => setStoryVisibility(opt.value)}
+                                        className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${storyVisibility === opt.value ? 'border-blue-500 bg-blue-500/20 text-blue-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}>
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                            {storyVisibility === 'selected' && (
+                                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                                    <p className="text-zinc-500 text-xs mb-1">Pick friends:</p>
+                                    {uniqueStories.filter(s => s.user_id !== userId).map(s => (
+                                        <label key={s.user_id} className="flex items-center gap-2 cursor-pointer p-1 rounded hover:bg-zinc-800">
+                                            <input type="checkbox" checked={visibleToFriends.includes(s.user_id)}
+                                                onChange={e => setVisibleToFriends(prev => e.target.checked ? [...prev, s.user_id] : prev.filter(id => id !== s.user_id))}
+                                                className="accent-blue-500" />
+                                            <span className="text-white text-sm">{s.username}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <button onClick={uploadFinalStory} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-full transition">Post Story</button>
                     </div>

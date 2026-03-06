@@ -135,6 +135,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE stories ADD COLUMN caption VARCHAR(255)");
     await patch("ALTER TABLE stories ADD COLUMN filter_class VARCHAR(100) DEFAULT 'none'");
     await patch("ALTER TABLE stories ADD COLUMN song_name VARCHAR(100)");
+    await patch("ALTER TABLE stories ADD COLUMN visibility VARCHAR(20) DEFAULT 'public'");
+    await patch("ALTER TABLE stories ADD COLUMN visible_to TEXT DEFAULT NULL");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -205,8 +207,53 @@ app.get('/api/friends/explore/:userId', async (req, res) => { try { const[explor
 app.get('/api/friends/list/:userId', async (req, res) => { try { const { userId } = req.params; const [friends] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND receiver_id = ? AND is_read = FALSE) AS unread_count, (SELECT content FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message, (SELECT sender_id FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_sender FROM users u JOIN connections c ON (c.requester_id = u.id AND c.receiver_id = ?) OR (c.receiver_id = u.id AND c.requester_id = ?) WHERE c.status = 'accepted'`,[userId, userId, userId, userId, userId, userId, userId]); res.json(friends); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 
 // STORIES & REELS
-app.post('/api/stories', upload.single('media'), async (req, res) => { try { if (!req.file) return res.status(400).json({ error: "No file provided" }); const media_url = req.file.path; const media_type = req.file.mimetype.startsWith('video') ? 'video' : 'image'; const { user_id, caption, filter_class, song_name } = req.body; await pool.query('INSERT INTO stories (user_id, media_url, media_type, caption, filter_class, song_name) VALUES (?, ?, ?, ?, ?, ?)',[user_id, media_url, media_type, caption || null, filter_class || 'none', song_name || null]); res.status(201).json({ message: "Story added!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
-app.get('/api/stories', async (req, res) => { try { const currentUserId = req.query.userId || 0; const [stories] = await pool.query(`SELECT s.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id) AS like_count, (SELECT COUNT(*) FROM story_views WHERE story_id = s.id) AS view_count, (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id AND user_id = ?) AS user_liked, (SELECT COUNT(*) FROM story_views WHERE story_id = s.id AND user_id = ?) AS user_has_viewed FROM stories s JOIN users u ON s.user_id = u.id WHERE s.created_at >= NOW() - INTERVAL 1 DAY ORDER BY s.created_at DESC`, [currentUserId, currentUserId]); res.json(stories); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/stories', upload.single('media'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "No file provided" });
+        const media_url = req.file.path;
+        const media_type = req.file.mimetype.startsWith('video') ? 'video' : 'image';
+        const { user_id, caption, filter_class, song_name, visibility, visible_to } = req.body;
+        await pool.query(
+            'INSERT INTO stories (user_id, media_url, media_type, caption, filter_class, song_name, visibility, visible_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [user_id, media_url, media_type, caption || null, filter_class || 'none', song_name || null, visibility || 'public', visible_to || null]
+        );
+        res.status(201).json({ message: "Story added!" });
+    } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
+});
+app.get('/api/stories', async (req, res) => {
+    try {
+        const currentUserId = parseInt(req.query.userId) || 0;
+        // Auto-delete expired stories older than 24 hours
+        await pool.query('DELETE FROM stories WHERE created_at < NOW() - INTERVAL 1 DAY');
+        // Get friend IDs of current user
+        const [friendRows] = await pool.query(
+            'SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS friend_id FROM friendships WHERE (requester_id = ? OR receiver_id = ?) AND status = "accepted"',
+            [currentUserId, currentUserId, currentUserId]
+        );
+        const friendIds = friendRows.map(r => r.friend_id);
+        const [stories] = await pool.query(
+            \`SELECT s.*, u.username, u.profile_pic_url,
+                (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id) AS like_count,
+                (SELECT COUNT(*) FROM story_views WHERE story_id = s.id) AS view_count,
+                (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id AND user_id = ?) AS user_liked,
+                (SELECT COUNT(*) FROM story_views WHERE story_id = s.id AND user_id = ?) AS user_has_viewed
+             FROM stories s JOIN users u ON s.user_id = u.id
+             WHERE s.created_at >= NOW() - INTERVAL 1 DAY
+             AND (
+                s.user_id = ?
+                OR s.visibility = 'public'
+                OR (s.visibility = 'friends' AND s.user_id IN (?))
+                OR (s.visibility = 'only_me' AND s.user_id = ?)
+                OR (s.visibility = 'selected' AND JSON_CONTAINS(s.visible_to, CAST(? AS JSON)))
+             )
+             ORDER BY s.created_at DESC\`,
+            [currentUserId, currentUserId, currentUserId,
+             friendIds.length ? friendIds : [0],
+             currentUserId, JSON.stringify(currentUserId)]
+        );
+        res.json(stories);
+    } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
+});
 app.post('/api/stories/:id/like', async (req, res) => { try { const storyId = req.params.id; const { userId } = req.body; const [existing] = await pool.query('SELECT * FROM story_likes WHERE story_id = ? AND user_id = ?',[storyId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM story_likes WHERE story_id = ? AND user_id = ?', [storyId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO story_likes (story_id, user_id) VALUES (?, ?)', [storyId, userId]); res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/stories/:id/view', async (req, res) => { try { await pool.query('INSERT IGNORE INTO story_views (story_id, user_id) VALUES (?, ?)',[req.params.id, req.body.userId]); res.json({ success: true }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/reels', upload.single('video'), async (req, res) => { try { if (!req.file) return res.status(400).json({ error: "No video provided" }); const video_url = req.file.path; await pool.query('INSERT INTO reels (user_id, video_url, caption) VALUES (?, ?, ?)',[req.body.user_id, video_url, req.body.caption || '']); res.status(201).json({ message: "Reel uploaded!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); } });
