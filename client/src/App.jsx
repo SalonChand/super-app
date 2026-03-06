@@ -16,7 +16,15 @@ import Communities from './Communities';
 import Notifications from './Notifications'; 
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const globalSocket = io(BACKEND_URL); 
+const globalSocket = io(BACKEND_URL, {
+  autoConnect: true,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 3000,
+  timeout: 10000,
+});
+globalSocket.on('connect_error', () => {});
+globalSocket.on('error', () => {});
 const EMPTY_ARRAY = new Array();
 
 function SplashScreen() {
@@ -97,7 +105,7 @@ function AppContent() {
   const audioDeps = Array.of(currentUserId);
   useEffect(() => {
       if (currentUserId) {
-          globalSocket.emit('join_private_room', currentUserId);
+          try { globalSocket.emit('join_private_room', currentUserId); } catch(e) {}
           const handleNotification = () => { playNotificationSound(); fetchBadges(); };
           globalSocket.on('message_updated', handleNotification);
           globalSocket.on('activity_updated', handleNotification);
