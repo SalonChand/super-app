@@ -232,7 +232,7 @@ app.get('/api/stories', async (req, res) => {
         );
         const friendIds = friendRows.map(r => r.friend_id);
         const [stories] = await pool.query(
-            \`SELECT s.*, u.username, u.profile_pic_url,
+            `SELECT s.*, u.username, u.profile_pic_url,
                 (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id) AS like_count,
                 (SELECT COUNT(*) FROM story_views WHERE story_id = s.id) AS view_count,
                 (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id AND user_id = ?) AS user_liked,
@@ -246,7 +246,7 @@ app.get('/api/stories', async (req, res) => {
                 OR (s.visibility = 'only_me' AND s.user_id = ?)
                 OR (s.visibility = 'selected' AND JSON_CONTAINS(s.visible_to, CAST(? AS JSON)))
              )
-             ORDER BY s.created_at DESC\`,
+             ORDER BY s.created_at DESC`,
             [currentUserId, currentUserId, currentUserId,
              friendIds.length ? friendIds : [0],
              currentUserId, JSON.stringify(currentUserId)]
