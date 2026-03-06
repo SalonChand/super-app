@@ -104,14 +104,16 @@ function Chat({ themeColor }) {
     useEffect(() => {
         const handleMessageUpdate = () => { loadMessages(); loadInbox(); };
         const handleIncomingCall = (data) => { if (!activeCall && !receivingCall) { setReceivingCall(true); setCallerInfo(data); setIsVideoCall(data.isVideo); isVideoCallRef.current = data.isVideo; } };
-        const handleCallAccepted = async (signal) => { 
-            setCallAccepted(true); 
-            callStartTimeRef.current = Date.now(); 
-            if (peerConnectionRef.current) { 
-                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal)); 
-                pendingIceCandidates.current.forEach(candidate => peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))); 
-                pendingIceCandidates.current =[]; 
-            } 
+        const handleCallAccepted = async (signal) => {
+            setCallAccepted(true);
+            callStartTimeRef.current = Date.now();
+            if (peerConnectionRef.current) {
+                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
+                for (const candidate of pendingIceCandidates.current) {
+                    try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+                }
+                pendingIceCandidates.current = [];
+            }
         };
         const handleIceCandidate = async (candidate) => { if (peerConnectionRef.current) { if (peerConnectionRef.current.remoteDescription) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.error(e); } } else { pendingIceCandidates.current.push(candidate); } } };
         const handleCallEnded = () => handleHangUp(false);
@@ -167,95 +169,100 @@ function Chat({ themeColor }) {
     // ===============================================
     // 🔥 IPHONE / ANDROID CAMERA BUG FIX 🔥
     // ===============================================
-    const initPeerConnection = () => {
+    const callTargetRef = useRef(null); // store who we're calling to avoid stale closure
+
+    const initPeerConnection = (targetId) => {
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                // Free TURN servers - required for calls across different networks
-                {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
+                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
             ],
-            iceCandidatePoolSize: 10
+            iceCandidatePoolSize: 10,
         });
-        pc.onicecandidate = (event) => { if (event.candidate) { const sendTo = callerInfo ? callerInfo.from : selectedUser.id; socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); } };
-        pc.ontrack = (event) => {
-            if (event.streams[0]) {
-                if (remoteVideoRef.current) {
-                    remoteVideoRef.current.srcObject = event.streams[0];
-                    remoteVideoRef.current.play().catch(() => {});
-                }
-                // For voice calls, also attach to dedicated audio element
-                if (remoteAudioRef.current) {
-                    remoteAudioRef.current.srcObject = event.streams[0];
-                    remoteAudioRef.current.play().catch(() => {});
-                }
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                const sendTo = callTargetRef.current;
+                if (sendTo) socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate });
             }
         };
-        pc.oniceconnectionstatechange = () => { console.log('ICE state:', pc.iceConnectionState); };
+        pc.ontrack = (event) => {
+            const stream = event.streams[0];
+            if (!stream) return;
+            // Attach to video element (for video calls)
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = stream;
+                remoteVideoRef.current.play().catch(() => {});
+            }
+            // Always attach to dedicated audio element (critical for voice calls on mobile)
+            if (remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = stream;
+                remoteAudioRef.current.play().catch(() => {});
+            }
+        };
+        pc.oniceconnectionstatechange = () => {
+            console.log('ICE:', pc.iceConnectionState);
+        };
         return pc;
     };
 
-    const startCall = async (video = false) => { 
-        setIsVideoCall(video); isVideoCallRef.current = video; setActiveCall(true); isCallerRef.current = true; callStartTimeRef.current = null; pendingIceCandidates.current =[]; 
-        try { 
-            // 🔥 THE FIX: Explicitly request ONLY audio if video is false! 🔥
-            const constraints = video ? { video: true, audio: true } : { video: false, audio: true };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints); 
-            
+    const startCall = async (video = false) => {
+        setIsVideoCall(video); isVideoCallRef.current = video; setActiveCall(true);
+        isCallerRef.current = true; callStartTimeRef.current = null; pendingIceCandidates.current = [];
+        callTargetRef.current = selectedUser.id;
+        try {
+            const constraints = video ? { video: true, audio: true } : { video: false, audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             setMyStream(stream);
             if (myVideoRef.current) { myVideoRef.current.srcObject = stream; }
-            const pc = initPeerConnection(); peerConnectionRef.current = pc; 
-            stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
-            const offer = await pc.createOffer(); await pc.setLocalDescription(offer); 
-            socket.emit('call_user', { userToCall: selectedUser.id, signalData: offer, from: userId, callerName: currentUserInfo?.username || "Unknown", isVideo: video }); 
-        } catch (err) { 
-            console.error("Start Call Error:", err); 
-            if (err.name === 'NotAllowedError') alert('Camera/microphone permission denied. Please allow access in your browser settings and try again.');
-            else if (err.name === 'NotFoundError') alert('No camera or microphone found on this device.');
-            else if (err.name === 'NotReadableError') alert('Camera or microphone is already in use by another app. Please close it and try again.');
+            const pc = initPeerConnection(selectedUser.id);
+            peerConnectionRef.current = pc;
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: video });
+            await pc.setLocalDescription(offer);
+            socket.emit('call_user', { userToCall: selectedUser.id, signalData: offer, from: userId, callerName: currentUserInfo?.username || 'Unknown', isVideo: video });
+        } catch (err) {
+            console.error('Start Call Error:', err);
+            if (err.name === 'NotAllowedError') alert('Microphone permission denied. Please allow access in your browser settings.');
+            else if (err.name === 'NotFoundError') alert('No microphone found on this device.');
+            else if (err.name === 'NotReadableError') alert('Microphone is already in use by another app.');
             else alert(`Could not start call: ${err.message}`);
-            setActiveCall(false); 
-        } 
+            setActiveCall(false);
+        }
     };
 
-    const answerCall = async () => { 
-        setCallAccepted(true); setActiveCall(true); setReceivingCall(false); isCallerRef.current = false; callStartTimeRef.current = Date.now(); pendingIceCandidates.current =[]; 
-        try { 
-            // 🔥 THE FIX: Match the caller's media type exactly! 🔥
-            const constraints = isVideoCall ? { video: true, audio: true } : { video: false, audio: true };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints); 
-            
+    const answerCall = async () => {
+        setCallAccepted(true); setActiveCall(true); setReceivingCall(false);
+        isCallerRef.current = false; callStartTimeRef.current = Date.now(); pendingIceCandidates.current = [];
+        callTargetRef.current = callerInfo.from;
+        try {
+            const constraints = isVideoCall ? { video: true, audio: true } : { video: false, audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             setMyStream(stream);
             if (myVideoRef.current) { myVideoRef.current.srcObject = stream; }
-            const pc = initPeerConnection(); peerConnectionRef.current = pc; 
-            stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
-            await pc.setRemoteDescription(new RTCSessionDescription(callerInfo.signal)); 
-            const answer = await pc.createAnswer(); await pc.setLocalDescription(answer); 
-            socket.emit('answer_call', { signal: answer, to: callerInfo.from }); 
-        } catch (err) { 
-            console.error("Answer Call Error:", err); 
-            if (err.name === 'NotAllowedError') alert('Camera/microphone permission denied. Please allow access in your browser settings.');
-            else if (err.name === 'NotFoundError') alert('No camera or microphone found on this device.');
-            else if (err.name === 'NotReadableError') alert('Camera or microphone is already in use by another app. Please close it and try again.');
+            const pc = initPeerConnection(callerInfo.from);
+            peerConnectionRef.current = pc;
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+            await pc.setRemoteDescription(new RTCSessionDescription(callerInfo.signal));
+            // Flush any ICE candidates that arrived before remote description
+            for (const candidate of pendingIceCandidates.current) {
+                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+            }
+            pendingIceCandidates.current = [];
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('answer_call', { signal: answer, to: callerInfo.from });
+        } catch (err) {
+            console.error('Answer Call Error:', err);
+            if (err.name === 'NotAllowedError') alert('Microphone permission denied. Please allow access in your browser settings.');
+            else if (err.name === 'NotFoundError') alert('No microphone found on this device.');
+            else if (err.name === 'NotReadableError') alert('Microphone is already in use by another app.');
             else alert(`Could not answer call: ${err.message}`);
-            handleHangUp(true); 
-        } 
+            handleHangUp(true);
+        }
     };
 
     const handleHangUp = (emitToOther = true) => { 
@@ -314,8 +321,8 @@ function Chat({ themeColor }) {
             <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col">
                 <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
                     <video playsInline ref={remoteVideoRef} autoPlay className="absolute inset-0 w-full h-full object-cover" />
-                    {/* Hidden audio element ensures voice plays on all browsers/mobile */}
-                    <audio ref={remoteAudioRef} autoPlay playsInline style={{display:'none'}} />
+                    {/* Hidden audio for voice calls - essential on mobile */}
+                    <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
                     {!isVideoCall && (
                         <div className="flex flex-col items-center z-10"><div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border border-zinc-700"><User size={50} className="text-zinc-500" /></div><h2 className="text-white text-2xl font-bold">{callerInfo?.callerName || selectedUser?.username}</h2><p className="text-green-400 animate-pulse mt-2">Connected</p></div>
                     )}
