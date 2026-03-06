@@ -22,7 +22,7 @@ if (!window._superAppSocket) {
 const socket = window._superAppSocket;
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
-function Chat({ themeColor }) {
+function Chat({ themeColor, onStartCall }) {
     const userId = parseInt(localStorage.getItem('userId'));
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const [friends, setFriends] = useState([]);
