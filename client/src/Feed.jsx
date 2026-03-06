@@ -29,6 +29,7 @@ function Feed() {
     const[likesData, setLikesData] = useState({});
     const userId = localStorage.getItem('userId');
     const[viewingPostImage, setViewingPostImage] = useState(null);
+    const[postAvatarMenu, setPostAvatarMenu] = useState(null); // { postId, userId, username, storyId }
 
     // 🔥 NEW: POST EDIT & DELETE STATES 🔥
     const [menuOpenPostId, setMenuOpenPostId] = useState(null);
@@ -348,10 +349,45 @@ function Feed() {
 
             {/* ===== POSTS ===== */}
             <div>
+                {/* Image lightbox modal */}
+                {viewingPostImage && (
+                    <div className="fixed inset-0 z-[150] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingPostImage(null)}>
+                        <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>
+                        <img src={viewingPostImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+                    </div>
+                )}
+
+                {/* Avatar popup menu (story / profile) */}
+                {postAvatarMenu && (
+                    <div className="fixed inset-0 z-[100]" onClick={() => setPostAvatarMenu(null)}>
+                        <div className="absolute bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden w-48"
+                            style={{ top: postAvatarMenu.y, left: postAvatarMenu.x }}
+                            onClick={e => e.stopPropagation()}>
+                            {postAvatarMenu.storyId && (
+                                <button onClick={() => { setViewingStory(stories.find(s => s.user_id == postAvatarMenu.userId)); setPostAvatarMenu(null); }}
+                                    className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-white flex items-center gap-3 text-sm font-medium transition">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div> View Story
+                                </button>
+                            )}
+                            <Link to={`/profile/${postAvatarMenu.userId}`} onClick={() => setPostAvatarMenu(null)}
+                                className="w-full text-left px-4 py-3 hover:bg-zinc-800 text-white flex items-center gap-3 text-sm font-medium transition block">
+                                <div className="w-2 h-2 rounded-full bg-zinc-400"></div> View Profile
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
                     <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
-                        <Link to={`/profile/${post.user_id}`} className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0 overflow-hidden border border-zinc-700">{post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}</Link>
+                        {(() => { const hasStory = stories.some(s => s.user_id == post.user_id); return (
+    <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
+        className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden transition " + (hasStory ? "p-0.5 bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]" : "bg-zinc-800 border border-zinc-700")}>
+        <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center " + (hasStory ? "border-2 border-black" : "")}>
+            {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
+        </div>
+    </button>
+); })()}
                         <div className="w-full min-w-0">
                             
                             {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
