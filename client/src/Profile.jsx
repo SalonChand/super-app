@@ -50,19 +50,22 @@ function Profile() {
 
     const deps = Array.of(id);
 
-    const loadProfileData = () => {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const loadProfileData = async () => {
         if (!id || id === 'undefined') { setErrorMessage("Invalid User ID"); return; }
-        axios.get(`${BACKEND_URL}/api/users/${id}`)
-             .then(res => { setProfileData(res.data); setEditBio(res.data.bio || ''); setEditAnthem(res.data.anthem_url || ''); })
-             .catch(err => { console.error(err); setErrorMessage("Backend failed to send user data."); });
-             
-        axios.get(`${BACKEND_URL}/api/users/${id}/posts`)
-             .then(res => { if (Array.isArray(res.data)) setUserPosts(res.data); })
-             .catch(err => console.error(err));
-             
-        if (!isMyProfile) { 
-            axios.get(`${BACKEND_URL}/api/friends/status/${currentUserId}/${id}`).then(res => setFriendStatus(res.data.status)).catch(err => console.error(err)); 
-        }
+        setIsRefreshing(true);
+        try {
+            const requests = [
+                axios.get(`${BACKEND_URL}/api/users/${id}`),
+                axios.get(`${BACKEND_URL}/api/users/${id}/posts`),
+            ];
+            if (!isMyProfile) requests.push(axios.get(`${BACKEND_URL}/api/friends/status/${currentUserId}/${id}`));
+            const [userRes, postsRes, friendRes] = await Promise.all(requests);
+            setProfileData(userRes.data); setEditBio(userRes.data.bio || ''); setEditAnthem(userRes.data.anthem_url || '');
+            if (Array.isArray(postsRes.data)) setUserPosts(postsRes.data);
+            if (friendRes) setFriendStatus(friendRes.data.status);
+        } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
+        finally { setIsRefreshing(false); }
     };
 
     useEffect(() => { loadProfileData(); }, [id]);
@@ -128,7 +131,7 @@ function Profile() {
         setMenuOpenPostId(null);
     };
 
-    if (errorMessage) return <div className="text-center p-10 mt-20 border border-red-500/50 bg-red-500/10 rounded-2xl m-4"><h3 className="text-red-500 font-bold text-xl mb-2">Oops! Something broke.</h3><p className="text-zinc-400">{errorMessage}</p></div>;
+    if (errorMessage) return <div className="text-center p-10 mt-20 border border-red-500/50 bg-red-500/10 rounded-2xl m-4"><h3 className="text-red-500 font-bold text-xl mb-2">Oops! Something broke.</h3><p className="text-zinc-400">{errorMessage}</p><button onClick={() => { setErrorMessage(''); loadProfileData(); }} className="mt-4 px-6 py-2 bg-zinc-800 text-white rounded-full hover:bg-zinc-700 transition text-sm">Try Again</button></div>;
     if (!profileData) return <div className="text-white text-center p-10 mt-20 animate-pulse">Loading profile...</div>;
 
     const avatarUrl = profileData.profile_pic_url ? `${profileData.profile_pic_url}` : null;
@@ -151,6 +154,7 @@ function Profile() {
             <div className="h-32 sm:h-48 w-full relative overflow-hidden bg-zinc-900">
                 {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-r from-blue-900 to-purple-900"></div>}
                 {isMyProfile && !isEditing && ( <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link> )}
+                {!isEditing && ( <button onClick={loadProfileData} disabled={isRefreshing} className="absolute top-4 left-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md" title="Refresh profile"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isRefreshing ? 'animate-spin' : ''}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button> )}
                 {isEditing && ( <div onClick={() => coverInputRef.current.click()} className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer hover:bg-black/70 transition z-10"><Camera size={32} className="text-white drop-shadow-md" /><span className="text-white font-bold drop-shadow-md mt-1 text-sm">Edit Cover</span><input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => setEditCover(e.target.files[0])}/></div> )}
             </div>
 

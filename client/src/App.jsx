@@ -108,7 +108,7 @@ function AppContent() {
   }, audioDeps);
 
   useEffect(() => {
-    const timer = setTimeout(() => { setShowSplash(false); }, 2000);
+    const timer = setTimeout(() => { setShowSplash(false); }, 500);
     if (currentUserId) { 
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`).then(res => setCurrentUser(res.data)).catch(err => console.error(err)); 
         fetchBadges();

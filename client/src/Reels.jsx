@@ -234,14 +234,16 @@ function Reels() {
     const fileInputRef = useRef(null);
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
 
-    const loadReels = () => {
-        axios.get(`${BACKEND_URL}/api/reels?userId=${userId}`)
-             .then(res => { if (Array.isArray(res.data)) setReels(res.data); })
-             .catch(err => console.error("Error fetching reels:", err));
-             
-        if (userId) {
-            axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => setCurrentUserInfo(res.data)).catch(console.error);
-        }
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const loadReels = async () => {
+        setIsRefreshing(true);
+        try {
+            const requests = [axios.get(`${BACKEND_URL}/api/reels?userId=${userId}`)];
+            if (userId) requests.push(axios.get(`${BACKEND_URL}/api/users/${userId}`));
+            const [reelsRes, userRes] = await Promise.all(requests);
+            if (Array.isArray(reelsRes.data)) setReels(reelsRes.data);
+            if (userRes) setCurrentUserInfo(userRes.data);
+        } catch (err) { console.error("Error fetching reels:", err); } finally { setIsRefreshing(false); }
     };
 
     useEffect(loadReels, EMPTY_ARRAY);

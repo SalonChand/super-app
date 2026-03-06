@@ -55,10 +55,19 @@ function Feed() {
     const [drawColor, setDrawColor] = useState('#ef4444');
     const isDrawing = useRef(false);
 
-    const fetchData = () => {
-        axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}`).then((res) => { if (Array.isArray(res.data)) setPosts(res.data); }).catch(err => console.error(err));
-        if (userId) { axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => { if(!res.data.error) setCurrentUserInfo(res.data); }).catch(err => console.error(err)); }
-        axios.get(`${BACKEND_URL}/api/stories?userId=${userId || 0}`).then(res => { if (Array.isArray(res.data)) setStories(res.data); }).catch(err => console.error(err));
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const fetchData = async () => {
+        setIsRefreshing(true);
+        try {
+            const [postsRes, storiesRes, userRes] = await Promise.all([
+                axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}`),
+                axios.get(`${BACKEND_URL}/api/stories?userId=${userId || 0}`),
+                userId ? axios.get(`${BACKEND_URL}/api/users/${userId}`) : Promise.resolve(null)
+            ]);
+            if (Array.isArray(postsRes.data)) setPosts(postsRes.data);
+            if (Array.isArray(storiesRes.data)) setStories(storiesRes.data);
+            if (userRes && userRes.data && !userRes.data.error) setCurrentUserInfo(userRes.data);
+        } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
     useEffect(fetchData, EMPTY_ARRAY);
 
@@ -234,7 +243,11 @@ function Feed() {
                 </div>
             )}
 
-            <div className="p-4 border-b border-zinc-800 flex gap-4 overflow-x-auto items-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="p-4 border-b border-zinc-800 flex gap-4 overflow-x-auto items-center justify-between" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex gap-4 overflow-x-auto items-center flex-1" style={{ scrollbarWidth: 'none' }}>
+                <button onClick={fetchData} disabled={isRefreshing} className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition" title="Refresh feed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-zinc-400 ${isRefreshing ? 'animate-spin' : ''}`}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                </button>
                 {userId && (
                     <>
                         <input type="file" accept="image/*, video/mp4, video/webm" ref={storyInputRef} onChange={startStoryDraft} className="hidden" />
@@ -256,6 +269,7 @@ function Feed() {
                         </div>
                     );
                 })}
+                </div>
             </div>
 
             <div>

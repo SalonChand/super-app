@@ -53,13 +53,18 @@ function Chat({ themeColor }) {
     const [isRecording, setIsRecording] = useState(false);
     const[recordingDuration, setRecordingDuration] = useState(0);
 
-    const loadInbox = () => {
-        axios.get(`${BACKEND_URL}/api/friends/list/${userId}`).then(res => {
-            const uniqueFriends = Array.from(new Set(res.data.map(a => a.id))).map(id => res.data.find(a => a.id === id));
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const loadInbox = async () => {
+        setIsRefreshing(true);
+        try {
+            const [friendsRes, requestsRes] = await Promise.all([
+                axios.get(`${BACKEND_URL}/api/friends/list/${userId}`),
+                axios.get(`${BACKEND_URL}/api/requests/${userId}`)
+            ]);
+            const uniqueFriends = Array.from(new Set(friendsRes.data.map(a => a.id))).map(id => friendsRes.data.find(a => a.id === id));
             setFriends(uniqueFriends);
-        }).catch(err => console.error(err));
-        
-        axios.get(`${BACKEND_URL}/api/requests/${userId}`).then(res => setRequests(res.data)).catch(err => console.error(err));
+            setRequests(requestsRes.data);
+        } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
 
     const initialDeps = Array.of();
