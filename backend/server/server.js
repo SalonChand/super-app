@@ -16,7 +16,7 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 app.use(cors()); 
-app.use(express.json()); 
+app.use(express.json({ limit: '50mb' })); app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -28,7 +28,10 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: { folder: 'superapp_media', resource_type: 'auto' },
 });
-const upload = multer({ storage: storage });
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
 
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) { fs.mkdirSync(uploadDir); }
@@ -207,7 +210,15 @@ app.get('/api/friends/explore/:userId', async (req, res) => { try { const[explor
 app.get('/api/friends/list/:userId', async (req, res) => { try { const { userId } = req.params; const [friends] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND receiver_id = ? AND is_read = FALSE) AS unread_count, (SELECT content FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message, (SELECT sender_id FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_sender FROM users u JOIN connections c ON (c.requester_id = u.id AND c.receiver_id = ?) OR (c.receiver_id = u.id AND c.requester_id = ?) WHERE c.status = 'accepted'`,[userId, userId, userId, userId, userId, userId, userId]); res.json(friends); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 
 // STORIES & REELS
-app.post('/api/stories', upload.single('media'), async (req, res) => {
+app.post('/api/stories', (req, res, next) => {
+    upload.single('media')(req, res, (err) => {
+        if (err) {
+            console.error('Multer/Cloudinary error:', err);
+            return res.status(500).json({ error: err.message || 'Upload failed' });
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file provided" });
         const media_url = req.file.path;
@@ -218,7 +229,7 @@ app.post('/api/stories', upload.single('media'), async (req, res) => {
             [user_id, media_url, media_type, caption || null, filter_class || 'none', song_name || null, visibility || 'public', visible_to || null]
         );
         res.status(201).json({ message: "Story added!" });
-    } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
+    } catch (err) { console.error('Story DB error:', err); res.status(500).json({ error: err.message || "Server error." }); }
 });
 app.get('/api/stories', async (req, res) => {
     try {
@@ -274,3 +285,4 @@ app.post('/api/communities/:id/invite', async (req, res) => { try { const { send
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.timeout = 120000; // 2 minute timeout for large uploads
