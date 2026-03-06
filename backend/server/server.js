@@ -16,7 +16,7 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 app.use(cors()); 
-app.use(express.json({ limit: '50mb' })); app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json()); 
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -28,10 +28,7 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: { folder: 'superapp_media', resource_type: 'auto' },
 });
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
-});
+const upload = multer({ storage: storage });
 
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) { fs.mkdirSync(uploadDir); }
@@ -206,19 +203,13 @@ app.post('/api/friends/remove', async (req, res) => { try { const { user1, user2
 app.put('/api/friends/accept', async (req, res) => { try { const { requester_id, receiver_id } = req.body; await pool.query('UPDATE connections SET status = ? WHERE requester_id = ? AND receiver_id = ?',['accepted', requester_id, receiver_id]); await pool.query('UPDATE messages SET is_request = false WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',[requester_id, receiver_id, receiver_id, requester_id]); io.to(requester_id.toString()).emit('activity_updated'); res.json({ message: "Request accepted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/status/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const[connections] = await pool.query(`SELECT * FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); if (connections.length === 0) return res.json({ status: 'none' }); const conn = connections[0]; if (conn.status === 'accepted') return res.json({ status: 'friends' }); if (conn.requester_id == user1) return res.json({ status: 'sent_request' }); return res.json({ status: 'received_request', requester_id: conn.requester_id }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/pending/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT users.id, users.username, users.profile_pic_url FROM connections JOIN users ON connections.requester_id = users.id WHERE connections.receiver_id = ? AND connections.status = 'pending'`,[req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/friends/sent/:userId', async (req, res) => { try { const [sent] = await pool.query(`SELECT users.id, users.username, users.profile_pic_url FROM connections JOIN users ON connections.receiver_id = users.id WHERE connections.requester_id = ? AND connections.status = 'pending'`,[req.params.userId]); res.json(sent); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/friends/cancel', async (req, res) => { try { const { requester_id, receiver_id } = req.body; await pool.query('DELETE FROM connections WHERE requester_id = ? AND receiver_id = ? AND status = ?',[requester_id, receiver_id, 'pending']); res.json({ message: "Request cancelled." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/explore/:userId', async (req, res) => { try { const[explore] = await pool.query(`SELECT id, username, profile_pic_url FROM users WHERE id != ? AND username != 'superadmin' AND id NOT IN (SELECT receiver_id FROM connections WHERE requester_id = ?) AND id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ?)`,[req.params.userId, req.params.userId, req.params.userId]); res.json(explore); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/list/:userId', async (req, res) => { try { const { userId } = req.params; const [friends] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND receiver_id = ? AND is_read = FALSE) AS unread_count, (SELECT content FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message, (SELECT sender_id FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_sender FROM users u JOIN connections c ON (c.requester_id = u.id AND c.receiver_id = ?) OR (c.receiver_id = u.id AND c.requester_id = ?) WHERE c.status = 'accepted'`,[userId, userId, userId, userId, userId, userId, userId]); res.json(friends); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 
 // STORIES & REELS
-app.post('/api/stories', (req, res, next) => {
-    upload.single('media')(req, res, (err) => {
-        if (err) {
-            console.error('Multer/Cloudinary error:', err);
-            return res.status(500).json({ error: err.message || 'Upload failed' });
-        }
-        next();
-    });
-}, async (req, res) => {
+app.post('/api/stories', upload.single('media'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file provided" });
         const media_url = req.file.path;
@@ -229,7 +220,7 @@ app.post('/api/stories', (req, res, next) => {
             [user_id, media_url, media_type, caption || null, filter_class || 'none', song_name || null, visibility || 'public', visible_to || null]
         );
         res.status(201).json({ message: "Story added!" });
-    } catch (err) { console.error('Story DB error:', err); res.status(500).json({ error: err.message || "Server error." }); }
+    } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
 });
 app.get('/api/stories', async (req, res) => {
     try {
@@ -238,7 +229,7 @@ app.get('/api/stories', async (req, res) => {
         await pool.query('DELETE FROM stories WHERE created_at < NOW() - INTERVAL 1 DAY');
         // Get friend IDs of current user
         const [friendRows] = await pool.query(
-            `SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS friend_id FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,
+            'SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS friend_id FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = "accepted"',
             [currentUserId, currentUserId, currentUserId]
         );
         const friendIds = friendRows.map(r => r.friend_id);
@@ -285,4 +276,3 @@ app.post('/api/communities/:id/invite', async (req, res) => { try { const { send
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-server.timeout = 120000; // 2 minute timeout for large uploads
