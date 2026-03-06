@@ -196,6 +196,111 @@ function Feed() {
 
     return (
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+
+            {/* ===== STORY VIEWER MODAL ===== */}
+            {viewingStory && (
+                <div className="fixed inset-0 bg-black z-50 flex items-center justify-center" onClick={goToNextStory}>
+                    <div className="relative w-full max-w-sm h-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        {/* Progress bar */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-700 z-10">
+                            <div className="h-full bg-white transition-all duration-100" style={{ width: `${videoProgress}%` }} />
+                        </div>
+                        {/* Header */}
+                        <div className="absolute top-3 left-0 right-0 flex items-center justify-between px-4 z-10">
+                            <Link to={`/profile/${viewingStory.user_id}`} className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
+                                    {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white text-xs font-bold">{viewingStory.username?.charAt(0).toUpperCase()}</div>}
+                                </div>
+                                <span className="text-white text-sm font-bold">{viewingStory.username}</span>
+                            </Link>
+                            <button onClick={() => setViewingStory(null)} className="text-white"><X size={22} /></button>
+                        </div>
+                        {/* Media */}
+                        <div className="flex-1 flex items-center justify-center bg-black" style={{ filter: viewingStory.filter_css || 'none' }}>
+                            {viewingStory.media_type === 'video'
+                                ? <video src={viewingStory.media_url} autoPlay className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
+                                : <img src={viewingStory.media_url} className="w-full h-full object-contain" />
+                            }
+                        </div>
+                        {/* Caption */}
+                        {viewingStory.caption && <div className="absolute bottom-20 left-4 right-4 text-white text-center text-sm font-medium drop-shadow">{viewingStory.caption}</div>}
+                        {/* Like + Reply */}
+                        <div className="absolute bottom-4 left-0 right-0 flex items-center gap-2 px-4">
+                            <button onClick={(e) => { e.stopPropagation(); handleStoryLike(viewingStory.id); }} className={`flex items-center gap-1 ${viewingStory.user_liked ? 'text-pink-500' : 'text-white'}`}>
+                                <Heart size={20} className={viewingStory.user_liked ? 'fill-pink-500' : ''} />
+                                <span className="text-xs">{viewingStory.like_count > 0 ? viewingStory.like_count : ''}</span>
+                            </button>
+                            <form onSubmit={(e) => handleStoryReply(e, viewingStory.user_id)} className="flex-1 flex gap-2" onClick={e => e.stopPropagation()}>
+                                <input value={storyReply} onChange={e => setStoryReply(e.target.value)} placeholder="Reply..." className="flex-1 bg-white/20 text-white placeholder-white/60 rounded-full px-3 py-1.5 text-sm outline-none" />
+                                <button type="submit" className="text-white"><Send size={18} /></button>
+                            </form>
+                            <button onClick={goToNextStory} className="text-white opacity-60 text-xs">Next</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== STORY EDITOR MODAL ===== */}
+            {showStoryEditor && draftPreviewUrl && (
+                <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
+                    <div className="relative w-full max-w-sm">
+                        <button onClick={closeStoryEditor} className="absolute top-2 right-2 z-10 text-white bg-black/50 rounded-full p-1"><X size={20} /></button>
+                        <div className="relative rounded-xl overflow-hidden border border-zinc-700 mb-3" style={{ filter: draftFilter }}>
+                            {draftFile?.type?.startsWith('video')
+                                ? <video src={draftPreviewUrl} className="w-full max-h-80 object-cover" controls />
+                                : <img src={draftPreviewUrl} className="w-full max-h-80 object-cover" />
+                            }
+                            {isDrawingMode && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full cursor-crosshair"
+                                onMouseDown={e => { isDrawing.current = true; const r = canvasRef.current.getBoundingClientRect(); const ctx = canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.moveTo(e.clientX - r.left, e.clientY - r.top); }}
+                                onMouseMove={e => { if (!isDrawing.current) return; const r = canvasRef.current.getBoundingClientRect(); const ctx = canvasRef.current.getContext('2d'); ctx.strokeStyle = drawColor; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineTo(e.clientX - r.left, e.clientY - r.top); ctx.stroke(); }}
+                                onMouseUp={() => { isDrawing.current = false; }}
+                            />}
+                        </div>
+                        {/* Filters */}
+                        <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
+                            {STORY_FILTERS.map(f => <button key={f.name} onClick={() => setDraftFilter(f.value)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border ${draftFilter === f.value ? 'border-blue-500 text-blue-400' : 'border-zinc-700 text-zinc-400'}`}>{f.name}</button>)}
+                        </div>
+                        {/* Song */}
+                        <select value={draftSong} onChange={e => setDraftSong(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm mb-2 outline-none">
+                            {SONG_LIST.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                        {/* Caption */}
+                        <input value={draftCaption} onChange={e => setDraftCaption(e.target.value)} placeholder="Add a caption..." className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm mb-3 outline-none" />
+                        {/* Draw tools */}
+                        <div className="flex gap-2 mb-3 items-center">
+                            <button onClick={() => setIsDrawingMode(!isDrawingMode)} className={`p-2 rounded-full border ${isDrawingMode ? 'border-blue-500 text-blue-400' : 'border-zinc-700 text-zinc-400'}`}><Paintbrush size={16} /></button>
+                            {DRAW_COLORS.map(c => <button key={c} onClick={() => setDrawColor(c)} style={{ background: c }} className={`w-6 h-6 rounded-full border-2 ${drawColor === c ? 'border-white' : 'border-transparent'}`} />)}
+                            <button onClick={() => { const ctx = canvasRef.current?.getContext('2d'); if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); }} className="p-2 rounded-full border border-zinc-700 text-zinc-400 ml-auto"><Undo size={16} /></button>
+                        </div>
+                        <button onClick={uploadFinalStory} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-full transition">Post Story</button>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== STORIES ROW ===== */}
+            <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-zinc-800 no-scrollbar">
+                {/* Add Story button */}
+                <div className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => storyInputRef.current?.click()}>
+                    <div className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-dashed border-zinc-600 flex items-center justify-center hover:border-blue-500 transition">
+                        <Plus size={22} className="text-zinc-400" />
+                    </div>
+                    <span className="text-xs text-zinc-500 truncate w-14 text-center">Your Story</span>
+                </div>
+                <input ref={storyInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={startStoryDraft} />
+                {/* Story bubbles */}
+                {uniqueStories.map(story => (
+                    <div key={story.user_id} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => openStoryViewer(story.user_id)}>
+                        <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${story.user_has_viewed ? 'border-zinc-600' : 'border-blue-500'} p-0.5`}>
+                            <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800">
+                                {story.profile_pic_url ? <img src={story.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">{story.username?.charAt(0).toUpperCase()}</div>}
+                            </div>
+                        </div>
+                        <span className="text-xs text-zinc-400 truncate w-14 text-center">{story.username}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* ===== POSTS ===== */}
             <div>
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
