@@ -243,6 +243,7 @@ app.get('/api/stories', async (req, res) => {
              WHERE s.created_at >= NOW() - INTERVAL 1 DAY
              AND (
                 s.user_id = ?
+                OR s.visibility IS NULL
                 OR s.visibility = 'public'
                 OR (s.visibility = 'friends' AND s.user_id IN (?))
                 OR (s.visibility = 'only_me' AND s.user_id = ?)
