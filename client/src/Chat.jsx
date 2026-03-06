@@ -2,21 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
-import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
+import { Send, ArrowLeft, User, BellRing, Phone, Video, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-let socket;
-try {
-    socket = io('https://superapp-backend-6106.onrender.com', {
-        reconnectionAttempts: 5,
-        reconnectionDelay: 3000,
-        timeout: 10000,
-    });
-    socket.on('connect_error', () => {});
-    socket.on('error', () => {});
-} catch(e) {
-    socket = { emit: () => {}, on: () => {}, off: () => {} };
+// Use a singleton socket so Chat and App share the same connection
+if (!window._superAppSocket) {
+    try {
+        window._superAppSocket = io(BACKEND_URL, {
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000,
+            timeout: 10000,
+        });
+        window._superAppSocket.on('connect_error', () => {});
+        window._superAppSocket.on('error', () => {});
+    } catch(e) {
+        window._superAppSocket = { emit: () => {}, on: () => {}, on: () => {}, off: () => {} };
+    }
 }
+const socket = window._superAppSocket;
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
 function Chat({ themeColor }) {
@@ -40,25 +43,6 @@ function Chat({ themeColor }) {
     const cameraInputRef = useRef(null);
     const docInputRef = useRef(null);
     
-    const[receivingCall, setReceivingCall] = useState(false);
-    const[callerInfo, setCallerInfo] = useState(null);
-    const [callAccepted, setCallAccepted] = useState(false);
-    const [activeCall, setActiveCall] = useState(false); 
-    const [isVideoCall, setIsVideoCall] = useState(false);
-    const [micEnabled, setMicEnabled] = useState(true);
-    const [cameraEnabled, setCameraEnabled] = useState(true);
-
-    const myVideoRef = useRef(null);
-    const remoteVideoRef = useRef(null);
-    const remoteAudioRef = useRef(null);
-    const [myStream, setMyStream] = useState(null);
-    const peerConnectionRef = useRef(null);
-
-    const isCallerRef = useRef(false); 
-    const callStartTimeRef = useRef(null); 
-    const isVideoCallRef = useRef(false);
-    const pendingIceCandidates = useRef([]);
-
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
@@ -96,36 +80,10 @@ function Chat({ themeColor }) {
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
     useEffect(() => {
-        if (activeCall && myVideoRef.current && myStream) {
-            myVideoRef.current.srcObject = myStream;
-        }
-    }, [activeCall, myStream]);
-
-    useEffect(() => {
         const handleMessageUpdate = () => { loadMessages(); loadInbox(); };
-        const handleIncomingCall = (data) => { if (!activeCall && !receivingCall) { setReceivingCall(true); setCallerInfo(data); setIsVideoCall(data.isVideo); isVideoCallRef.current = data.isVideo; } };
-        const handleCallAccepted = async (signal) => {
-            setCallAccepted(true);
-            callStartTimeRef.current = Date.now();
-            if (peerConnectionRef.current) {
-                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
-                for (const candidate of pendingIceCandidates.current) {
-                    try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
-                }
-                pendingIceCandidates.current = [];
-            }
-        };
-        const handleIceCandidate = async (candidate) => { if (peerConnectionRef.current) { if (peerConnectionRef.current.remoteDescription) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.error(e); } } else { pendingIceCandidates.current.push(candidate); } } };
-        const handleCallEnded = () => handleHangUp(false);
-
         socket.on('message_updated', handleMessageUpdate);
-        socket.on('incoming_call', handleIncomingCall);
-        socket.on('call_accepted', handleCallAccepted);
-        socket.on('ice_candidate', handleIceCandidate);
-        socket.on('call_ended', handleCallEnded);
-        
-        return () => { socket.off('message_updated', handleMessageUpdate); socket.off('incoming_call', handleIncomingCall); socket.off('call_accepted', handleCallAccepted); socket.off('ice_candidate', handleIceCandidate); socket.off('call_ended', handleCallEnded); };
-    },[selectedUser, activeCall, receivingCall]);
+        return () => { socket.off('message_updated', handleMessageUpdate); };
+    }, [selectedUser]);
 
     const handleSelectUser = async (friend) => {
         setSelectedUser(friend);
@@ -169,117 +127,6 @@ function Chat({ themeColor }) {
     // ===============================================
     // 🔥 IPHONE / ANDROID CAMERA BUG FIX 🔥
     // ===============================================
-    const callTargetRef = useRef(null); // store who we're calling to avoid stale closure
-
-    const initPeerConnection = (targetId) => {
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-                { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-            ],
-            iceCandidatePoolSize: 10,
-        });
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                const sendTo = callTargetRef.current;
-                if (sendTo) socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate });
-            }
-        };
-        pc.ontrack = (event) => {
-            const stream = event.streams[0];
-            if (!stream) return;
-            // Attach to video element (for video calls)
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = stream;
-                remoteVideoRef.current.play().catch(() => {});
-            }
-            // Always attach to dedicated audio element (critical for voice calls on mobile)
-            if (remoteAudioRef.current) {
-                remoteAudioRef.current.srcObject = stream;
-                remoteAudioRef.current.play().catch(() => {});
-            }
-        };
-        pc.oniceconnectionstatechange = () => {
-            console.log('ICE:', pc.iceConnectionState);
-        };
-        return pc;
-    };
-
-    const startCall = async (video = false) => {
-        setIsVideoCall(video); isVideoCallRef.current = video; setActiveCall(true);
-        isCallerRef.current = true; callStartTimeRef.current = null; pendingIceCandidates.current = [];
-        callTargetRef.current = selectedUser.id;
-        try {
-            const constraints = video ? { video: true, audio: true } : { video: false, audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            setMyStream(stream);
-            if (myVideoRef.current) { myVideoRef.current.srcObject = stream; }
-            const pc = initPeerConnection(selectedUser.id);
-            peerConnectionRef.current = pc;
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: video });
-            await pc.setLocalDescription(offer);
-            socket.emit('call_user', { userToCall: selectedUser.id, signalData: offer, from: userId, callerName: currentUserInfo?.username || 'Unknown', isVideo: video });
-        } catch (err) {
-            console.error('Start Call Error:', err);
-            if (err.name === 'NotAllowedError') alert('Microphone permission denied. Please allow access in your browser settings.');
-            else if (err.name === 'NotFoundError') alert('No microphone found on this device.');
-            else if (err.name === 'NotReadableError') alert('Microphone is already in use by another app.');
-            else alert(`Could not start call: ${err.message}`);
-            setActiveCall(false);
-        }
-    };
-
-    const answerCall = async () => {
-        setCallAccepted(true); setActiveCall(true); setReceivingCall(false);
-        isCallerRef.current = false; callStartTimeRef.current = Date.now(); pendingIceCandidates.current = [];
-        callTargetRef.current = callerInfo.from;
-        try {
-            const constraints = isVideoCall ? { video: true, audio: true } : { video: false, audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            setMyStream(stream);
-            if (myVideoRef.current) { myVideoRef.current.srcObject = stream; }
-            const pc = initPeerConnection(callerInfo.from);
-            peerConnectionRef.current = pc;
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
-            await pc.setRemoteDescription(new RTCSessionDescription(callerInfo.signal));
-            // Flush any ICE candidates that arrived before remote description
-            for (const candidate of pendingIceCandidates.current) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
-            }
-            pendingIceCandidates.current = [];
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            socket.emit('answer_call', { signal: answer, to: callerInfo.from });
-        } catch (err) {
-            console.error('Answer Call Error:', err);
-            if (err.name === 'NotAllowedError') alert('Microphone permission denied. Please allow access in your browser settings.');
-            else if (err.name === 'NotFoundError') alert('No microphone found on this device.');
-            else if (err.name === 'NotReadableError') alert('Microphone is already in use by another app.');
-            else alert(`Could not answer call: ${err.message}`);
-            handleHangUp(true);
-        }
-    };
-
-    const handleHangUp = (emitToOther = true) => { 
-        if (emitToOther) { const sendTo = callerInfo ? callerInfo.from : selectedUser?.id; if (sendTo) socket.emit('end_call', { to: sendTo }); } 
-        if (isCallerRef.current && selectedUser) {
-            let logMsg = ""; const isVid = isVideoCallRef.current;
-            if (callStartTimeRef.current) { const diffSeconds = Math.floor((Date.now() - callStartTimeRef.current) / 1000); const mins = Math.floor(diffSeconds / 60); const secs = diffSeconds % 60; const duration = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`; logMsg = isVid ? `📹 Video call ended • ${duration}` : `📞 Audio call ended • ${duration}`;
-            } else { logMsg = isVid ? `📹 Missed Video call` : `📞 Missed Audio call`; }
-            socket.emit('send_private_message', { senderId: userId, receiverId: selectedUser.id, content: logMsg, replyToId: null });
-        }
-        isCallerRef.current = false; callStartTimeRef.current = null; setActiveCall(false); setReceivingCall(false); setCallAccepted(false); setCallerInfo(null); 
-        if (myStream) { myStream.getTracks().forEach(track => track.stop()); setMyStream(null); } 
-        if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; } 
-    };
-
-    const toggleMic = () => { if (myStream) { const track = myStream.getAudioTracks()[0]; if (track) { track.enabled = !track.enabled; setMicEnabled(track.enabled); } } };
-    const toggleCamera = () => { if (myStream && isVideoCall) { const track = myStream.getVideoTracks()[0]; if (track) { track.enabled = !track.enabled; setCameraEnabled(track.enabled); } } };
 
     const startRecording = async () => {
         setShowGameMenu(false);
@@ -312,36 +159,6 @@ function Chat({ themeColor }) {
     const executeForward = (targetFriendId) => { socket.emit('send_private_message', { senderId: userId, receiverId: targetFriendId, content: forwardingMessage.content, media_url: forwardingMessage.media_url, media_type: forwardingMessage.media_type, isForwarded: true }); setForwardingMessage(null); alert("Message forwarded!"); };
     const deleteMessage = (msgId) => { if(window.confirm("Delete this message for everyone?")) { socket.emit('delete_message', { messageId: msgId, senderId: userId, receiverId: selectedUser.id }); setHoveredMessageId(null); } };
 
-    if (receivingCall && !callAccepted) {
-        return ( <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center animate-fade-in backdrop-blur-md"><div className="w-24 h-24 rounded-full bg-zinc-800 border-4 border-zinc-700 flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(255,255,255,0.2)] animate-pulse"><User size={40} className="text-zinc-500" /></div><h2 className="text-white text-3xl font-bold mb-2">{callerInfo.callerName}</h2><p className="text-zinc-400 mb-12 uppercase tracking-widest text-sm">Incoming {isVideoCall ? 'Video' : 'Audio'} Call...</p><div className="flex gap-10"><button onClick={() => { setReceivingCall(false); handleHangUp(); }} className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:scale-110 transition shadow-lg shadow-red-500/50"><PhoneOff className="text-white" size={28} /></button><button onClick={answerCall} className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center hover:scale-110 transition shadow-lg shadow-green-500/50 animate-bounce">{isVideoCall ? <Video className="text-white" size={28} /> : <Phone className="text-white" size={28} />}</button></div></div> );
-    }
-
-    if (activeCall) {
-        return ( 
-            <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col">
-                <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-                    <video playsInline ref={remoteVideoRef} autoPlay className="absolute inset-0 w-full h-full object-cover" />
-                    {/* Hidden audio for voice calls - essential on mobile */}
-                    <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
-                    {!isVideoCall && (
-                        <div className="flex flex-col items-center z-10"><div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border border-zinc-700"><User size={50} className="text-zinc-500" /></div><h2 className="text-white text-2xl font-bold">{callerInfo?.callerName || selectedUser?.username}</h2><p className="text-green-400 animate-pulse mt-2">Connected</p></div>
-                    )}
-                    {isVideoCall && myStream && (
-                        <div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl z-20">
-                            {/* 🔥 Muted local video stream ensures no echo! 🔥 */}
-                            <video playsInline muted ref={myVideoRef} autoPlay className="w-full h-full object-cover transform -scale-x-100" />
-                        </div>
-                    )}
-                </div>
-                <div className="h-28 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center gap-6 pb-safe">
-                    <button onClick={toggleMic} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${micEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{micEnabled ? <Mic size={24} /> : <MicOff size={24} />}</button>
-                    <button onClick={() => handleHangUp(true)} className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-500/30 transition hover:scale-105"><PhoneOff size={28} /></button>
-                    {isVideoCall && (<button onClick={toggleCamera} className={`w-14 h-14 rounded-full flex items-center justify-center transition ${cameraEnabled ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-white text-black'}`}>{cameraEnabled ? <Camera size={24} /> : <CameraOff size={24} />}</button>)}
-                </div>
-            </div> 
-        );
-    }
-
     if (selectedUser) {
         const isCurrentlyFriend = friends.some(f => f.id === selectedUser.id);
         const pinnedMessage = messages.slice().reverse().find(m => m.is_pinned);
@@ -359,7 +176,7 @@ function Chat({ themeColor }) {
                             <div><h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2><p className="text-xs text-zinc-500">Private Chat</p></div>
                         </Link>
                     </div>
-                    {isCurrentlyFriend && (<div className="flex items-center gap-4 mr-2" style={{ color: themeColor }}><button onClick={() => startCall(false)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Phone size={22} /></button><button onClick={() => startCall(true)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Video size={24} /></button></div>)}
+                    {isCurrentlyFriend && onStartCall && (<div className="flex items-center gap-4 mr-2" style={{ color: themeColor }}><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, false)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Phone size={22} /></button><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, true)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Video size={24} /></button></div>)}
                 </div>
                 
                 {pinnedMessage ? (<div className="bg-zinc-900 border-b border-zinc-800 p-2 px-4 flex items-center gap-3 shadow-md z-10"><Pin size={16} style={{ color: themeColor }} className="flex-shrink-0" /><div className="flex-1 overflow-hidden"><p className="text-xs font-bold" style={{ color: themeColor }}>Pinned Message</p><p className="text-zinc-300 text-sm truncate">{pinnedMessage.content || "Media Attachment"}</p></div></div>) : null}

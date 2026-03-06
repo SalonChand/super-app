@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell } from 'lucide-react';
+import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import Register from './Register'; 
 import Login from './Login';
@@ -39,15 +39,22 @@ class ErrorBoundary extends React.Component {
 }
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const globalSocket = io(BACKEND_URL, {
-  autoConnect: true,
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 3000,
-  timeout: 10000,
-});
-globalSocket.on('connect_error', () => {});
-globalSocket.on('error', () => {});
+if (!window._superAppSocket) {
+    try {
+        window._superAppSocket = io(BACKEND_URL, {
+            autoConnect: true,
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000,
+            timeout: 10000,
+        });
+        window._superAppSocket.on('connect_error', () => {});
+        window._superAppSocket.on('error', () => {});
+    } catch(e) {
+        window._superAppSocket = { emit: () => {}, on: () => {}, off: () => {} };
+    }
+}
+const globalSocket = window._superAppSocket;
 function SplashScreen() {
     return (
         <div className="fixed inset-0 z-[999] bg-black flex flex-col items-center justify-center animate-fade-out" style={{ animationDelay: '1.5s', animationFillMode: 'forwards' }}>
@@ -72,6 +79,30 @@ const unlockAudio = () => { if (!audioCtx) { const AudioContext = window.AudioCo
 if (typeof document !== 'undefined') { document.addEventListener('click', unlockAudio); }
 const playNotificationSound = () => { try { if (!audioCtx) return; const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain(); osc.connect(gainNode); gainNode.connect(audioCtx.destination); osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1); gainNode.gain.setValueAtTime(0, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3); } catch (e) { } };
 
+// 🔔 RINGING SOUND for incoming calls
+let ringInterval = null;
+const startRinging = () => {
+    stopRinging();
+    ringInterval = setInterval(() => {
+        try {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(480, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(480, audioCtx.currentTime + 0.4);
+            osc.frequency.setValueAtTime(0, audioCtx.currentTime + 0.5);
+            gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime + 0.4);
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime + 0.5);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.5);
+        } catch(e) {}
+    }, 1200);
+};
+const stopRinging = () => { if (ringInterval) { clearInterval(ringInterval); ringInterval = null; } };
+
 function ProtectedRoute({ children }) { const currentUserId = localStorage.getItem('userId'); if (!currentUserId) return <Navigate to="/login" replace />; return children; }
 function PublicRoute({ children }) { const currentUserId = localStorage.getItem('userId'); if (currentUserId) return <Navigate to="/" replace />; return children; }
 
@@ -89,6 +120,223 @@ function NavItem({ to, icon: Icon, label, badgeCount, themeColor, onClick, showL
   );
 }
 
+// ============================================================
+// GLOBAL CALL MANAGER - Handles ALL WebRTC on every page
+// ============================================================
+function CallManager({ currentUserId, startCallRef }) {
+    const remoteAudioRef = React.useRef(null);
+    const remoteVideoRef = React.useRef(null);
+    const myVideoRef = React.useRef(null);
+    const peerConnectionRef = React.useRef(null);
+    const pendingIce = React.useRef([]);
+    const callTargetRef = React.useRef(null);
+    const myStreamRef = React.useRef(null);
+
+    const [incomingCall, setIncomingCall] = React.useState(null);
+    const [activeCall, setActiveCall] = React.useState(null);
+    const [callStatus, setCallStatus] = React.useState('');
+    const [micOn, setMicOn] = React.useState(true);
+    const [camOn, setCamOn] = React.useState(true);
+
+    const stopAllMedia = () => {
+        if (myStreamRef.current) { myStreamRef.current.getTracks().forEach(t => t.stop()); myStreamRef.current = null; }
+        if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
+    };
+
+    const createPC = (targetId) => {
+        callTargetRef.current = targetId;
+        const pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+            ],
+            iceCandidatePoolSize: 10,
+        });
+        pc.onicecandidate = (e) => {
+            if (e.candidate) globalSocket.emit('ice_candidate', { to: callTargetRef.current, candidate: e.candidate });
+        };
+        pc.ontrack = (e) => {
+            const stream = e.streams[0]; if (!stream) return;
+            if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
+            if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.play().catch(() => {}); }
+        };
+        pc.oniceconnectionstatechange = () => {
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') setCallStatus('connected');
+        };
+        return pc;
+    };
+
+    const hangUp = React.useCallback((notify = true) => {
+        stopRinging();
+        if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current });
+        stopAllMedia();
+        setActiveCall(null); setCallStatus(''); setIncomingCall(null);
+        callTargetRef.current = null; pendingIce.current = [];
+    }, []);
+
+    const startCall = React.useCallback(async (target, isVideo) => {
+        stopRinging(); pendingIce.current = [];
+        setActiveCall({ targetId: target.id, targetName: target.username, isVideo, isCaller: true });
+        setCallStatus('ringing');
+        startRinging();
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: isVideo });
+            myStreamRef.current = stream;
+            if (myVideoRef.current) myVideoRef.current.srcObject = stream;
+            const pc = createPC(target.id); peerConnectionRef.current = pc;
+            stream.getTracks().forEach(t => pc.addTrack(t, stream));
+            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: isVideo });
+            await pc.setLocalDescription(offer);
+            const callerName = localStorage.getItem('username') || 'Someone';
+            globalSocket.emit('call_user', { userToCall: target.id, signalData: offer, from: currentUserId, callerName, isVideo });
+        } catch (err) {
+            stopRinging(); setActiveCall(null); setCallStatus('');
+            if (err.name === 'NotAllowedError') alert('Microphone/Camera permission denied. Allow access in browser settings.');
+            else alert('Could not start call: ' + err.message);
+        }
+    }, [currentUserId]);
+
+    // Expose startCall via ref so App can pass it to Chat
+    React.useEffect(() => { if (startCallRef) startCallRef.current = startCall; }, [startCall]);
+
+    const answerCall = async () => {
+        if (!incomingCall) return;
+        stopRinging(); pendingIce.current = [];
+        const caller = incomingCall;
+        setActiveCall({ targetId: caller.from, targetName: caller.callerName, isVideo: caller.isVideo, isCaller: false });
+        setCallStatus('connected'); setIncomingCall(null);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: caller.isVideo });
+            myStreamRef.current = stream;
+            if (myVideoRef.current) myVideoRef.current.srcObject = stream;
+            const pc = createPC(caller.from); peerConnectionRef.current = pc;
+            stream.getTracks().forEach(t => pc.addTrack(t, stream));
+            await pc.setRemoteDescription(new RTCSessionDescription(caller.signal));
+            for (const c of pendingIce.current) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
+            pendingIce.current = [];
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            globalSocket.emit('answer_call', { signal: answer, to: caller.from });
+        } catch (err) {
+            hangUp(true);
+            alert('Could not answer call: ' + err.message);
+        }
+    };
+
+    React.useEffect(() => {
+        if (!currentUserId) return;
+        const onIncoming = (data) => { setIncomingCall(data); startRinging(); };
+        const onAccepted = async (signal) => {
+            stopRinging(); setCallStatus('connected');
+            if (peerConnectionRef.current) {
+                await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
+                for (const c of pendingIce.current) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
+                pendingIce.current = [];
+            }
+        };
+        const onIce = async (candidate) => {
+            if (peerConnectionRef.current?.remoteDescription) {
+                try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+            } else { pendingIce.current.push(candidate); }
+        };
+        const onEnded = () => hangUp(false);
+        globalSocket.on('incoming_call', onIncoming);
+        globalSocket.on('call_accepted', onAccepted);
+        globalSocket.on('ice_candidate', onIce);
+        globalSocket.on('call_ended', onEnded);
+        return () => {
+            globalSocket.off('incoming_call', onIncoming);
+            globalSocket.off('call_accepted', onAccepted);
+            globalSocket.off('ice_candidate', onIce);
+            globalSocket.off('call_ended', onEnded);
+        };
+    }, [currentUserId]);
+
+    const toggleMic = () => { const t = myStreamRef.current?.getAudioTracks()[0]; if (t) { t.enabled = !t.enabled; setMicOn(t.enabled); } };
+    const toggleCam = () => { const t = myStreamRef.current?.getVideoTracks()[0]; if (t) { t.enabled = !t.enabled; setCamOn(t.enabled); } };
+
+    return (
+        <>
+            <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
+
+            {incomingCall && !activeCall && (
+                <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
+                    <div className="w-28 h-28 rounded-full bg-zinc-800 border-4 border-green-500 flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(34,197,94,0.4)] animate-pulse">
+                        <User size={50} className="text-zinc-300" />
+                    </div>
+                    <h2 className="text-white text-3xl font-bold mb-2">{incomingCall.callerName}</h2>
+                    <p className="text-zinc-400 mb-2 uppercase tracking-widest text-sm">Incoming {incomingCall.isVideo ? "Video" : "Voice"} Call</p>
+                    <p className="text-zinc-600 text-xs mb-12 animate-pulse">ringing...</p>
+                    <div className="flex gap-16">
+                        <div className="flex flex-col items-center gap-2">
+                            <button onClick={() => { stopRinging(); globalSocket.emit("end_call", { to: incomingCall.from }); setIncomingCall(null); }}
+                                className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-lg shadow-red-500/50 hover:scale-110 transition">
+                                <PhoneOff className="text-white" size={32} />
+                            </button>
+                            <span className="text-zinc-400 text-sm">Decline</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                            <button onClick={answerCall}
+                                className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/50 animate-bounce hover:scale-110 transition">
+                                {incomingCall.isVideo ? <Video className="text-white" size={32} /> : <Phone className="text-white" size={32} />}
+                            </button>
+                            <span className="text-zinc-400 text-sm">Accept</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeCall && (
+                <div className="fixed inset-0 z-[300] bg-zinc-950 flex flex-col">
+                    <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+                        {activeCall.isVideo && <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />}
+                        {callStatus === 'ringing' && (
+                            <div className="flex flex-col items-center z-10">
+                                <div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border-4 border-blue-500 animate-pulse shadow-[0_0_40px_rgba(59,130,246,0.4)]">
+                                    <User size={50} className="text-zinc-300" />
+                                </div>
+                                <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
+                                <p className="text-zinc-400 animate-pulse mt-2">Calling...</p>
+                            </div>
+                        )}
+                        {callStatus === 'connected' && !activeCall.isVideo && (
+                            <div className="flex flex-col items-center z-10">
+                                <div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border-2 border-green-500">
+                                    <User size={50} className="text-zinc-300" />
+                                </div>
+                                <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
+                                <p className="text-green-400 animate-pulse mt-2">Connected</p>
+                            </div>
+                        )}
+                        {activeCall.isVideo && (
+                            <div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl z-20">
+                                <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+                            </div>
+                        )}
+                    </div>
+                    <div className="h-28 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center gap-6">
+                        <button onClick={toggleMic} className={"w-14 h-14 rounded-full flex items-center justify-center transition " + (micOn ? "bg-zinc-800 text-white" : "bg-white text-black")}>
+                            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+                        </button>
+                        <button onClick={() => hangUp(true)} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/30 hover:scale-105 transition">
+                            <PhoneOff size={28} />
+                        </button>
+                        {activeCall.isVideo && (
+                            <button onClick={toggleCam} className={"w-14 h-14 rounded-full flex items-center justify-center transition " + (camOn ? "bg-zinc-800 text-white" : "bg-white text-black")}>
+                                {camOn ? <Camera size={24} /> : <CameraOff size={24} />}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+
 function AppContent() {
   const currentUserId = localStorage.getItem('userId');
   const[currentUser, setCurrentUser] = useState(null);
@@ -96,6 +344,8 @@ function AppContent() {
   const[mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [badges, setBadges] = useState({ unread_messages: 0, pending_requests: 0, total_notifications: 0 });
   const[showSplash, setShowSplash] = useState(true);
+
+  const startCallRef = useRef(null);
 
   const userThemeColor = currentUser?.theme_color || '#3b82f6';
 
@@ -133,12 +383,11 @@ function AppContent() {
           };
           globalSocket.on('message_updated', handleNotification);
           globalSocket.on('activity_updated', handleNotification);
-          globalSocket.on('incoming_call', handleNotification);
+
           subscribeToPush();
           return () => {
               globalSocket.off('message_updated', handleNotification);
               globalSocket.off('activity_updated', handleNotification);
-              globalSocket.off('incoming_call', handleNotification);
           };
       }
   }, [currentUserId]);
@@ -146,7 +395,7 @@ function AppContent() {
   useEffect(() => {
     const timer = setTimeout(() => { setShowSplash(false); }, 500);
     if (currentUserId) { 
-        axios.get(`${BACKEND_URL}/api/users/${currentUserId}`).then(res => setCurrentUser(res.data)).catch(err => console.error(err)); 
+        axios.get(`${BACKEND_URL}/api/users/${currentUserId}`).then(res => { setCurrentUser(res.data); if (res.data?.username) localStorage.setItem('username', res.data.username); }).catch(err => console.error(err)); 
         fetchBadges();
     }
     return () => clearTimeout(timer);
@@ -219,7 +468,7 @@ function AppContent() {
             <Route path="/communities" element={<ProtectedRoute><Communities themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/friends" element={<ProtectedRoute><Friends themeColor={userThemeColor} /></ProtectedRoute>} /> 
             <Route path="/reels" element={<ProtectedRoute><Reels themeColor={userThemeColor} /></ProtectedRoute>} /> 
-            <Route path="/chat" element={<ProtectedRoute><Chat themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><Chat themeColor={userThemeColor} onStartCall={(target, isVideo) => startCallRef.current && startCallRef.current(target, isVideo)} /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} /></ProtectedRoute>} />
@@ -280,6 +529,7 @@ function AppContent() {
               </>
           )}
         </nav>
+      <CallManager currentUserId={currentUserId} startCallRef={startCallRef} />
       </div>
   );
 }
