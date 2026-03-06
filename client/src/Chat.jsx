@@ -153,7 +153,7 @@ function Chat({ themeColor }) {
     // 🔥 IPHONE / ANDROID CAMERA BUG FIX 🔥
     // ===============================================
     const initPeerConnection = () => { 
-        const pc = new RTCPeerConnection({ iceServers:[{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }] }); 
+        const pc = new RTCPeerConnection({ iceServers:[{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] }); 
         pc.onicecandidate = (event) => { if (event.candidate) { const sendTo = callerInfo ? callerInfo.from : selectedUser.id; socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); } }; 
         pc.ontrack = (event) => { if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; } }; 
         return pc; 
@@ -173,7 +173,10 @@ function Chat({ themeColor }) {
             socket.emit('call_user', { userToCall: selectedUser.id, signalData: offer, from: userId, callerName: currentUserInfo?.username || "Unknown", isVideo: video }); 
         } catch (err) { 
             console.error("Start Call Error:", err); 
-            alert(`Hardware Error: ${err.name}\n${err.message}\n\nPlease check browser settings or close other apps using the camera.`); 
+            if (err.name === 'NotAllowedError') alert('Camera/microphone permission denied. Please allow access in your browser settings and try again.');
+            else if (err.name === 'NotFoundError') alert('No camera or microphone found on this device.');
+            else if (err.name === 'NotReadableError') alert('Camera or microphone is already in use by another app. Please close it and try again.');
+            else alert(`Could not start call: ${err.message}`);
             setActiveCall(false); 
         } 
     };
@@ -193,7 +196,10 @@ function Chat({ themeColor }) {
             socket.emit('answer_call', { signal: answer, to: callerInfo.from }); 
         } catch (err) { 
             console.error("Answer Call Error:", err); 
-            alert(`Hardware Error: ${err.name}\n${err.message}`); 
+            if (err.name === 'NotAllowedError') alert('Camera/microphone permission denied. Please allow access in your browser settings.');
+            else if (err.name === 'NotFoundError') alert('No camera or microphone found on this device.');
+            else if (err.name === 'NotReadableError') alert('Camera or microphone is already in use by another app. Please close it and try again.');
+            else alert(`Could not answer call: ${err.message}`);
             handleHangUp(true); 
         } 
     };
