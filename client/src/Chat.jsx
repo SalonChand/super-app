@@ -153,7 +153,7 @@ function Chat({ themeColor }) {
     // 🔥 IPHONE / ANDROID CAMERA BUG FIX 🔥
     // ===============================================
     const initPeerConnection = () => { 
-        const pc = new RTCPeerConnection({ iceServers:[{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }, { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }] }); 
+        const pc = new RTCPeerConnection({ iceServers:[{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }] }); 
         pc.onicecandidate = (event) => { if (event.candidate) { const sendTo = callerInfo ? callerInfo.from : selectedUser.id; socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); } }; 
         pc.ontrack = (event) => { if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; } }; 
         return pc; 
