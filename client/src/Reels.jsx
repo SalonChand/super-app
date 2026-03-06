@@ -246,7 +246,7 @@ function Reels() {
         } catch (err) { console.error("Error fetching reels:", err); } finally { setIsRefreshing(false); }
     };
 
-    useEffect(loadReels, EMPTY_ARRAY);
+    useEffect(() => { loadReels(); }, EMPTY_ARRAY);
 
     const handleLike = async (reelId) => {
         if (!userId) return alert("Please log in to like videos!");
