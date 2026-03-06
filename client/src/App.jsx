@@ -155,7 +155,7 @@ function AppContent() {
   useEffect(() => { setMobileMenuOpen(false); },[location.pathname]);
 
   return (
-      <div className="min-h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-x-hidden">
+      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
         
         {showSplash && <SplashScreen />}
 
@@ -198,7 +198,7 @@ function AppContent() {
         </header>
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
-        <main className="w-full max-w-[600px] border-x border-zinc-800 min-h-screen relative bg-black pb-[70px] sm:pb-0">
+        <main className="w-full max-w-[600px] border-x border-zinc-800 h-screen overflow-y-auto relative bg-black pb-[70px] sm:pb-0">
           {location.pathname !== '/reels' && (
               <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">

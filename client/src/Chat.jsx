@@ -70,7 +70,7 @@ function Chat({ themeColor }) {
         try {
             const [friendsRes, requestsRes] = await Promise.all([
                 axios.get(`${BACKEND_URL}/api/friends/list/${userId}`),
-                axios.get(`${BACKEND_URL}/api/requests/${userId}`)
+                axios.get(`${BACKEND_URL}/api/friends/pending/${userId}`)
             ]);
             const uniqueFriends = Array.from(new Set(friendsRes.data.map(a => a.id))).map(id => friendsRes.data.find(a => a.id === id));
             setFriends(uniqueFriends);
