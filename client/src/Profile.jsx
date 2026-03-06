@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
 
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const EMPTY_ARRAY = new Array();
 
 function formatTimeFriendly(dateString) {
