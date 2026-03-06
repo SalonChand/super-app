@@ -31,7 +31,7 @@ function Notifications() {
              .catch(err => console.error(err));
     };
 
-    useEffect(fetchActivity, []);
+    useEffect(() => { fetchActivity(); }, []);
 
     return (
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in relative">

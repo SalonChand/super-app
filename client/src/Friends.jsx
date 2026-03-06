@@ -14,7 +14,7 @@ function Friends() {
         axios.get(`${BACKEND_URL}/api/friends/pending/${currentUserId}`).then(res => setPendingRequests(res.data)).catch(err => console.error(err));
         axios.get(`${BACKEND_URL}/api/friends/explore/${currentUserId}`).then(res => setExploreUsers(res.data)).catch(err => console.error(err));
     };
-    useEffect(loadFriendsData, []);
+    useEffect(() => { loadFriendsData(); }, []);
 
     const acceptRequest = (requesterId) => {
         axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: requesterId, receiver_id: currentUserId }).then(() => loadFriendsData()).catch(err => console.error(err));
