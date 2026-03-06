@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, UserPlus, Check } from 'lucide-react';
 
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+import { BACKEND_URL } from './config';
 const EMPTY_ARRAY = new Array();
 
 function formatTimeFriendly(dateString) {
@@ -62,7 +62,7 @@ function Notifications() {
                                 <div className="relative">
                                     <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800">
                                         {item.profile_pic_url ? (
-                                            <img src={`${BACKEND_URL}${item.profile_pic_url}`} className="w-full h-full object-cover" />
+                                            <img src={`${item.profile_pic_url}`} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="flex items-center justify-center w-full h-full font-bold text-zinc-500 text-lg">
                                                 {item.username.charAt(0).toUpperCase()}
