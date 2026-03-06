@@ -4,8 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2 } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const EMPTY_ARRAY = new Array();
-
 // Helper to convert VAPID keys
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -32,7 +30,7 @@ function Settings() {
         const isDark = localStorage.getItem('darkMode') !== 'false';
         setDarkMode(isDark); if (!isDark) document.body.classList.add('light-theme');
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { setPrivateAccount(res.data.is_private); setNotifications(res.data.notifications); }).catch(err => console.error(err));
-    }, EMPTY_ARRAY);
+    }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
     const enableOSNotifications = async () => {

@@ -5,8 +5,6 @@ import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, Volum
 import { Link } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const EMPTY_ARRAY = new Array();
-
 let globalMuteState = true; 
 
 const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
@@ -55,7 +53,7 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
 
         if (videoRef.current) observer.observe(videoRef.current);
         return () => observer.disconnect();
-    }, EMPTY_ARRAY);
+    }, []);
 
     const handleScreenTap = (e) => {
         e.stopPropagation(); 
@@ -246,7 +244,7 @@ function Reels() {
         } catch (err) { console.error("Error fetching reels:", err); } finally { setIsRefreshing(false); }
     };
 
-    useEffect(() => { loadReels(); }, EMPTY_ARRAY);
+    useEffect(() => { loadReels(); }, []);
 
     const handleLike = async (reelId) => {
         if (!userId) return alert("Please log in to like videos!");

@@ -4,19 +4,17 @@ import { Link } from 'react-router-dom';
 import { UserCheck, UserPlus, User } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const EMPTY_ARRAY = new Array();
-
 function Friends() {
     const currentUserId = localStorage.getItem('userId');
-    const[pendingRequests, setPendingRequests] = useState(EMPTY_ARRAY);
-    const[exploreUsers, setExploreUsers] = useState(EMPTY_ARRAY);
+    const[pendingRequests, setPendingRequests] = useState([]);
+    const[exploreUsers, setExploreUsers] = useState([]);
 
     const loadFriendsData = () => {
         if (!currentUserId) return;
         axios.get(`${BACKEND_URL}/api/friends/pending/${currentUserId}`).then(res => setPendingRequests(res.data)).catch(err => console.error(err));
         axios.get(`${BACKEND_URL}/api/friends/explore/${currentUserId}`).then(res => setExploreUsers(res.data)).catch(err => console.error(err));
     };
-    useEffect(loadFriendsData, EMPTY_ARRAY);
+    useEffect(loadFriendsData, []);
 
     const acceptRequest = (requesterId) => {
         axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: requesterId, receiver_id: currentUserId }).then(() => loadFriendsData()).catch(err => console.error(err));

@@ -4,8 +4,6 @@ import { Link } from 'react-router-dom';
 import { Globe, Plus, MessageSquare, Image as ImageIcon, Send, X, Users, Heart, User, MessageCircle, UserPlus, Share } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const EMPTY_ARRAY = new Array();
-
 function formatTimeFriendly(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString); const now = new Date();
@@ -55,7 +53,7 @@ function Communities({ themeColor }) {
     useEffect(() => {
         loadCommunities();
         loadFriends();
-    }, EMPTY_ARRAY);
+    }, []);
 
     const loadCommunityPosts = (commId) => {
         axios.get(`${BACKEND_URL}/api/communities/${commId}/posts?userId=${userId}`).then(res => setPosts(res.data)).catch(err => console.error(err));

@@ -4,8 +4,6 @@ import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, UserPlus, Check } from 'lucide-react';
 
 import { BACKEND_URL } from './config';
-const EMPTY_ARRAY = new Array();
-
 function formatTimeFriendly(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString); const now = new Date();
@@ -33,7 +31,7 @@ function Notifications() {
              .catch(err => console.error(err));
     };
 
-    useEffect(fetchActivity, EMPTY_ARRAY);
+    useEffect(fetchActivity, []);
 
     return (
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in relative">

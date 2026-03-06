@@ -4,8 +4,6 @@ import { useParams, Link } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const EMPTY_ARRAY = new Array();
-
 function formatTimeFriendly(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString); const now = new Date();
@@ -48,9 +46,7 @@ function Profile() {
     const avatarInputRef = useRef(null);
     const coverInputRef = useRef(null);
 
-    const deps = Array.of(id);
-
-    const [isRefreshing, setIsRefreshing] = useState(false);
+        const [isRefreshing, setIsRefreshing] = useState(false);
     const loadProfileData = async () => {
         if (!id || id === 'undefined') { setErrorMessage("Invalid User ID"); return; }
         setIsRefreshing(true);

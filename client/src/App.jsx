@@ -25,8 +25,6 @@ const globalSocket = io(BACKEND_URL, {
 });
 globalSocket.on('connect_error', () => {});
 globalSocket.on('error', () => {});
-const EMPTY_ARRAY = new Array();
-
 function SplashScreen() {
     return (
         <div className="fixed inset-0 z-[999] bg-black flex flex-col items-center justify-center animate-fade-out" style={{ animationDelay: '1.5s', animationFillMode: 'forwards' }}>

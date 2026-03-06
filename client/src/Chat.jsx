@@ -67,12 +67,11 @@ function Chat({ themeColor }) {
         } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
 
-    const initialDeps = Array.of();
     useEffect(() => {
         socket.emit('join_private_room', userId);
         axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => setCurrentUserInfo(res.data)).catch(err => console.error(err));
         loadInbox();
-    }, initialDeps);
+    }, []);
 
     const loadMessages = () => {
         if (selectedUser) { 
@@ -81,8 +80,7 @@ function Chat({ themeColor }) {
         }
     };
     
-    const chatDeps = Array.of(selectedUser ? selectedUser.id : null);
-    useEffect(() => { loadMessages(); }, chatDeps);
+        useEffect(() => { loadMessages(); }, [selectedUser?.id]);
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
     useEffect(() => {

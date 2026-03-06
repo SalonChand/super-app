@@ -5,8 +5,6 @@ import { Link } from 'react-router-dom';
 import './index.css';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-const EMPTY_ARRAY = new Array();
-
 const STORY_FILTERS =[{ name: 'Normal', value: 'none' }, { name: 'Clarendon', value: 'contrast(1.2) saturate(1.3) sepia(0.2) hue-rotate(-10deg)' }, { name: 'Gingham', value: 'brightness(1.1) contrast(1.1) sepia(0.3) hue-rotate(-20deg)' }, { name: 'Moon', value: 'grayscale(100%) contrast(1.2) brightness(1.1)' }, { name: 'Warm', value: 'sepia(0.5) saturate(1.5) contrast(1.1)' }, { name: 'Neon', value: 'hue-rotate(90deg) saturate(2) contrast(1.2)' }];
 const SONG_LIST =["No Music", "Lo-Fi Beats 🎵", "Trending Hits 🔥", "Chill Vibes 🎧", "Gym Motivation 💪"];
 const DRAW_COLORS =['#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#000000'];
@@ -22,7 +20,7 @@ function formatTimeFriendly(dateString) {
 }
 
 function Feed() {
-    const[posts, setPosts] = useState(EMPTY_ARRAY);
+    const[posts, setPosts] = useState([]);
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const[activeCommentPostId, setActiveCommentPostId] = useState(null);
     const[commentsData, setCommentsData] = useState({});
@@ -69,15 +67,14 @@ function Feed() {
             if (userRes && userRes.data && !userRes.data.error) setCurrentUserInfo(userRes.data);
         } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
-    useEffect(fetchData, EMPTY_ARRAY);
+    useEffect(fetchData, []);
 
-    const viewDeps = Array.of(viewingStory ? viewingStory.id : null);
-    useEffect(() => {
+        useEffect(() => {
         if (viewingStory && userId) {
             axios.post(`${BACKEND_URL}/api/stories/${viewingStory.id}/view`, { userId: userId }).catch(err => console.error(err));
             setStories(prevStories => prevStories.map(s => s.user_id === viewingStory.user_id ? { ...s, user_has_viewed: 1 } : s));
         }
-    }, viewDeps);
+    }, [viewingStory?.id]);
 
     const goToNextStory = () => {
         setVideoProgress(0); 
