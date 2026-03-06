@@ -28,6 +28,8 @@ function Chat({ themeColor, onStartCall }) {
     const [friends, setFriends] = useState([]);
     const[requests, setRequests] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [friendStories, setFriendStories] = useState({}); // { userId: { hasStory, viewed } }
+    const [viewingStory, setViewingStory] = useState(null);
     const[messages, setMessages] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
     const messagesEndRef = useRef(null);
@@ -74,10 +76,35 @@ function Chat({ themeColor, onStartCall }) {
         socket.emit('join_private_room', userId);
         axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => setCurrentUserInfo(res.data)).catch(err => console.error(err));
         loadInbox();
+        // Load stories for friends
+        axios.get(`${BACKEND_URL}/api/stories?userId=${userId}`).then(res => {
+            const map = {};
+            if (Array.isArray(res.data)) res.data.forEach(s => { map[s.user_id] = { hasStory: true, viewed: !!s.user_has_viewed, story: s }; });
+            setFriendStories(map);
+        }).catch(() => {});
     }, []);
 
     const loadMessages = () => {
-        if (selectedUser) { 
+        // Story viewer modal
+    if (viewingStory) {
+        return (
+            <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center" onClick={() => setViewingStory(null)}>
+                <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 z-10"><X size={20}/></button>
+                <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700">
+                        {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-white font-bold text-sm">{viewingStory.username?.charAt(0).toUpperCase()}</span>}
+                    </div>
+                    <span className="text-white font-bold text-sm">{viewingStory.username}</span>
+                </div>
+                {viewingStory.media_type === 'video'
+                    ? <video src={viewingStory.media_url} className="max-w-full max-h-[85vh] object-contain rounded-xl" autoPlay controls onClick={e=>e.stopPropagation()}/>
+                    : <img src={viewingStory.media_url} className="max-w-full max-h-[85vh] object-contain rounded-xl" onClick={e=>e.stopPropagation()}/>}
+                {viewingStory.caption && <p className="text-white text-sm mt-3 bg-black/50 px-4 py-2 rounded-full">{viewingStory.caption}</p>}
+            </div>
+        );
+    }
+
+    if (selectedUser) { 
             axios.get(`${BACKEND_URL}/api/messages/${userId}/${selectedUser.id}`)
                  .then(res => setMessages(res.data)).catch(err => console.error(err)); 
         }
@@ -169,6 +196,25 @@ function Chat({ themeColor, onStartCall }) {
     const executeForward = (targetFriendId) => { socket.emit('send_private_message', { senderId: userId, receiverId: targetFriendId, content: forwardingMessage.content, media_url: forwardingMessage.media_url, media_type: forwardingMessage.media_type, isForwarded: true }); setForwardingMessage(null); alert("Message forwarded!"); };
     const deleteMessage = (msgId) => { if(window.confirm("Delete this message for everyone?")) { socket.emit('delete_message', { messageId: msgId, senderId: userId, receiverId: selectedUser.id }); setHoveredMessageId(null); } };
 
+    // Story viewer modal
+    if (viewingStory) {
+        return (
+            <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center" onClick={() => setViewingStory(null)}>
+                <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 z-10"><X size={20}/></button>
+                <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700">
+                        {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-white font-bold text-sm">{viewingStory.username?.charAt(0).toUpperCase()}</span>}
+                    </div>
+                    <span className="text-white font-bold text-sm">{viewingStory.username}</span>
+                </div>
+                {viewingStory.media_type === 'video'
+                    ? <video src={viewingStory.media_url} className="max-w-full max-h-[85vh] object-contain rounded-xl" autoPlay controls onClick={e=>e.stopPropagation()}/>
+                    : <img src={viewingStory.media_url} className="max-w-full max-h-[85vh] object-contain rounded-xl" onClick={e=>e.stopPropagation()}/>}
+                {viewingStory.caption && <p className="text-white text-sm mt-3 bg-black/50 px-4 py-2 rounded-full">{viewingStory.caption}</p>}
+            </div>
+        );
+    }
+
     if (selectedUser) {
         const isCurrentlyFriend = friends.some(f => f.id === selectedUser.id);
         const pinnedMessage = messages.slice().reverse().find(m => m.is_pinned);
@@ -182,7 +228,14 @@ function Chat({ themeColor, onStartCall }) {
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSelectedUser(null)} className="p-1 hover:bg-zinc-800 rounded-full transition text-white"><ArrowLeft size={24} /></button>
                         <Link to={`/profile/${selectedUser.id}`} className="flex items-center gap-3 hover:opacity-80 transition cursor-pointer">
-                            <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex items-center justify-center">{selectedUser.profile_pic_url ? <img src={`${selectedUser.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{selectedUser.username.charAt(0).toUpperCase()}</span>}</div>
+                            {(() => { const fs = friendStories[selectedUser.id]; return (
+    <div onClick={fs?.hasStory ? (e) => { e.preventDefault(); e.stopPropagation(); setViewingStory(fs.story); setFriendStories(prev => ({...prev, [selectedUser.id]: {...prev[selectedUser.id], viewed: true}})); } : undefined}
+        className={"w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 " + (fs?.hasStory ? ("cursor-pointer p-0.5 " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+        <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-zinc-800 " + (fs?.hasStory ? "border-2 border-black" : "")}>
+            {selectedUser.profile_pic_url ? <img src={`${selectedUser.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{selectedUser.username.charAt(0).toUpperCase()}</span>}
+        </div>
+    </div>
+); })()}
                             <div><h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2><p className="text-xs text-zinc-500">Private Chat</p></div>
                         </Link>
                     </div>
@@ -313,7 +366,13 @@ function Chat({ themeColor, onStartCall }) {
                 <div>
                     <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>
                     {friends.length === 0 ? (<p className="text-zinc-500 p-4 border border-zinc-800 rounded-xl bg-zinc-900/50">You don't have any friends yet! Head over to the <span className="font-bold text-white">Friends tab</span> to connect with people.</p>) : (
-                        <div className="space-y-2">{friends.map((friend) => (<div key={friend.id} onClick={() => handleSelectUser(friend)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-zinc-900 transition cursor-pointer"><div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex items-center justify-center">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{friend.username.charAt(0).toUpperCase()}</span>}</div><div className="flex-1 min-w-0"><h4 className="font-bold text-white">{friend.username}</h4><p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-bold' : 'text-zinc-500'}`}>{friend.last_sender === userId ? 'You: ' : ''}{friend.last_message || 'Sent an attachment'}</p></div>{friend.unread_count > 0 && (<div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">{friend.unread_count}</div>)}</div>))}</div>
+                        <div className="space-y-2">{friends.map((friend) => (<div key={friend.id} onClick={() => handleSelectUser(friend)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-zinc-900 transition cursor-pointer">{(() => { const fs = friendStories[friend.id]; return (
+                                <div className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center " + (fs?.hasStory ? ("p-0.5 " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+                                    <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-zinc-800 " + (fs?.hasStory ? "border-2 border-black" : "")}>
+                                        {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{friend.username.charAt(0).toUpperCase()}</span>}
+                                    </div>
+                                </div>
+                            ); })()}<div className="flex-1 min-w-0"><h4 className="font-bold text-white">{friend.username}</h4><p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-bold' : 'text-zinc-500'}`}>{friend.last_sender === userId ? 'You: ' : ''}{friend.last_message || 'Sent an attachment'}</p></div>{friend.unread_count > 0 && (<div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">{friend.unread_count}</div>)}</div>))}</div>
                     )}
                 </div>
             </div>
