@@ -346,6 +346,7 @@ function AppContent() {
   const[showSplash, setShowSplash] = useState(true);
 
   const startCallRef = useRef(null);
+  const [toasts, setToasts] = useState([]); // [{ id, senderName, preview, senderId }]
 
   const userThemeColor = currentUser?.theme_color || '#3b82f6';
 
@@ -354,6 +355,13 @@ function AppContent() {
           axios.get(`${BACKEND_URL}/api/activity/${currentUserId}`).then(res => setBadges(res.data)).catch(e => console.error(e));
       }
   };
+
+  const addToast = (toast) => {
+      const id = Date.now();
+      setToasts(prev => [...prev.slice(-3), { ...toast, id }]); // max 4 toasts
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
+  const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
 // 🔥 FIX: We wipe the red dot badge visually, but do NOT delete the database history!
   const clearNotifications = () => { 
@@ -376,10 +384,14 @@ function AppContent() {
   useEffect(() => {
       if (currentUserId) {
           try { globalSocket.emit('join_private_room', currentUserId); } catch(e) {}
-          const handleNotification = () => {
+          const handleNotification = (data) => {
               playNotificationSound();
               axios.get(`${BACKEND_URL}/api/activity/${currentUserId}`)
                   .then(res => setBadges(res.data)).catch(() => {});
+              // Show toast if it's a new message from someone else (data has senderName)
+              if (data?.senderName && data.senderId != currentUserId) {
+                  addToast({ senderName: data.senderName, preview: data.preview, senderId: data.senderId });
+              }
           };
           globalSocket.on('message_updated', handleNotification);
           globalSocket.on('activity_updated', handleNotification);
@@ -529,6 +541,24 @@ function AppContent() {
               </>
           )}
         </nav>
+      {/* 💬 MESSAGE TOASTS */}
+      <div className="fixed top-4 right-4 z-[250] flex flex-col gap-2 pointer-events-none">
+          {toasts.map(toast => (
+              <div key={toast.id} className="pointer-events-auto flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 shadow-2xl shadow-black/50 min-w-[260px] max-w-xs animate-fade-in backdrop-blur-md">
+                  <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+                      {toast.senderName?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0" onClick={() => { dismissToast(toast.id); window.location.href = '/chat'; }} style={{ cursor: 'pointer' }}>
+                      <p className="text-white text-sm font-bold truncate">{toast.senderName}</p>
+                      <p className="text-zinc-400 text-xs truncate">{toast.preview}</p>
+                  </div>
+                  <button onClick={() => dismissToast(toast.id)} className="text-zinc-500 hover:text-white transition flex-shrink-0">
+                      <X size={14} />
+                  </button>
+              </div>
+          ))}
+      </div>
+
       <CallManager currentUserId={currentUserId} startCallRef={startCallRef} />
       </div>
   );
