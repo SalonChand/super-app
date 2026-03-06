@@ -58,6 +58,13 @@ function Chat({ themeColor, onStartCall }) {
                 axios.get(`${BACKEND_URL}/api/friends/pending/${userId}`)
             ]);
             const uniqueFriends = Array.from(new Set(friendsRes.data.map(a => a.id))).map(id => friendsRes.data.find(a => a.id === id));
+            // Sort by most recent message time (server already orders, but re-sort for safety)
+            uniqueFriends.sort((a, b) => {
+                if (!a.last_message_time && !b.last_message_time) return 0;
+                if (!a.last_message_time) return 1;
+                if (!b.last_message_time) return -1;
+                return new Date(b.last_message_time) - new Date(a.last_message_time);
+            });
             setFriends(uniqueFriends);
             setRequests(requestsRes.data);
         } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
@@ -80,7 +87,10 @@ function Chat({ themeColor, onStartCall }) {
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
     useEffect(() => {
-        const handleMessageUpdate = () => { loadMessages(); loadInbox(); };
+        const handleMessageUpdate = (data) => {
+            loadMessages();
+            loadInbox(); // re-fetches and re-sorts friends list
+        };
         socket.on('message_updated', handleMessageUpdate);
         return () => { socket.off('message_updated', handleMessageUpdate); };
     }, [selectedUser]);
