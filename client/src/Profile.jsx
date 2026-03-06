@@ -42,6 +42,10 @@ function Profile() {
     const [editingPostId, setEditingPostId] = useState(null);
     const [editContent, setEditContent] = useState('');
 
+    const [showFriendsModal, setShowFriendsModal] = useState(false);
+    const [friendsList, setFriendsList] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(false);
+
     const fileInputRef = useRef(null);
     const avatarInputRef = useRef(null);
     const coverInputRef = useRef(null);
@@ -104,6 +108,16 @@ function Profile() {
     };
 
     // 🔥 NEW: POST ACTIONS (EDIT & DELETE) 🔥
+    const openFriendsModal = async () => {
+        setShowFriendsModal(true);
+        setLoadingFriends(true);
+        try {
+            const res = await axios.get(`${BACKEND_URL}/api/friends/list/${id}`);
+            setFriendsList(Array.isArray(res.data) ? res.data : []);
+        } catch (e) { console.error(e); setFriendsList([]); }
+        setLoadingFriends(false);
+    };
+
     const deletePost = async (postId) => {
         if (window.confirm("Are you sure you want to delete this post?")) {
             try {
@@ -185,7 +199,7 @@ function Profile() {
                 <div className="mt-3">
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">{profileData.username} {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}</h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
-                    {canSeeDetails && <p className="text-white font-bold mt-2 mb-2">{profileData.friend_count || 0} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                    {canSeeDetails && <button onClick={openFriendsModal} className="text-white font-bold mt-2 mb-2 hover:underline cursor-pointer block">{profileData.friend_count || 0} <span className="text-zinc-500 font-normal">Friends</span></button>}
                     
                     {isEditing ? (
                         <div className="space-y-4 mt-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
@@ -274,6 +288,36 @@ function Profile() {
                 )}
                 {!canSeeDetails && <div className="text-center p-10 border border-zinc-800 rounded-2xl m-4 bg-zinc-900/50"><Lock className="mx-auto text-zinc-500 mb-2" size={32} /><h3 className="text-white font-bold">This Account is Private</h3><p className="text-zinc-500 text-sm mt-1">Add them as a friend to see their friend count and all other posts.</p></div>}
             </div>
+
+            {/* Friends Modal */}
+            {showFriendsModal && (
+                <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowFriendsModal(false)}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm max-h-[70vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+                            <h2 className="text-white font-bold text-lg">Friends</h2>
+                            <button onClick={() => setShowFriendsModal(false)} className="text-zinc-400 hover:text-white transition"><X size={20} /></button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-2">
+                            {loadingFriends && <p className="text-zinc-500 text-center py-8 animate-pulse">Loading...</p>}
+                            {!loadingFriends && friendsList.length === 0 && <p className="text-zinc-500 text-center py-8">No friends yet.</p>}
+                            {!loadingFriends && friendsList.map(friend => (
+                                <Link key={friend.id} to={`/profile/${friend.id}`} onClick={() => setShowFriendsModal(false)}
+                                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-800 transition cursor-pointer">
+                                    <div className="w-11 h-11 rounded-full bg-zinc-700 overflow-hidden flex-shrink-0 border border-zinc-600">
+                                        {friend.profile_pic_url
+                                            ? <img src={friend.profile_pic_url} className="w-full h-full object-cover" />
+                                            : <span className="w-full h-full flex items-center justify-center text-white font-bold">{friend.username?.charAt(0).toUpperCase()}</span>}
+                                    </div>
+                                    <div>
+                                        <p className="text-white font-bold text-sm">{friend.username}</p>
+                                        <p className="text-zinc-500 text-xs">@{friend.username?.toLowerCase()}</p>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
