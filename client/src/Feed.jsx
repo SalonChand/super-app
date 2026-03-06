@@ -3,7 +3,6 @@ import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon } from 'lucide-react';
 import { Link } from 'react-router-dom'; 
 import './index.css';
-import { usePullToRefresh } from './usePullToRefresh';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 const EMPTY_ARRAY = new Array();
@@ -56,7 +55,6 @@ function Feed() {
     const [drawColor, setDrawColor] = useState('#ef4444');
     const isDrawing = useRef(false);
 
-    const scrollRef = useRef(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const fetchData = async () => {
         setIsRefreshing(true);
@@ -72,7 +70,6 @@ function Feed() {
         } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
     useEffect(fetchData, EMPTY_ARRAY);
-    const { pulling, pullDistance, threshold } = usePullToRefresh(fetchData, scrollRef);
 
     const viewDeps = Array.of(viewingStory ? viewingStory.id : null);
     useEffect(() => {
@@ -198,88 +195,8 @@ function Feed() {
     const openStoryViewer = (user_id) => { setVideoProgress(0); setViewingStory(stories.find(s => s.user_id === user_id)); };
 
     return (
-        <div ref={scrollRef} className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
-            {/* Pull to refresh indicator */}
-            {pulling && (
-                <div className="flex items-center justify-center py-3 transition-all" style={{ height: pullDistance, opacity: pullDistance / threshold }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-zinc-400 ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${(pullDistance / threshold) * 360}deg)` }}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </div>
-            )}
-            {isRefreshing && !pulling && (
-                <div className="flex items-center justify-center py-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 animate-spin"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </div>
-            )}
-            
-            {viewingPostImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingPostImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingPostImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
-            
-            {showStoryEditor && (
-                <div className="fixed inset-0 z-[110] bg-zinc-950 flex flex-col">
-                    <div className="p-4 flex justify-between items-center bg-black/50 absolute top-0 w-full z-30 pointer-events-none">
-                        <button onClick={closeStoryEditor} className="pointer-events-auto text-white bg-black/50 p-2 rounded-full hover:bg-zinc-800"><X size={24}/></button>
-                        <button onClick={uploadFinalStory} className="pointer-events-auto bg-blue-600 text-white font-bold px-6 py-2 rounded-full shadow-lg shadow-blue-600/50 hover:bg-blue-500">Share Story</button>
-                    </div>
-                    <div className="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
-                        {draftFile.type.startsWith('video') ? ( <video src={draftPreviewUrl} className="w-full h-full object-contain" style={{ filter: draftFilter }} autoPlay muted loop /> ) : ( <><img src={draftPreviewUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" style={{ filter: draftFilter }} /><canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} onTouchCancel={stopDrawing} className={`absolute inset-0 w-full h-full z-20 ${isDrawingMode ? 'cursor-crosshair' : 'pointer-events-none'}`} /></> )}
-                        {draftCaption && <div className="absolute top-1/2 left-0 w-full text-center px-4 z-10 pointer-events-none"><span className="bg-black/60 text-white text-2xl font-bold py-2 px-4 rounded-xl leading-tight backdrop-blur-md inline-block">{draftCaption}</span></div>}
-                        {draftSong !== "No Music" && <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm font-bold py-1.5 px-4 rounded-full backdrop-blur-md flex items-center gap-2 z-10 pointer-events-none"><Music size={14} className="text-pink-500" /> {draftSong}</div>}
-                    </div>
-                    <div className="bg-zinc-950 border-t border-zinc-800 p-4 space-y-4 relative z-30">
-                        {!draftFile.type.startsWith('video') && (
-                            <div className="flex items-center gap-3 overflow-x-auto pb-2 border-b border-zinc-800" style={{ scrollbarWidth: 'none' }}>
-                                <button onClick={() => setIsDrawingMode(!isDrawingMode)} className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 flex-shrink-0 transition ${isDrawingMode ? 'bg-red-500 text-white shadow-lg shadow-red-500/40' : 'bg-zinc-800 text-zinc-300'}`}><Paintbrush size={16} /> {isDrawingMode ? "Drawing On" : "Draw"}</button>
-                                {isDrawingMode && DRAW_COLORS.map(c => (<button key={c} onClick={() => setDrawColor(c)} className="w-8 h-8 rounded-full border-2 transition-transform flex-shrink-0 hover:scale-110" style={{ backgroundColor: c, borderColor: drawColor === c ? 'white' : 'transparent' }}></button>))}
-                                {isDrawingMode && (<button onClick={clearCanvas} className="p-2 ml-auto text-zinc-400 hover:text-white transition bg-zinc-800 rounded-full"><Undo size={18}/></button>)}
-                            </div>
-                        )}
-                        <div className="flex items-center bg-zinc-900 rounded-xl p-2 px-4"><Type size={20} className="text-zinc-500 mr-2" /><input type="text" value={draftCaption} onChange={(e)=>setDraftCaption(e.target.value)} placeholder="Add a caption..." className="bg-transparent text-white w-full outline-none" /></div>
-                        <div className="flex items-center gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}><Wand2 size={20} className="text-zinc-500 flex-shrink-0" />{STORY_FILTERS.map(f => <button key={f.name} onClick={() => setDraftFilter(f.value)} className={`px-4 py-1.5 rounded-full text-sm font-medium flex-shrink-0 transition ${draftFilter === f.value ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}>{f.name}</button>)}</div>
-                        <div className="flex items-center gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}><Music size={20} className="text-zinc-500 flex-shrink-0" />{SONG_LIST.map(s => <button key={s} onClick={() => setDraftSong(s)} className={`px-4 py-1.5 rounded-full text-sm font-medium flex-shrink-0 transition ${draftSong === s ? 'bg-pink-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}>{s}</button>)}</div>
-                    </div>
-                </div>
-            )}
-
-            {viewingStory && (
-                <div className="fixed inset-0 z-[100] bg-black flex flex-col justify-between">
-                    <div className="absolute top-0 left-0 w-full pt-2 px-2 z-20 flex gap-1"><div className="h-1 bg-white/30 w-full rounded-full overflow-hidden"><div className={`h-full bg-white ${viewingStory.media_type === 'image' ? 'animate-story-bar' : ''}`} style={viewingStory.media_type === 'video' ? { width: `${videoProgress}%`, transition: 'width 0.1s linear' } : {}} onAnimationEnd={viewingStory.media_type === 'image' ? goToNextStory : undefined}></div></div></div>
-                    <div className="p-4 pt-6 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between z-10 absolute w-full top-0">
-                        <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{viewingStory.profile_pic_url ? <img src={`${viewingStory.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><div><h3 className="text-white font-bold drop-shadow-md">{viewingStory.username}</h3><p className="text-xs text-zinc-300 drop-shadow-md">{formatTimeFriendly(viewingStory.created_at)}</p></div></div>
-                        <button onClick={() => setViewingStory(null)} className="text-white bg-black/50 p-2 rounded-full hover:bg-zinc-800 transition"><X size={24} /></button>
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center -z-10">
-                        <div className="absolute inset-y-0 left-0 w-1/4 z-10 cursor-pointer" onClick={() => setViewingStory(null)}></div><div className="absolute inset-y-0 right-0 w-3/4 z-10 cursor-pointer" onClick={goToNextStory}></div>
-                        {viewingStory.media_type === 'video' ? <video src={`${BACKEND_URL}/api/stream/${viewingStory.media_url.split('/').pop()}`} className="w-full h-full object-cover" style={{ filter: viewingStory.filter_class }} autoPlay onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} playsInline /> : <img src={`${viewingStory.media_url}`} className="w-full h-full object-cover" style={{ filter: viewingStory.filter_class }} />}
-                    </div>
-                    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between z-0 pb-28 pt-24"><div className="flex justify-center">{viewingStory.song_name && <div className="bg-black/50 text-white text-sm font-bold py-1.5 px-4 rounded-full flex items-center gap-2 backdrop-blur-md"><Music size={14} className="text-pink-400" /> {viewingStory.song_name}</div>}</div><div className="flex justify-center px-4">{viewingStory.caption && <span className="bg-black/50 text-white text-2xl font-bold py-2 px-4 rounded-xl leading-tight backdrop-blur-md inline-block text-center mb-4">{viewingStory.caption}</span>}</div></div>
-                    <div className="absolute bottom-0 w-full z-20">
-                        {viewingStory.user_id == userId ? ( <div className="p-6 bg-gradient-to-t from-black via-black/80 to-transparent flex justify-center items-center gap-8"><div className="flex flex-col items-center"><Heart size={28} className="text-pink-500 fill-pink-500 mb-1 drop-shadow-md" /><span className="text-white font-bold">{viewingStory.like_count || 0} Likes</span></div><div className="flex flex-col items-center"><Eye size={28} className="text-blue-400 mb-1 drop-shadow-md" /><span className="text-white font-bold">{viewingStory.view_count || 0} Views</span></div></div> ) : ( <div className="p-4 bg-gradient-to-t from-black/90 to-transparent flex gap-4 items-center"><form onSubmit={(e) => handleStoryReply(e, viewingStory.user_id)} className="flex-1"><input type="text" value={storyReply} onChange={(e)=>setStoryReply(e.target.value)} placeholder={`Reply to ${viewingStory.username}...`} className="w-full bg-black/40 border border-zinc-500 rounded-full py-3 px-5 text-white placeholder-zinc-300 outline-none focus:border-white transition backdrop-blur-md" /></form><button onClick={() => handleStoryLike(viewingStory.id)} className="p-3"><Heart size={32} className={`transition-all hover:scale-110 ${viewingStory.user_liked ? 'fill-pink-500 text-pink-500 drop-shadow-[0_0_15px_rgba(236,72,153,0.8)]' : 'text-white drop-shadow-md'}`} /></button></div> )}
-                    </div>
-                </div>
-            )}
-
-            <div className="p-4 border-b border-zinc-800 flex gap-4 overflow-x-auto items-center" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="flex gap-4 overflow-x-auto items-center flex-1" style={{ scrollbarWidth: 'none' }}>
-                {userId && (
-                    <>
-                        <input type="file" accept="image/*, video/mp4, video/webm" ref={storyInputRef} onChange={startStoryDraft} className="hidden" />
-                        <div onClick={() => storyInputRef.current.click()} className="w-24 h-36 flex-shrink-0 rounded-2xl bg-zinc-900 border border-zinc-800 relative flex flex-col items-center justify-center cursor-pointer overflow-hidden hover:border-zinc-600 transition group">
-                            {currentUserInfo?.profile_pic_url && <img src={`${currentUserInfo.profile_pic_url}`} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-50 transition duration-300" />}
-                            <div className="z-10 bg-blue-600 rounded-full p-2 mb-2 shadow-[0_0_10px_rgba(37,99,235,0.5)]"><Plus size={20} className="text-white"/></div>
-                            <span className="z-10 text-xs font-bold text-white drop-shadow-md">Add Story</span>
-                        </div>
-                    </>
-                )}
-                {uniqueStories.map((story) => {
-                    const isSeen = Number(story.user_has_viewed) > 0;
-                    return (
-                        <div key={`story-${story.id}`} onClick={() => openStoryViewer(story.user_id)} className={`w-24 h-36 flex-shrink-0 rounded-2xl relative cursor-pointer overflow-hidden ring-2 ring-offset-2 ring-offset-black group transition-all duration-500 ${isSeen ? 'ring-zinc-600 opacity-60 hover:opacity-100' : 'ring-blue-500'}`}>
-                            {story.media_type === 'video' ? <video src={`${BACKEND_URL}/api/stream/${story.media_url.split('/').pop()}`} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" style={{ filter: story.filter_class }} autoPlay muted loop playsInline /> : <img src={`${story.media_url}`} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" style={{ filter: story.filter_class }} />}
-                            <div className="absolute top-2 left-2 w-8 h-8 rounded-full border-2 border-transparent bg-zinc-800 overflow-hidden shadow-lg z-10">{story.profile_pic_url ? <img src={`${story.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-1 text-zinc-500" />}</div>
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
-                            <span className="absolute bottom-2 left-2 right-2 text-xs text-white font-medium truncate drop-shadow-md z-10">{story.username}</span>
-                        </div>
-                    );
-                })}
+        <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+            {/* Pull to refresh indicator */}}
                 </div>
             </div>
 

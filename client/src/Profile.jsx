@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { usePullToRefresh } from './usePullToRefresh';
 import { useParams, Link } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
 
@@ -48,7 +47,6 @@ function Profile() {
     const fileInputRef = useRef(null);
     const avatarInputRef = useRef(null);
     const coverInputRef = useRef(null);
-    const scrollRef = useRef(null);
 
     const deps = Array.of(id);
 
@@ -71,7 +69,6 @@ function Profile() {
     };
 
     useEffect(() => { loadProfileData(); }, [id]);
-    const { pulling, pullDistance, threshold } = usePullToRefresh(loadProfileData, scrollRef);
 
     const sendFriendRequest = () => axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: id }).then(() => setFriendStatus('sent_request'));
     const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
@@ -146,17 +143,7 @@ function Profile() {
     const displayedPosts = canSeeDetails ? userPosts : userPosts.slice(0, 1);
 
     return (
-        <div ref={scrollRef} className="w-full pb-20 sm:pb-0 animate-fade-in relative">
-            {pulling && (
-                <div className="flex items-center justify-center transition-all" style={{ height: pullDistance, opacity: pullDistance / threshold }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400" style={{ transform: `rotate(${(pullDistance / threshold) * 360}deg)` }}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </div>
-            )}
-            {isRefreshing && !pulling && (
-                <div className="flex items-center justify-center py-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 animate-spin"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </div>
-            )}
+        <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
             {viewingImage && (
                 <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
                     <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>

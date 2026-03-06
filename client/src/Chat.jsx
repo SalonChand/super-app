@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { usePullToRefresh } from './usePullToRefresh';
 import { Link } from 'react-router-dom';
 import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
 
@@ -18,7 +17,6 @@ function Chat({ themeColor }) {
     const[messages, setMessages] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
     const messagesEndRef = useRef(null);
-    const scrollRef = useRef(null);
     const [viewingImage, setViewingImage] = useState(null);
 
     const [replyingTo, setReplyingTo] = useState(null);
@@ -75,7 +73,6 @@ function Chat({ themeColor }) {
         axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => setCurrentUserInfo(res.data)).catch(err => console.error(err));
         loadInbox();
     }, initialDeps);
-    const { pulling, pullDistance, threshold } = usePullToRefresh(loadInbox, scrollRef);
 
     const loadMessages = () => {
         if (selectedUser) { 
@@ -422,21 +419,7 @@ function Chat({ themeColor }) {
     }
 
     return (
-        <div ref={scrollRef} className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full bg-black">
-            {pulling && (
-                <div className="flex items-center justify-center transition-all" style={{ height: pullDistance, opacity: pullDistance / threshold }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400" style={{ transform: `rotate(${(pullDistance / threshold) * 360}deg)` }}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </div>
-            )}
-            {isRefreshing && !pulling && (
-                <div className="flex items-center justify-center py-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400 animate-spin"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                </div>
-            )}
-            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Messages</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 sm:pb-20">
-                {requests.length > 0 && (
-                    <div><h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2"><BellRing size={16} className="text-pink-500" /> Message Requests ({requests.length})</h3><div className="space-y-2">{requests.map((req, index) => (<div key={index} onClick={() => handleSelectUser({ id: req.sender_id, username: req.username, profile_pic_url: req.profile_pic_url })} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition"><div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">{req.profile_pic_url ? <img src={`${req.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-xl">{req.username.charAt(0).toUpperCase()}</span>}</div><div><h4 className="font-bold text-white">{req.username}</h4><p className="text-sm text-zinc-400 truncate max-w-[200px]">{req.content}</p></div><div className="ml-auto w-3 h-3 bg-blue-500 rounded-full"></div></div>))}</div></div>
+        <div className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full bg-black"></h3><div className="space-y-2">{requests.map((req, index) => (<div key={index} onClick={() => handleSelectUser({ id: req.sender_id, username: req.username, profile_pic_url: req.profile_pic_url })} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition"><div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">{req.profile_pic_url ? <img src={`${req.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-xl">{req.username.charAt(0).toUpperCase()}</span>}</div><div><h4 className="font-bold text-white">{req.username}</h4><p className="text-sm text-zinc-400 truncate max-w-[200px]">{req.content}</p></div><div className="ml-auto w-3 h-3 bg-blue-500 rounded-full"></div></div>))}</div></div>
                 )}
                 <div>
                     <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>
