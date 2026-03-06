@@ -380,9 +380,9 @@ function Feed() {
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
                     <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
-                        {(() => { const hasStory = stories.some(s => s.user_id == post.user_id); return (
+                        {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
-        className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden transition " + (hasStory ? "p-0.5 bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]" : "bg-zinc-800 border border-zinc-700")}>
+        className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden transition " + (hasStory ? ("p-0.5 " + (viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
         <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center " + (hasStory ? "border-2 border-black" : "")}>
             {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
         </div>
