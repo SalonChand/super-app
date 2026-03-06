@@ -50,6 +50,7 @@ function Chat({ themeColor }) {
 
     const myVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
+    const remoteAudioRef = useRef(null);
     const [myStream, setMyStream] = useState(null);
     const peerConnectionRef = useRef(null);
 
@@ -166,11 +167,48 @@ function Chat({ themeColor }) {
     // ===============================================
     // 🔥 IPHONE / ANDROID CAMERA BUG FIX 🔥
     // ===============================================
-    const initPeerConnection = () => { 
-        const pc = new RTCPeerConnection({ iceServers:[{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }] }); 
-        pc.onicecandidate = (event) => { if (event.candidate) { const sendTo = callerInfo ? callerInfo.from : selectedUser.id; socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); } }; 
-        pc.ontrack = (event) => { if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; } }; 
-        return pc; 
+    const initPeerConnection = () => {
+        const pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                // Free TURN servers - required for calls across different networks
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
+            ],
+            iceCandidatePoolSize: 10
+        });
+        pc.onicecandidate = (event) => { if (event.candidate) { const sendTo = callerInfo ? callerInfo.from : selectedUser.id; socket.emit('ice_candidate', { to: sendTo, candidate: event.candidate }); } };
+        pc.ontrack = (event) => {
+            if (event.streams[0]) {
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = event.streams[0];
+                    remoteVideoRef.current.play().catch(() => {});
+                }
+                // For voice calls, also attach to dedicated audio element
+                if (remoteAudioRef.current) {
+                    remoteAudioRef.current.srcObject = event.streams[0];
+                    remoteAudioRef.current.play().catch(() => {});
+                }
+            }
+        };
+        pc.oniceconnectionstatechange = () => { console.log('ICE state:', pc.iceConnectionState); };
+        return pc;
     };
 
     const startCall = async (video = false) => { 
@@ -180,7 +218,8 @@ function Chat({ themeColor }) {
             const constraints = video ? { video: true, audio: true } : { video: false, audio: true };
             const stream = await navigator.mediaDevices.getUserMedia(constraints); 
             
-            setMyStream(stream); 
+            setMyStream(stream);
+            if (myVideoRef.current) { myVideoRef.current.srcObject = stream; }
             const pc = initPeerConnection(); peerConnectionRef.current = pc; 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
             const offer = await pc.createOffer(); await pc.setLocalDescription(offer); 
@@ -202,7 +241,8 @@ function Chat({ themeColor }) {
             const constraints = isVideoCall ? { video: true, audio: true } : { video: false, audio: true };
             const stream = await navigator.mediaDevices.getUserMedia(constraints); 
             
-            setMyStream(stream); 
+            setMyStream(stream);
+            if (myVideoRef.current) { myVideoRef.current.srcObject = stream; }
             const pc = initPeerConnection(); peerConnectionRef.current = pc; 
             stream.getTracks().forEach((track) => pc.addTrack(track, stream)); 
             await pc.setRemoteDescription(new RTCSessionDescription(callerInfo.signal)); 
@@ -274,6 +314,8 @@ function Chat({ themeColor }) {
             <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col">
                 <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
                     <video playsInline ref={remoteVideoRef} autoPlay className="absolute inset-0 w-full h-full object-cover" />
+                    {/* Hidden audio element ensures voice plays on all browsers/mobile */}
+                    <audio ref={remoteAudioRef} autoPlay playsInline style={{display:'none'}} />
                     {!isVideoCall && (
                         <div className="flex flex-col items-center z-10"><div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border border-zinc-700"><User size={50} className="text-zinc-500" /></div><h2 className="text-white text-2xl font-bold">{callerInfo?.callerName || selectedUser?.username}</h2><p className="text-green-400 animate-pulse mt-2">Connected</p></div>
                     )}
