@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
-import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2 } from 'lucide-react';
+import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Use a singleton socket so Chat and App share the same connection
@@ -57,6 +57,11 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [showChatSettings, setShowChatSettings] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [blockedUsers, setBlockedUsers] = useState(new Set());
+    const [mutedUsers, setMutedUsers] = useState(new Set());
     const [typingUsers, setTypingUsers] = useState(new Set());
     const typingTimeoutRef = useRef(null);
     const isTypingRef = useRef(false);
@@ -182,6 +187,32 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             setFriends(prev => prev.map(f => f.id === friend.id ? { ...f, unread_count: 0 } : f));
         } catch (e) { console.error(e); }
     };
+
+    const deleteConversation = async () => {
+        if (!selectedUser) return;
+        if (!window.confirm(`Delete all messages with ${selectedUser.username}? This cannot be undone.`)) return;
+        try {
+            await axios.delete(`${BACKEND_URL}/api/messages/${userId}/${selectedUser.id}`);
+            setMessages([]);
+            setShowChatSettings(false);
+        } catch(e) { alert('Failed to delete conversation.'); }
+    };
+
+    const toggleBlock = () => {
+        const isBlocked = blockedUsers.has(selectedUser.id);
+        if (!isBlocked && !window.confirm(`Block ${selectedUser.username}? They won't be able to message you.`)) return;
+        setBlockedUsers(prev => { const n = new Set(prev); isBlocked ? n.delete(selectedUser.id) : n.add(selectedUser.id); return n; });
+        setShowChatSettings(false);
+    };
+
+    const toggleMute = () => {
+        setMutedUsers(prev => { const n = new Set(prev); mutedUsers.has(selectedUser.id) ? n.delete(selectedUser.id) : n.add(selectedUser.id); return n; });
+        setShowChatSettings(false);
+    };
+
+    const filteredMessages = searchQuery.trim()
+        ? messages.filter(m => m.content && m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+        : messages;
 
     const sendMessage = async (e) => {
         e.preventDefault();
@@ -333,7 +364,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSelectedUser(null)} className="p-1 hover:bg-zinc-800 rounded-full transition text-white"><ArrowLeft size={24} /></button>
-                        <Link to={`/profile/${selectedUser.id}`} className="flex items-center gap-3 hover:opacity-80 transition cursor-pointer">
+                        <button onClick={() => setShowChatSettings(true)} className="flex items-center gap-3 hover:opacity-80 transition cursor-pointer text-left">
                             {(() => { const fs = friendStories[selectedUser.id]; return (
     <div onClick={fs?.hasStory ? (e) => { e.preventDefault(); e.stopPropagation(); setViewingStory(fs.story); setFriendStories(prev => ({...prev, [selectedUser.id]: {...prev[selectedUser.id], viewed: true}})); axios.post(`${BACKEND_URL}/api/stories/${fs.story.id}/view`, { userId }).catch(()=>{}); } : undefined}
         className={"w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 " + (fs?.hasStory ? ("cursor-pointer p-0.5 " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
@@ -351,17 +382,115 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     }
                                 </p>
                             </div>
-                        </Link>
+                        </button>
                     </div>
                     {isCurrentlyFriend && onStartCall && (<div className="flex items-center gap-4 mr-2" style={{ color: themeColor }}><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, false)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Phone size={22} /></button><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, true)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Video size={24} /></button></div>)}
                 </div>
                 
+                {/* Search bar in conversation */}
+                {searchOpen && (
+                    <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-2 flex items-center gap-3 animate-fade-in">
+                        <Search size={16} className="text-zinc-400 flex-shrink-0" />
+                        <input
+                            autoFocus
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search in conversation..."
+                            className="flex-1 bg-transparent text-white outline-none text-sm placeholder-zinc-500"
+                        />
+                        <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} className="text-zinc-400 hover:text-white transition"><X size={16} /></button>
+                    </div>
+                )}
+
+                {/* Chat Settings Panel */}
+                {showChatSettings && (
+                    <div className="absolute inset-0 z-50 flex flex-col animate-fade-in" style={{background:'rgba(0,0,0,0.6)'}}>
+                        <div className="mt-auto bg-zinc-950 border-t border-zinc-800 rounded-t-3xl overflow-hidden shadow-2xl">
+                            {/* Handle bar */}
+                            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-zinc-700 rounded-full" /></div>
+
+                            {/* User info header */}
+                            <div className="flex flex-col items-center py-5 px-6 border-b border-zinc-800">
+                                <div className="w-16 h-16 rounded-full overflow-hidden bg-zinc-800 mb-3">
+                                    {selectedUser.profile_pic_url
+                                        ? <img src={selectedUser.profile_pic_url} className="w-full h-full object-cover" />
+                                        : <span className="flex items-center justify-center w-full h-full text-2xl font-bold text-zinc-400">{selectedUser.username.charAt(0).toUpperCase()}</span>}
+                                </div>
+                                <h3 className="text-white font-bold text-lg">{selectedUser.username}</h3>
+                                <p className="text-zinc-500 text-sm">@{selectedUser.username.toLowerCase()}</p>
+                            </div>
+
+                            {/* Options list */}
+                            <div className="divide-y divide-zinc-800/60">
+                                {/* View Profile */}
+                                <button onClick={() => { setShowChatSettings(false); window.location.href = `/profile/${selectedUser.id}`; }}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center"><User size={18} className="text-blue-400" /></div>
+                                    <span className="text-white font-medium">View Profile</span>
+                                    <ChevronRight size={18} className="text-zinc-600 ml-auto" />
+                                </button>
+
+                                {/* Search Conversation */}
+                                <button onClick={() => { setShowChatSettings(false); setSearchOpen(true); }}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-purple-500/20 flex items-center justify-center"><Search size={18} className="text-purple-400" /></div>
+                                    <span className="text-white font-medium">Search Conversation</span>
+                                    <ChevronRight size={18} className="text-zinc-600 ml-auto" />
+                                </button>
+
+                                {/* Mute / Unmute */}
+                                <button onClick={toggleMute}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                                        {mutedUsers.has(selectedUser.id) ? <BellOff size={18} className="text-yellow-400" /> : <Bell size={18} className="text-yellow-400" />}
+                                    </div>
+                                    <span className="text-white font-medium">{mutedUsers.has(selectedUser.id) ? 'Unmute Notifications' : 'Mute Notifications'}</span>
+                                    <ChevronRight size={18} className="text-zinc-600 ml-auto" />
+                                </button>
+
+                                {/* Delete Conversation */}
+                                <button onClick={deleteConversation}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-red-500/20 flex items-center justify-center"><Trash2 size={18} className="text-red-400" /></div>
+                                    <span className="text-red-400 font-medium">Delete Conversation</span>
+                                    <ChevronRight size={18} className="text-zinc-600 ml-auto" />
+                                </button>
+
+                                {/* Block / Unblock */}
+                                <button onClick={toggleBlock}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center"><Ban size={18} className="text-orange-400" /></div>
+                                    <span className="text-orange-400 font-medium">{blockedUsers.has(selectedUser.id) ? `Unblock ${selectedUser.username}` : `Block ${selectedUser.username}`}</span>
+                                    <ChevronRight size={18} className="text-zinc-600 ml-auto" />
+                                </button>
+
+                                {/* Report */}
+                                <button onClick={() => { alert(`${selectedUser.username} has been reported.`); setShowChatSettings(false); }}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-zinc-700/50 flex items-center justify-center"><Flag size={18} className="text-zinc-400" /></div>
+                                    <span className="text-zinc-400 font-medium">Report</span>
+                                    <ChevronRight size={18} className="text-zinc-600 ml-auto" />
+                                </button>
+                            </div>
+
+                            {/* Close button */}
+                            <div className="p-4">
+                                <button onClick={() => setShowChatSettings(false)}
+                                    className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-2xl transition">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {pinnedMessage ? (<div className="bg-zinc-900 border-b border-zinc-800 p-2 px-4 flex items-center gap-3 shadow-md z-10"><Pin size={16} style={{ color: themeColor }} className="flex-shrink-0" /><div className="flex-1 overflow-hidden"><p className="text-xs font-bold" style={{ color: themeColor }}>Pinned Message</p><p className="text-zinc-300 text-sm truncate">{pinnedMessage.content || "Media Attachment"}</p></div></div>) : null}
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-40">
                     {!isCurrentlyFriend && (<div className="bg-zinc-900 border border-zinc-700 p-3 rounded-xl text-center mb-4"><p className="text-sm text-zinc-300">You are not friends with this user.</p><p className="text-xs text-zinc-500">Go to the Friends tab to add them to call them.</p></div>)}
                     
-                    {messages.map((msg) => { 
+                    {filteredMessages.map((msg) => { 
                         const isMyMessage = msg.sender_id === userId; 
                         const isHovered = hoveredMessageId === msg.id;
                         const isCallLog = msg.content && (msg.content.startsWith('📞') || msg.content.startsWith('📹'));
