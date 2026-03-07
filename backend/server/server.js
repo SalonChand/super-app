@@ -58,8 +58,22 @@ webpush.setVapidDetails('mailto:admin@superapp.com', vapidKeys.publicKey, vapidK
 const server = http.createServer(app); 
 const io = new Server(server, { cors: { origin: "*", methods:["GET", "POST"] } });
 
+// Online users: userId -> { socketId, lastSeen }
+const onlineUsers = new Map();
+
 io.on('connection', (socket) => {
-    socket.on('join_private_room', (userId) => socket.join(userId.toString()));
+    socket.on('join_private_room', (userId) => {
+        socket.join(userId.toString());
+        socket._userId = userId;
+        onlineUsers.set(String(userId), { socketId: socket.id, lastSeen: new Date() });
+        io.emit('online_status', { userId, online: true });
+    });
+    socket.on('disconnect', () => {
+        if (socket._userId) {
+            onlineUsers.delete(String(socket._userId));
+            io.emit('online_status', { userId: socket._userId, online: false, lastSeen: new Date() });
+        }
+    });
     socket.on('send_private_message', async (data) => {
         try {
             const { senderId, receiverId, content, media_url, media_type, replyToId, isForwarded } = data;
@@ -179,13 +193,55 @@ app.put('/api/users/:id/password', async (req, res) => { try { const[users] = aw
 app.delete('/api/users/:id', async (req, res) => { try { await pool.query('DELETE FROM users WHERE id = ?',[req.params.id]); res.json({ message: "Deleted." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/search', async (req, res) => { try { const { q, userId } = req.query; const [users] = await pool.query("SELECT id, username, profile_pic_url FROM users WHERE username LIKE ? AND id != ? AND username != 'superadmin' LIMIT 20",[`%${q}%`, userId]); res.json(users); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
+app.get('/api/online', (req, res) => {
+    const onlineList = Array.from(onlineUsers.keys()).map(id => ({ userId: id, online: true }));
+    res.json(onlineList);
+});
+
 app.get('/api/activity/:userId', async (req, res) => { try { const uid = req.params.userId; const [msgs] = await pool.query(`SELECT m.id, m.content, u.username, u.profile_pic_url, m.created_at, 'message' as type FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.receiver_id = ? AND m.is_read = FALSE ORDER BY m.created_at DESC`, [uid]); const [reqs] = await pool.query(`SELECT c.id, 'Sent you a friend request' as content, u.username, u.profile_pic_url, c.created_at, 'request' as type FROM connections c JOIN users u ON c.requester_id = u.id WHERE c.receiver_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC`,[uid]); let activity =[...msgs, ...reqs]; activity.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); res.json({ feed: activity, unread_messages: msgs.length, pending_requests: reqs.length, total_notifications: msgs.length + reqs.length }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 
 // POSTS
-app.post('/api/posts', upload.single('image'), async (req, res) => { try { const image_url = req.file ? req.file.path : null; await pool.query('INSERT INTO posts (user_id, content, image_url) VALUES (?, ?, ?)',[req.body.user_id, req.body.content, image_url]); res.status(201).json({ message: "Post created!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/posts', upload.single('image'), async (req, res) => {
+    try {
+        const image_url = req.file ? req.file.path : null;
+        const { user_id, content, scheduled_at, is_draft } = req.body;
+        await pool.query('INSERT INTO posts (user_id, content, image_url, scheduled_at, is_draft) VALUES (?, ?, ?, ?, ?)',
+            [user_id, content, image_url, scheduled_at || null, is_draft === 'true' ? 1 : 0]);
+        res.status(201).json({ message: "Post created!" });
+    } catch (err) { res.status(500).json({ error: "Server error." }); }
+});
+app.get('/api/posts/drafts/:userId', async (req, res) => {
+    try {
+        const [posts] = await pool.query(
+            `SELECT p.*, u.username, u.profile_pic_url FROM posts p JOIN users u ON p.user_id = u.id
+             WHERE p.user_id = ? AND (p.is_draft = TRUE OR (p.scheduled_at IS NOT NULL AND p.scheduled_at > NOW()))
+             ORDER BY p.created_at DESC`, [req.params.userId]);
+        res.json(posts);
+    } catch (err) { res.status(500).json({ error: "Server error." }); }
+});
+app.post('/api/posts/:id/publish', async (req, res) => {
+    try {
+        await pool.query('UPDATE posts SET is_draft = FALSE, scheduled_at = NULL WHERE id = ? AND user_id = ?', [req.params.id, req.body.userId]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Server error." }); }
+});
 app.put('/api/posts/:id', async (req, res) => { try { await pool.query('UPDATE posts SET content = ? WHERE id = ?',[req.body.content, req.params.id]); res.json({ message: "Post updated!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.delete('/api/posts/:id', async (req, res) => { try { await pool.query('DELETE FROM posts WHERE id = ?',[req.params.id]); res.json({ message: "Post deleted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.get('/api/posts', async (req, res) => { try { const currentUserId = req.query.userId || 0; const[posts] = await pool.query(`SELECT p.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id ORDER BY p.created_at DESC`,[currentUserId]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/posts', async (req, res) => {
+    try {
+        const currentUserId = req.query.userId || 0;
+        const [posts] = await pool.query(
+            `SELECT p.*, u.username, u.profile_pic_url,
+             (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count,
+             (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count,
+             (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked
+             FROM posts p JOIN users u ON p.user_id = u.id
+             WHERE (p.is_draft = FALSE OR p.is_draft IS NULL)
+               AND (p.scheduled_at IS NULL OR p.scheduled_at <= NOW())
+             ORDER BY p.created_at DESC`, [currentUserId]);
+        res.json(posts);
+    } catch (err) { res.status(500).json({ error: "Server error." }); }
+});
 app.post('/api/posts/:id/like', async (req, res) => { try { const postId = req.params.id; const { userId } = req.body; const [existing] = await pool.query('SELECT * FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)',[postId, userId]); res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/posts/:id/likes', async (req, res) => { try { const [likes] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url FROM likes l JOIN users u ON l.user_id = u.id WHERE l.post_id = ? ORDER BY l.id DESC`,[req.params.id]); res.json(likes); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/posts/:id/comments', async (req, res) => { try { const[comments] = await pool.query(`SELECT c.*, u.username, u.profile_pic_url FROM comments c JOIN users u ON c.user_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC`,[req.params.id]); res.json(comments); } catch (err) { res.status(500).json({ error: "Server error." }); } });
@@ -193,7 +249,15 @@ app.post('/api/posts/:id/comment', async (req, res) => { try { await pool.query(
 
 // CHAT MEDIA
 app.post('/api/messages/upload', upload.single('media'), async (req, res) => { try { if (!req.file) return res.status(400).json({ error: "No file provided" }); const media_url = req.file.path; let media_type = 'document'; if (req.file.mimetype.startsWith('image/')) media_type = 'image'; else if (req.file.mimetype.startsWith('video/')) media_type = 'video'; else if (req.file.mimetype.startsWith('audio/')) media_type = 'audio'; res.json({ media_url, media_type }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
-app.put('/api/messages/read', async (req, res) => { try { const { senderId, receiverId } = req.body; await pool.query('UPDATE messages SET is_read = TRUE WHERE sender_id = ? AND receiver_id = ? AND is_read = FALSE',[senderId, receiverId]); res.json({ success: true }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.put('/api/messages/read', async (req, res) => {
+    try {
+        const { senderId, receiverId } = req.body;
+        await pool.query('UPDATE messages SET is_read = TRUE WHERE sender_id = ? AND receiver_id = ? AND is_read = FALSE', [senderId, receiverId]);
+        // Notify sender that messages were seen
+        io.to(String(senderId)).emit('messages_seen', { by: receiverId, to: senderId });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Server error." }); }
+});
 app.get('/api/users', async (req, res) => { try { const[users] = await pool.query("SELECT id, username FROM users WHERE username != 'superadmin'"); res.json(users); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/messages/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const[messages] = await pool.query(`SELECT m.*, u.username, r.content AS reply_content, ru.username AS reply_username FROM messages m JOIN users u ON m.sender_id = u.id LEFT JOIN messages r ON m.reply_to_id = r.id LEFT JOIN users ru ON r.sender_id = ru.id WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?) ORDER BY m.created_at ASC`,[user1, user2, user2, user1]); res.json(messages); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT messages.*, users.username, users.profile_pic_url FROM messages JOIN users ON messages.sender_id = users.id WHERE messages.receiver_id = ? AND messages.is_request = true AND messages.sender_id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ? AND status = 'accepted' UNION SELECT receiver_id FROM connections WHERE requester_id = ? AND status = 'accepted') GROUP BY messages.sender_id ORDER BY messages.created_at DESC`,[req.params.userId, req.params.userId, req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });

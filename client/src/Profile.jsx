@@ -34,6 +34,10 @@ function Profile() {
     
     // POST CREATION STATES
     const[newPost, setNewPost] = useState('');
+    const[scheduledAt, setScheduledAt] = useState('');
+    const[saveAsDraft, setSaveAsDraft] = useState(false);
+    const[drafts, setDrafts] = useState([]);
+    const[showDrafts, setShowDrafts] = useState(false);
     const[selectedImage, setSelectedImage] = useState(null); 
     const[previewUrl, setPreviewUrl] = useState(null); 
 
@@ -41,10 +45,6 @@ function Profile() {
     const [menuOpenPostId, setMenuOpenPostId] = useState(null);
     const [editingPostId, setEditingPostId] = useState(null);
     const [editContent, setEditContent] = useState('');
-
-    const [showFriendsModal, setShowFriendsModal] = useState(false);
-    const [friendsList, setFriendsList] = useState([]);
-    const [loadingFriends, setLoadingFriends] = useState(false);
 
     const fileInputRef = useRef(null);
     const avatarInputRef = useRef(null);
@@ -97,27 +97,29 @@ function Profile() {
 
     const handleImageSelect = (e) => { const file = e.target.files[0]; if (file) { setSelectedImage(file); setPreviewUrl(URL.createObjectURL(file)); } };
     const removeImage = () => { setSelectedImage(null); setPreviewUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
-    const handlePost = async (e) => {
-        e.preventDefault(); if (!newPost.trim() && !selectedImage) return; 
+    const loadDrafts = async () => {
         try {
-            const formData = new FormData(); formData.append('user_id', currentUserId); formData.append('content', newPost);
+            const res = await axios.get(`${BACKEND_URL}/api/posts/drafts/${currentUserId}`);
+            setDrafts(res.data);
+        } catch(e) {}
+    };
+
+    const handlePost = async (e) => {
+        e.preventDefault(); if (!newPost.trim() && !selectedImage) return;
+        try {
+            const formData = new FormData();
+            formData.append('user_id', currentUserId);
+            formData.append('content', newPost);
+            if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString());
+            if (saveAsDraft) formData.append('is_draft', 'true');
             if (selectedImage) formData.append('image', selectedImage);
             await axios.post(`${BACKEND_URL}/api/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setScheduledAt(''); setSaveAsDraft(false); loadDrafts();
             setNewPost(''); removeImage(); loadProfileData(); 
         } catch (error) { console.error(error); }
     };
 
     // 🔥 NEW: POST ACTIONS (EDIT & DELETE) 🔥
-    const openFriendsModal = async () => {
-        setShowFriendsModal(true);
-        setLoadingFriends(true);
-        try {
-            const res = await axios.get(`${BACKEND_URL}/api/friends/list/${id}`);
-            setFriendsList(Array.isArray(res.data) ? res.data : []);
-        } catch (e) { console.error(e); setFriendsList([]); }
-        setLoadingFriends(false);
-    };
-
     const deletePost = async (postId) => {
         if (window.confirm("Are you sure you want to delete this post?")) {
             try {
@@ -199,7 +201,7 @@ function Profile() {
                 <div className="mt-3">
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">{profileData.username} {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}</h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
-                    {canSeeDetails && <button onClick={openFriendsModal} className="text-white font-bold mt-2 mb-2 hover:underline cursor-pointer block">{profileData.friend_count || 0} <span className="text-zinc-500 font-normal">Friends</span></button>}
+                    {canSeeDetails && <p className="text-white font-bold mt-2 mb-2">{profileData.friend_count || 0} <span className="text-zinc-500 font-normal">Friends</span></p>}
                     
                     {isEditing ? (
                         <div className="space-y-4 mt-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
@@ -221,10 +223,57 @@ function Profile() {
                     <form onSubmit={handlePost} className="w-full pt-1">
                         <textarea className="w-full bg-transparent text-xl text-white placeholder-zinc-500 outline-none resize-none overflow-hidden" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="What's on your mind?" rows="2" />
                         {previewUrl && <div className="relative mt-2 mb-2 w-fit"><img src={previewUrl} className="max-h-64 rounded-2xl object-cover border border-zinc-700" /><button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full hover:bg-black transition"><X size={18} className="text-white" /></button></div>}
-                        <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
-                            <div className="flex gap-4 text-blue-500"><input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" /><button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition"><ImageIcon size={20} /></button></div>
-                            <button type="submit" disabled={!newPost.trim() && !selectedImage} className="text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-6 rounded-full transition disabled:opacity-50">Post</button>
+                        {/* Schedule / Draft options */}
+                        <div className="flex flex-wrap gap-2 mt-2 mb-1">
+                            <label className="flex items-center gap-1.5 text-zinc-400 text-xs cursor-pointer">
+                                <input type="checkbox" checked={saveAsDraft} onChange={e => { setSaveAsDraft(e.target.checked); if(e.target.checked) setScheduledAt(''); }}
+                                    className="accent-blue-500" />
+                                Save as Draft
+                            </label>
+                            {!saveAsDraft && (
+                                <label className="flex items-center gap-1.5 text-zinc-400 text-xs">
+                                    <Clock size={12} />
+                                    <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
+                                        className="bg-zinc-800 text-zinc-300 text-xs rounded-lg px-2 py-1 outline-none border border-zinc-700 focus:border-blue-500" />
+                                </label>
+                            )}
                         </div>
+                        <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
+                            <div className="flex gap-2 text-blue-500">
+                                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
+                                <button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition"><ImageIcon size={20} /></button>
+                                <button type="button" onClick={() => { loadDrafts(); setShowDrafts(p => !p); }} className={"hover:bg-zinc-800 p-2 rounded-full transition " + (drafts.length > 0 ? "text-yellow-400" : "text-zinc-500")} title="Drafts & Scheduled">
+                                    <Clock size={20} />
+                                    {drafts.length > 0 && <span className="text-[10px] font-bold ml-0.5">{drafts.length}</span>}
+                                </button>
+                            </div>
+                            <button type="submit" disabled={!newPost.trim() && !selectedImage} className={"text-white font-bold py-1.5 px-6 rounded-full transition disabled:opacity-50 " + (saveAsDraft ? "bg-zinc-600 hover:bg-zinc-500" : scheduledAt ? "bg-purple-600 hover:bg-purple-500" : "bg-blue-600 hover:bg-blue-500")}>
+                                {saveAsDraft ? "Save Draft" : scheduledAt ? "Schedule" : "Post"}
+                            </button>
+                        </div>
+                        {/* Drafts panel */}
+                        {showDrafts && (
+                            <div className="mt-3 border border-zinc-700 rounded-2xl overflow-hidden bg-zinc-950">
+                                <div className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between">
+                                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Drafts & Scheduled</span>
+                                    <button onClick={() => setShowDrafts(false)} className="text-zinc-500"><X size={14}/></button>
+                                </div>
+                                {drafts.length === 0 ? <p className="text-zinc-500 text-xs p-4 text-center">No drafts or scheduled posts.</p> : drafts.map(d => (
+                                    <div key={d.id} className="flex items-center gap-3 p-3 border-b border-zinc-800 last:border-0">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-white text-sm truncate">{d.content || "📎 Media post"}</p>
+                                            <p className="text-zinc-500 text-[10px] mt-0.5">
+                                                {d.is_draft ? "📝 Draft" : `🕐 Scheduled: ${new Date(d.scheduled_at).toLocaleString()}`}
+                                            </p>
+                                        </div>
+                                        <button onClick={async () => { await axios.post(`${BACKEND_URL}/api/posts/${d.id}/publish`, { userId: currentUserId }); loadDrafts(); fetchPosts && fetchPosts(); window.location.reload(); }}
+                                            className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold transition">Publish</button>
+                                        <button onClick={async () => { await axios.delete(`${BACKEND_URL}/api/posts/${d.id}`); loadDrafts(); }}
+                                            className="text-zinc-500 hover:text-red-400 transition"><X size={14}/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </form>
                 </div>
             )}
@@ -288,36 +337,6 @@ function Profile() {
                 )}
                 {!canSeeDetails && <div className="text-center p-10 border border-zinc-800 rounded-2xl m-4 bg-zinc-900/50"><Lock className="mx-auto text-zinc-500 mb-2" size={32} /><h3 className="text-white font-bold">This Account is Private</h3><p className="text-zinc-500 text-sm mt-1">Add them as a friend to see their friend count and all other posts.</p></div>}
             </div>
-
-            {/* Friends Modal */}
-            {showFriendsModal && (
-                <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowFriendsModal(false)}>
-                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm max-h-[70vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                            <h2 className="text-white font-bold text-lg">Friends</h2>
-                            <button onClick={() => setShowFriendsModal(false)} className="text-zinc-400 hover:text-white transition"><X size={20} /></button>
-                        </div>
-                        <div className="overflow-y-auto flex-1 p-2">
-                            {loadingFriends && <p className="text-zinc-500 text-center py-8 animate-pulse">Loading...</p>}
-                            {!loadingFriends && friendsList.length === 0 && <p className="text-zinc-500 text-center py-8">No friends yet.</p>}
-                            {!loadingFriends && friendsList.map(friend => (
-                                <Link key={friend.id} to={`/profile/${friend.id}`} onClick={() => setShowFriendsModal(false)}
-                                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-800 transition cursor-pointer">
-                                    <div className="w-11 h-11 rounded-full bg-zinc-700 overflow-hidden flex-shrink-0 border border-zinc-600">
-                                        {friend.profile_pic_url
-                                            ? <img src={friend.profile_pic_url} className="w-full h-full object-cover" />
-                                            : <span className="w-full h-full flex items-center justify-center text-white font-bold">{friend.username?.charAt(0).toUpperCase()}</span>}
-                                    </div>
-                                    <div>
-                                        <p className="text-white font-bold text-sm">{friend.username}</p>
-                                        <p className="text-zinc-500 text-xs">@{friend.username?.toLowerCase()}</p>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
