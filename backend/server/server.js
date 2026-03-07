@@ -236,11 +236,11 @@ app.get('/api/posts', async (req, res) => {
              (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count,
              (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked
              FROM posts p JOIN users u ON p.user_id = u.id
-             WHERE (p.is_draft IS NULL OR p.is_draft = FALSE OR p.is_draft = 0)
-               AND (p.scheduled_at IS NULL OR p.scheduled_at <= NOW())
              ORDER BY p.created_at DESC`, [currentUserId]);
-        res.json(posts);
-    } catch (err) { res.status(500).json({ error: "Server error." }); }
+        // Filter out drafts and future scheduled posts in JS (safer if columns don't exist yet)
+        const filtered = posts.filter(p => !p.is_draft && (!p.scheduled_at || new Date(p.scheduled_at) <= new Date()));
+        res.json(filtered);
+    } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
 });
 app.post('/api/posts/:id/like', async (req, res) => { try { const postId = req.params.id; const { userId } = req.body; const [existing] = await pool.query('SELECT * FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)',[postId, userId]); res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/posts/:id/likes', async (req, res) => { try { const [likes] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url FROM likes l JOIN users u ON l.user_id = u.id WHERE l.post_id = ? ORDER BY l.id DESC`,[req.params.id]); res.json(likes); } catch (err) { res.status(500).json({ error: "Server error." }); } });
