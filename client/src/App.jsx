@@ -14,6 +14,7 @@ import Search from './Search';
 import Reels from './Reels'; 
 import Communities from './Communities'; 
 import Notifications from './Notifications'; 
+import CreatePost from './CreatePost';
 
 
 class ErrorBoundary extends React.Component {
@@ -533,6 +534,7 @@ function AppContent() {
             <Route path="/notifications" element={<ProtectedRoute><Notifications themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
+            <Route path="/create-post" element={<ProtectedRoute><CreatePost themeColor={userThemeColor} /></ProtectedRoute>} />
           </Routes>
         </main>
 

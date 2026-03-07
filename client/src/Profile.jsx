@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -14,10 +14,11 @@ function formatTimeFriendly(dateString) {
     if (isToday) return `Today at ${timeStr}`; if (isYesterday) return `Yesterday at ${timeStr}`; return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
 
-function Profile({ onlineUsers = new Set() }) {
+function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const { id } = useParams(); 
     const currentUserId = localStorage.getItem('userId');
-    const isMyProfile = id === currentUserId; 
+    const isMyProfile = id === currentUserId;
+    const navigate = useNavigate();
 
     const[profileData, setProfileData] = useState(null);
     const[userPosts, setUserPosts] = useState([]);
@@ -382,163 +383,18 @@ function Profile({ onlineUsers = new Set() }) {
             </div>
 
             {isMyProfile && (
-                <div className="p-4 border-b border-zinc-800 bg-zinc-950/30 flex gap-4">
-                    <div className="w-12 h-12 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700">{avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{profileData.username.charAt(0).toUpperCase()}</span>}</div>
-                    <form id="profile-post-form" onSubmit={handlePost} className="w-full pt-1">
-                        <textarea className="w-full bg-transparent text-xl text-white placeholder-zinc-500 outline-none resize-none overflow-hidden" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="What's on your mind?" rows="2" />
-                        
-                        {/* Tagged friends display */}
-                        {taggedFriends.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                                {taggedFriends.map(f => (
-                                    <span key={f.id} className="bg-blue-500/20 text-blue-400 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                        @{f.username}
-                                        <button type="button" onClick={() => setTaggedFriends(prev => prev.filter(tf => tf.id !== f.id))}><X size={10}/></button>
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                        {/* Collab invite display */}
-                        {collabInviteId && (
-                            <div className="flex items-center gap-2 mb-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-1.5">
-                                <Star size={12} className="text-yellow-400"/>
-                                <span className="text-yellow-300 text-xs">Co-author: {friendsList.find(f=>f.id==collabInviteId)?.username}</span>
-                                <button type="button" onClick={() => setCollabInviteId(null)} className="ml-auto"><X size={12} className="text-zinc-400"/></button>
-                            </div>
-                        )}
-
-                        {previewUrl && <div className="relative mt-2 mb-2 w-fit"><img src={previewUrl} className="max-h-64 rounded-2xl object-cover border border-zinc-700" /><button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full hover:bg-black transition"><X size={18} className="text-white" /></button></div>}
-                        {previewUrls.length > 1 && (
-                            <div className="flex gap-2 mt-2 mb-2 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
-                                {previewUrls.map((url, i) => (
-                                    <div key={i} className="relative flex-shrink-0">
-                                        <img src={url} className="h-24 w-24 rounded-xl object-cover border border-zinc-700" />
-                                        <button type="button" onClick={() => removeCarouselImage(i)} className="absolute top-1 right-1 bg-black/70 p-1 rounded-full hover:bg-black transition"><X size={12} className="text-white" /></button>
-                                        {i === 0 && <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1.5 rounded-full">Cover</span>}
-                                    </div>
-                                ))}
-                                <div className="text-zinc-500 text-xs self-center flex-shrink-0 ml-1">{previewUrls.length} photos</div>
-                            </div>
-                        )}
-
-                        {/* Visibility picker dropdown */}
-                        {showVisibilityPicker && (
-                            <div className="mb-2 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden animate-fade-in">
-                                {[
-                                    { value: 'public', icon: <Globe size={14}/>, label: 'Everyone', desc: 'Anyone can see this post' },
-                                    { value: 'friends', icon: <Users size={14}/>, label: 'Friends Only', desc: 'Only your friends' },
-                                    { value: 'close_friends', icon: <Star size={14}/>, label: 'Close Friends', desc: 'Your close friends list' },
-                                    { value: 'only_me', icon: <EyeOff size={14}/>, label: 'Only Me', desc: 'Just you' },
-                                ].map(opt => (
-                                    <button key={opt.value} type="button"
-                                        onClick={() => { setPostVisibility(opt.value); setShowVisibilityPicker(false); }}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800 transition text-left border-b border-zinc-800 last:border-0 ${postVisibility === opt.value ? 'bg-blue-500/10' : ''}`}>
-                                        <span className={postVisibility === opt.value ? 'text-blue-400' : 'text-zinc-400'}>{opt.icon}</span>
-                                        <div>
-                                            <p className={`text-sm font-semibold ${postVisibility === opt.value ? 'text-blue-400' : 'text-white'}`}>{opt.label}</p>
-                                            <p className="text-zinc-500 text-xs">{opt.desc}</p>
-                                        </div>
-                                        {postVisibility === opt.value && <Check size={14} className="ml-auto text-blue-400"/>}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Tag Friends picker */}
-                        {showTagPicker && (
-                            <div className="mb-2 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden max-h-40 overflow-y-auto animate-fade-in">
-                                <p className="text-zinc-500 text-xs px-4 py-2 border-b border-zinc-800">Tag a friend:</p>
-                                {friendsList.filter(f => !taggedFriends.find(tf => tf.id === f.id)).map(f => (
-                                    <button key={f.id} type="button"
-                                        onClick={() => { setTaggedFriends(prev => [...prev, f]); setShowTagPicker(false); }}
-                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
-                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
-                                            {f.profile_pic_url ? <img src={f.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs text-white font-bold">{f.username.charAt(0).toUpperCase()}</span>}
-                                        </div>
-                                        <span className="text-white text-sm">{f.username}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Collab picker */}
-                        {showCollabPicker && (
-                            <div className="mb-2 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden max-h-40 overflow-y-auto animate-fade-in">
-                                <p className="text-zinc-500 text-xs px-4 py-2 border-b border-zinc-800">Invite co-author:</p>
-                                {friendsList.map(f => (
-                                    <button key={f.id} type="button"
-                                        onClick={() => { setCollabInviteId(f.id); setShowCollabPicker(false); }}
-                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
-                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
-                                            {f.profile_pic_url ? <img src={f.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs text-white font-bold">{f.username.charAt(0).toUpperCase()}</span>}
-                                        </div>
-                                        <span className="text-white text-sm">{f.username}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
-                            <div className="flex gap-1 text-blue-500 flex-wrap">
-                                <input type="file" accept="image/*" multiple ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
-                                <button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition" title="Add image"><ImageIcon size={18} /></button>
-                                <button type="button" onClick={() => { loadDrafts(); setShowDrafts(p => !p); }}
-                                    className={"hover:bg-zinc-800 p-2 rounded-full transition relative " + (drafts.length > 0 ? "text-yellow-400" : "text-zinc-500")} title="View Drafts">
-                                    <Clock size={18} />
-                                    {drafts.length > 0 && <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{drafts.length}</span>}
-                                </button>
-                                {/* Visibility button */}
-                                <button type="button" onClick={() => { setShowVisibilityPicker(p=>!p); setShowTagPicker(false); setShowCollabPicker(false); }}
-                                    className="hover:bg-zinc-800 p-2 rounded-full transition text-zinc-400 flex items-center gap-1" title="Post visibility">
-                                    {postVisibility === 'public' ? <Globe size={18} className="text-green-400"/> : postVisibility === 'friends' ? <Users size={18} className="text-blue-400"/> : postVisibility === 'close_friends' ? <Star size={18} className="text-yellow-400"/> : <EyeOff size={18} className="text-zinc-400"/>}
-                                    <ChevronDown size={12} className="text-zinc-600"/>
-                                </button>
-                                {/* Tag friend button */}
-                                <button type="button" onClick={() => { setShowTagPicker(p=>!p); setShowVisibilityPicker(false); setShowCollabPicker(false); }}
-                                    className={"hover:bg-zinc-800 p-2 rounded-full transition " + (taggedFriends.length > 0 ? "text-blue-400" : "text-zinc-500")} title="Tag a friend">
-                                    <Users size={18}/>
-                                </button>
-                                {/* Collab button */}
-                                <button type="button" onClick={() => { setShowCollabPicker(p=>!p); setShowVisibilityPicker(false); setShowTagPicker(false); }}
-                                    className={"hover:bg-zinc-800 p-2 rounded-full transition " + (collabInviteId ? "text-yellow-400" : "text-zinc-500")} title="Invite co-author">
-                                    <Star size={18}/>
-                                </button>
-                            </div>
-                            <div className="flex gap-2">
-                                <button type="button" disabled={!newPost.trim() && !selectedImage}
-                                    onClick={() => { isDraftRef.current = true; document.getElementById('profile-post-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }}
-                                    className="text-zinc-300 bg-zinc-700 hover:bg-zinc-600 font-bold py-1.5 px-5 rounded-full transition disabled:opacity-50 text-sm">
-                                    Save Draft
-                                </button>
-                                <button type="submit" disabled={!newPost.trim() && !selectedImage}
-                                    className="text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-6 rounded-full transition disabled:opacity-50 text-sm">
-                                    Post
-                                </button>
-                            </div>
+                <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-950/30">
+                    <button
+                        onClick={() => navigate('/create-post')}
+                        className="w-full flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-2xl px-4 py-3.5 transition group text-left">
+                        <div className="w-9 h-9 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700">
+                            {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-sm">{profileData.username.charAt(0).toUpperCase()}</span>}
                         </div>
-                        {/* Drafts panel */}
-                        {showDrafts && (
-                            <div className="mt-3 border border-zinc-700 rounded-2xl overflow-hidden bg-zinc-950">
-                                <div className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between">
-                                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Drafts & Scheduled</span>
-                                    <button onClick={() => setShowDrafts(false)} className="text-zinc-500"><X size={14}/></button>
-                                </div>
-                                {drafts.length === 0 ? <p className="text-zinc-500 text-xs p-4 text-center">No drafts or scheduled posts.</p> : drafts.map(d => (
-                                    <div key={d.id} className="flex items-center gap-3 p-3 border-b border-zinc-800 last:border-0">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white text-sm truncate">{d.content || "📎 Media post"}</p>
-                                            <p className="text-zinc-500 text-[10px] mt-0.5">
-                                                {d.is_draft ? "📝 Draft" : `🕐 Scheduled: ${new Date(d.scheduled_at).toLocaleString()}`}
-                                            </p>
-                                        </div>
-                                        <button onClick={async () => { await axios.post(`${BACKEND_URL}/api/posts/${d.id}/publish`, { userId: currentUserId }); loadDrafts(); fetchPosts && fetchPosts(); window.location.reload(); }}
-                                            className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-full font-bold transition">Publish</button>
-                                        <button onClick={async () => { await axios.delete(`${BACKEND_URL}/api/posts/${d.id}`); loadDrafts(); }}
-                                            className="text-zinc-500 hover:text-red-400 transition"><X size={14}/></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </form>
+                        <span className="text-zinc-500 group-hover:text-zinc-400 text-base flex-1 transition">What's on your mind?</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full text-white transition" style={{backgroundColor: themeColor}}>+ Post</span>
+                        </div>
+                    </button>
                 </div>
             )}
 
