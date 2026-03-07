@@ -36,49 +36,32 @@ function Settings() {
     const enableOSNotifications = async () => {
         try {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                alert("Push notifications are not supported in this browser.");
-                return;
+                alert("Push notifications are not supported in this browser."); return;
             }
-
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
-                alert("Please allow notifications when prompted, then try again.");
-                return;
+                alert("Please allow notifications when prompted, then try again."); return;
             }
-
-            // Register SW if not already registered
+            // Register SW if needed
             let reg = await navigator.serviceWorker.getRegistration('/');
-            if (!reg) {
-                reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-                // Wait for it to be ready
-                await new Promise(resolve => {
-                    if (reg.active) return resolve();
-                    const sw = reg.installing || reg.waiting;
-                    sw.addEventListener('statechange', (e) => {
-                        if (e.target.state === 'activated') resolve();
-                    });
-                });
-            }
-
-            // Wait for ready
+            if (!reg) reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
             const readyReg = await navigator.serviceWorker.ready;
 
-            // Get VAPID key
-            const vapidRes = await axios.get(`${BACKEND_URL}/api/vapidPublicKey`);
-            const convertedVapidKey = urlBase64ToUint8Array(vapidRes.data);
+            // 🔑 Unsubscribe any old subscription to avoid key mismatch error
+            const existing = await readyReg.pushManager.getSubscription();
+            if (existing) await existing.unsubscribe();
 
-            // Subscribe
+            // Get fresh VAPID key and resubscribe
+            const vapidRes = await axios.get(`${BACKEND_URL}/api/vapidPublicKey`);
+            const convertedKey = urlBase64ToUint8Array(vapidRes.data);
             const subscription = await readyReg.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: convertedVapidKey
+                applicationServerKey: convertedKey
             });
-
-            // Save to server
             await axios.post(`${BACKEND_URL}/api/subscribe`, {
                 userId: currentUserId,
                 subscription: subscription.toJSON()
             });
-
             alert("✅ Desktop alerts are now active!");
         } catch (e) {
             console.error("Push Error:", e);
