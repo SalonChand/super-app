@@ -28,6 +28,7 @@ function Profile() {
     // EDIT PROFILE STATES
     const[isEditing, setIsEditing] = useState(false);
     const[editBio, setEditBio] = useState('');
+    const[editLinks, setEditLinks] = useState([]); // [{label, url}]
     const[editAvatar, setEditAvatar] = useState(null);
     const[editCover, setEditCover] = useState(null); 
     const[editAnthem, setEditAnthem] = useState(''); 
@@ -62,7 +63,7 @@ function Profile() {
             ];
             if (!isMyProfile) requests.push(axios.get(`${BACKEND_URL}/api/friends/status/${currentUserId}/${id}`));
             const [userRes, postsRes, friendRes] = await Promise.all(requests);
-            setProfileData(userRes.data); setEditBio(userRes.data.bio || ''); setEditAnthem(userRes.data.anthem_url || '');
+            setProfileData(userRes.data); setEditBio(userRes.data.bio || ''); setEditAnthem(userRes.data.anthem_url || ''); try { setEditLinks(JSON.parse(userRes.data.profile_links || '[]')); } catch(e) { setEditLinks([]); }
             if (Array.isArray(postsRes.data)) setUserPosts(postsRes.data);
             if (friendRes) setFriendStatus(friendRes.data.status);
         } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
@@ -77,7 +78,7 @@ function Profile() {
 
     const handleSaveProfile = async () => {
         const formData = new FormData(); 
-        formData.append('userId', currentUserId); formData.append('bio', editBio); formData.append('anthem_url', editAnthem);
+        formData.append('userId', currentUserId); formData.append('bio', editBio); formData.append('anthem_url', editAnthem); formData.append('profile_links', JSON.stringify(editLinks.filter(l => l.url.trim())));
         if (editAvatar) formData.append('profile_pic', editAvatar);
         if (editCover) formData.append('cover_pic', editCover); 
         try { 
@@ -208,10 +209,42 @@ function Profile() {
                         <div className="space-y-4 mt-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
                             <div><label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1 block">Bio</label><textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition-colors" placeholder="Write a bio..." rows="2" /></div>
                             <div><label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Music size={14}/> Profile Anthem (YouTube Link)</label><input type="text" value={editAnthem} onChange={(e) => setEditAnthem(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition-colors text-sm" /></div>
+                            <div>
+                                <label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
+                                    <span>🔗 Links</span>
+                                    <button type="button" onClick={() => setEditLinks(prev => [...prev, { label: '', url: '' }])} className="text-blue-400 hover:text-blue-300 text-xs font-bold">+ Add Link</button>
+                                </label>
+                                <div className="space-y-2">
+                                    {editLinks.map((link, i) => (
+                                        <div key={i} className="flex gap-2 items-center">
+                                            <input value={link.label} onChange={e => setEditLinks(prev => prev.map((l, idx) => idx === i ? {...l, label: e.target.value} : l))}
+                                                placeholder="Label (e.g. GitHub)" className="w-28 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500 text-sm" />
+                                            <input value={link.url} onChange={e => setEditLinks(prev => prev.map((l, idx) => idx === i ? {...l, url: e.target.value} : l))}
+                                                placeholder="https://..." className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500 text-sm" />
+                                            <button type="button" onClick={() => setEditLinks(prev => prev.filter((_, idx) => idx !== i))} className="text-zinc-500 hover:text-red-400 transition"><X size={16}/></button>
+                                        </div>
+                                    ))}
+                                    {editLinks.length === 0 && <p className="text-zinc-600 text-xs">No links yet. Click + Add Link.</p>}
+                                </div>
+                            </div>
                         </div>
                     ) : (
                         <>
                             <p className="text-zinc-200 mt-2">{profileData.bio}</p>
+                            {(() => {
+                                let links = [];
+                                try { links = JSON.parse(profileData.profile_links || '[]'); } catch(e) {}
+                                return links.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        {links.filter(l => l.url).map((link, i) => (
+                                            <a key={i} href={link.url.startsWith('http') ? link.url : 'https://'+link.url} target="_blank" rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-blue-400 text-sm px-3 py-1.5 rounded-full transition">
+                                                🔗 {link.label || link.url}
+                                            </a>
+                                        ))}
+                                    </div>
+                                ) : null;
+                            })()}
                             {renderAnthem(profileData.anthem_url)}
                         </>
                     )}

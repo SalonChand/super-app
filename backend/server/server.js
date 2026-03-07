@@ -147,6 +147,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN anthem_url VARCHAR(255)");
     await patch("ALTER TABLE users ADD COLUMN is_private BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE users ADD COLUMN notifications BOOLEAN DEFAULT TRUE");
+    await patch("ALTER TABLE users ADD COLUMN profile_links JSON DEFAULT NULL");
+    await patch("ALTER TABLE posts ADD COLUMN hashtags JSON DEFAULT NULL");
     await patch("ALTER TABLE messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE messages ADD COLUMN reply_to_id INT DEFAULT NULL");
     await patch("ALTER TABLE messages ADD COLUMN is_forwarded BOOLEAN DEFAULT FALSE");
@@ -198,6 +200,24 @@ app.get('/api/online', (req, res) => {
     res.json(onlineList);
 });
 
+app.get('/api/hashtags/:tag', async (req, res) => {
+    try {
+        const tag = req.params.tag.toLowerCase();
+        const currentUserId = req.query.userId || 0;
+        const [posts] = await pool.query(
+            `SELECT p.*, u.username, u.profile_pic_url,
+             (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count,
+             (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count,
+             (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked
+             FROM posts p JOIN users u ON p.user_id = u.id
+             WHERE (p.is_draft IS NULL OR p.is_draft = 0) AND (p.scheduled_at IS NULL OR p.scheduled_at <= NOW())
+             AND p.content LIKE ?
+             ORDER BY p.created_at DESC LIMIT 50`,
+            [currentUserId, `%#${tag}%`]);
+        res.json(posts);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 app.get('/api/activity/:userId', async (req, res) => { try { const uid = req.params.userId; const [msgs] = await pool.query(`SELECT m.id, m.content, u.username, u.profile_pic_url, m.created_at, 'message' as type FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.receiver_id = ? AND m.is_read = FALSE ORDER BY m.created_at DESC`, [uid]); const [reqs] = await pool.query(`SELECT c.id, 'Sent you a friend request' as content, u.username, u.profile_pic_url, c.created_at, 'request' as type FROM connections c JOIN users u ON c.requester_id = u.id WHERE c.receiver_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC`,[uid]); let activity =[...msgs, ...reqs]; activity.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); res.json({ feed: activity, unread_messages: msgs.length, pending_requests: reqs.length, total_notifications: msgs.length + reqs.length }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 
 // POSTS
@@ -205,8 +225,30 @@ app.post('/api/posts', upload.single('image'), async (req, res) => {
     try {
         const image_url = req.file ? req.file.path : null;
         const { user_id, content, scheduled_at, is_draft } = req.body;
-        await pool.query('INSERT INTO posts (user_id, content, image_url, scheduled_at, is_draft) VALUES (?, ?, ?, ?, ?)',
-            [user_id, content, image_url, scheduled_at || null, is_draft === 'true' ? 1 : 0]);
+        // Extract hashtags and mentions
+        const hashtags = (content.match(/#[\w]+/g) || []).map(h => h.toLowerCase());
+        const mentions = (content.match(/@([\w]+)/g) || []).map(m => m.slice(1).toLowerCase());
+        await pool.query('INSERT INTO posts (user_id, content, image_url, scheduled_at, is_draft, hashtags) VALUES (?, ?, ?, ?, ?, ?)',
+            [user_id, content, image_url, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags)]);
+        // Push notification to mentioned users
+        if (mentions.length > 0) {
+            try {
+                const [poster] = await pool.query('SELECT username FROM users WHERE id = ?', [user_id]);
+                const posterName = poster[0]?.username || 'Someone';
+                for (const mention of mentions) {
+                    const [mentioned] = await pool.query('SELECT id FROM users WHERE username = ?', [mention]);
+                    if (mentioned.length > 0 && mentioned[0].id != user_id) {
+                        const mentionedId = mentioned[0].id;
+                        await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)',
+                            [mentionedId, user_id, 'mention', `@${posterName} mentioned you in a post`]).catch(()=>{});
+                        io.to(String(mentionedId)).emit('activity_updated', { type: 'mention', from: posterName });
+                        const [subs] = await pool.query('SELECT subscription FROM push_subscriptions WHERE user_id = ?', [mentionedId]);
+                        const payload = JSON.stringify({ title: `${posterName} mentioned you`, body: content.slice(0, 80) });
+                        subs.forEach(async sub => { try { await webpush.sendNotification(JSON.parse(sub.subscription), payload); } catch(e){} });
+                    }
+                }
+            } catch(e) {}
+        }
         res.status(201).json({ message: "Post created!" });
     } catch (err) { res.status(500).json({ error: "Server error." }); }
 });
@@ -263,9 +305,9 @@ app.get('/api/messages/:user1/:user2', async (req, res) => { try { const { user1
 app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT messages.*, users.username, users.profile_pic_url FROM messages JOIN users ON messages.sender_id = users.id WHERE messages.receiver_id = ? AND messages.is_request = true AND messages.sender_id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ? AND status = 'accepted' UNION SELECT receiver_id FROM connections WHERE requester_id = ? AND status = 'accepted') GROUP BY messages.sender_id ORDER BY messages.created_at DESC`,[req.params.userId, req.params.userId, req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 // PROFILE & FRIENDS
-app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query('SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, created_at FROM users WHERE id = ?',[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query('SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, created_at FROM users WHERE id = ?',[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const[posts] = await pool.query(`SELECT p.*, u.username, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = ? ORDER BY p.created_at DESC`,[currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
+app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url, profile_links } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?, profile_links = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null, profile_links || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
 
 app.post('/api/friends/request', async (req, res) => { try { const { requester_id, receiver_id } = req.body; if (requester_id === receiver_id) return res.status(400).json({ error: "Cannot friend yourself." }); await pool.query('INSERT IGNORE INTO connections (requester_id, receiver_id, status) VALUES (?, ?, ?)',[requester_id, receiver_id, 'pending']); io.to(receiver_id.toString()).emit('activity_updated'); res.json({ message: "Request sent!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 app.post('/api/friends/remove', async (req, res) => { try { const { user1, user2 } = req.body; await pool.query(`DELETE FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); io.to(user1.toString()).emit('activity_updated'); io.to(user2.toString()).emit('activity_updated'); res.json({ message: "Unfriended" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });

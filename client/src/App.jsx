@@ -397,6 +397,9 @@ function AppContent() {
               if (data?.senderName && data.senderId != currentUserId) {
                   addToast({ senderName: data.senderName, preview: data.preview, senderId: data.senderId });
               }
+              if (data?.type === 'mention' && data.from) {
+                  addToast({ senderName: data.from, preview: `mentioned you in a post`, senderId: null, isMention: true });
+              }
           };
           const handleOnlineStatus = ({ userId: uid, online }) => {
               setOnlineUsers(prev => {

@@ -51,6 +51,8 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
     const [isRecording, setIsRecording] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState(''); // text after @ for autocomplete
+    const [mentionResults, setMentionResults] = useState([]);
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -334,7 +336,30 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                 <div className="mb-1 mt-1">
                                                     {msg.media_type === 'image' ? <img onClick={() => setViewingImage(`${msg.media_url}`)} src={`${msg.media_url}`} className="rounded-xl max-w-[250px] sm:max-w-[300px] w-full cursor-pointer hover:opacity-90 transition object-cover" /> 
                                                     : msg.media_type === 'video' ? <video src={`${msg.media_url}`} controls className="rounded-xl max-w-[250px] sm:max-w-[300px] w-full" /> 
-                                                    : msg.media_type === 'audio' ? <audio src={`${msg.media_url}`} controls className="w-[200px] sm:w-[250px] h-10 outline-none" />
+                                                    : msg.media_type === 'audio' ? (
+                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[220px]">
+                                                            <button type="button" onClick={(e) => {
+                                                                const audio = e.currentTarget.nextSibling;
+                                                                const icon = e.currentTarget.querySelector('span');
+                                                                if (audio.paused) { audio.play(); icon.textContent = '⏸'; }
+                                                                else { audio.pause(); icon.textContent = '▶'; }
+                                                            }} className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white/20 hover:bg-white/30 transition">
+                                                                <span className="text-sm">▶</span>
+                                                            </button>
+                                                            <audio src={`${msg.media_url}`} className="hidden" onEnded={(e) => { const btn = e.currentTarget.previousSibling.querySelector('span'); if(btn) btn.textContent='▶'; }} />
+                                                            <div className="flex-1">
+                                                                <div className="flex items-end gap-0.5 h-6 cursor-pointer" onClick={(e) => {
+                                                                    const audio = e.currentTarget.closest('.flex.items-center').querySelector('audio');
+                                                                    if(audio) { audio.paused ? audio.play() : audio.pause(); }
+                                                                }}>
+                                                                    {[3,5,4,7,6,4,5,3,6,5,4,6,5,4,3].map((h,i) => (
+                                                                        <div key={i} className="w-1 rounded-full bg-white/60" style={{height: `${h*3}px`}}></div>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-[10px] text-white/50 mt-0.5">Voice message</p>
+                                                            </div>
+                                                        </div>
+                                                    )
                                                     : <a href={`${msg.media_url}`} target="_blank" className="flex items-center gap-2 underline text-zinc-300 px-3"><FileText size={16} /> Document</a>}
                                                 </div> 
                                             ) : null}
@@ -363,6 +388,21 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                     {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: themeColor }}><div><p className="text-xs font-bold" style={{ color: themeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate max-w-[250px]">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1"><X size={18}/></button></div> ) : null}
                     {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: themeColor }}>Uploading...</p>}
                     
+                    {mentionResults.length > 0 && (
+                        <div className="absolute bottom-[72px] left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-slide-up">
+                            {mentionResults.map(u => (
+                                <button key={u.id} type="button" onClick={() => {
+                                    setCurrentMessage(prev => prev.replace(/@\w*$/, `@${u.username} `));
+                                    setMentionResults([]);
+                                }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
+                                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0 flex items-center justify-center">
+                                        {u.profile_pic_url ? <img src={u.profile_pic_url} className="w-full h-full object-cover" /> : <span className="text-white text-xs font-bold">{u.username.charAt(0).toUpperCase()}</span>}
+                                    </div>
+                                    <span className="text-white text-sm font-medium">@{u.username}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <form onSubmit={sendMessage} className="flex gap-2 items-center w-full p-3 pt-2">
                         {isRecording ? (
                             <div className="flex-1 flex items-center justify-between bg-red-500/10 border border-red-500/30 rounded-full py-2.5 px-4 shadow-inner transition-all w-full animate-fade-in">
@@ -385,7 +425,18 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                         )}
                                     </div>
                                 </div>
-                                <input type="text" value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)} placeholder="Type a message..." className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-3 px-5 text-white placeholder-zinc-500 outline-none transition shadow-inner" />
+                                <input type="text" value={currentMessage} onChange={(e) => {
+                                        const val = e.target.value;
+                                        setCurrentMessage(val);
+                                        const match = val.match(/@(\w*)$/);
+                                        if (match) {
+                                            const q = match[1];
+                                            setMentionQuery(q);
+                                            if (q.length > 0) {
+                                                axios.get(`${BACKEND_URL}/api/search?q=${q}&userId=${userId}`).then(r => setMentionResults(r.data.slice(0,4))).catch(()=>{});
+                                            } else { setMentionResults([]); }
+                                        } else { setMentionQuery(''); setMentionResults([]); }
+                                    }} placeholder="Type a message..." className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-3 px-5 text-white placeholder-zinc-500 outline-none transition shadow-inner" />
                                 {currentMessage.trim() === '' ? ( <button type="button" onClick={startRecording} className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full flex-shrink-0 transition shadow-lg"><Mic size={20} /></button> ) : ( <button type="submit" className="text-white p-3 rounded-full flex-shrink-0 transition shadow-lg shadow-black/20" style={{ backgroundColor: themeColor }}><Send size={20} /></button> )}
                             </>
                         )}

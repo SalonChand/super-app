@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon } from 'lucide-react';
-import { Link } from 'react-router-dom'; 
+import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -29,6 +29,8 @@ function Feed({ onlineUsers = new Set() }) {
     const[likesData, setLikesData] = useState({});
     const userId = localStorage.getItem('userId');
     const[viewingPostImage, setViewingPostImage] = useState(null);
+    const[hashtagView, setHashtagView] = useState(null); // { tag, posts }
+    const[hashtagLoading, setHashtagLoading] = useState(false);
     const[postAvatarMenu, setPostAvatarMenu] = useState(null); // { postId, userId, username, storyId }
 
     // 🔥 NEW: POST EDIT & DELETE STATES 🔥
@@ -62,6 +64,29 @@ function Feed({ onlineUsers = new Set() }) {
     const isDrawing = useRef(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const openHashtag = async (tag) => {
+        setHashtagLoading(true);
+        setHashtagView({ tag, posts: [] });
+        try {
+            const res = await axios.get(`${BACKEND_URL}/api/hashtags/${tag}?userId=${userId||0}`);
+            setHashtagView({ tag, posts: res.data });
+        } catch(e) {}
+        setHashtagLoading(false);
+    };
+
+    const renderPostText = (text) => {
+        if (!text) return null;
+        const parts = text.split(/(#[\w]+|@[\w]+)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('#')) {
+                return <span key={i} onClick={() => openHashtag(part.slice(1))} className="text-blue-400 hover:text-blue-300 cursor-pointer font-medium hover:underline">{part}</span>;
+            } else if (part.startsWith('@')) {
+                return <span key={i} onClick={() => navigate(`/search?q=${part.slice(1)}`)} className="text-blue-400 hover:text-blue-300 cursor-pointer font-medium hover:underline">{part}</span>;
+            }
+            return part;
+        });
+    };
+
     const fetchData = async () => {
         setIsRefreshing(true);
         // Fetch each independently so one failure doesn't block the others
@@ -248,6 +273,35 @@ function Feed({ onlineUsers = new Set() }) {
 
     return (
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+            {/* ===== HASHTAG VIEW ===== */}
+            {hashtagView && (
+                <div style={{position:'fixed',inset:0,zIndex:9000,background:'rgba(0,0,0,0.97)',overflowY:'auto'}} className="animate-fade-in">
+                    <div className="max-w-xl mx-auto pt-4 pb-20">
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800 sticky top-0 bg-black z-10">
+                            <button onClick={() => setHashtagView(null)} className="text-zinc-400 hover:text-white transition"><X size={22}/></button>
+                            <div>
+                                <h2 className="text-white font-bold text-lg">#{hashtagView.tag}</h2>
+                                <p className="text-zinc-500 text-xs">{hashtagView.posts.length} posts</p>
+                            </div>
+                        </div>
+                        {hashtagLoading && <p className="text-zinc-500 text-center py-10 animate-pulse">Loading...</p>}
+                        {!hashtagLoading && hashtagView.posts.length === 0 && <p className="text-zinc-500 text-center py-10">No posts with #{hashtagView.tag} yet.</p>}
+                        {hashtagView.posts.map(post => (
+                            <div key={post.id} className="p-4 border-b border-zinc-800">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <Link to={`/profile/${post.user_id}`} onClick={() => setHashtagView(null)} className="w-9 h-9 rounded-full overflow-hidden bg-zinc-800 flex-shrink-0 flex items-center justify-center">
+                                        {post.profile_pic_url ? <img src={post.profile_pic_url} className="w-full h-full object-cover" /> : <span className="text-zinc-400 font-bold text-sm">{post.username.charAt(0).toUpperCase()}</span>}
+                                    </Link>
+                                    <div><Link to={`/profile/${post.user_id}`} onClick={() => setHashtagView(null)} className="text-white font-bold text-sm hover:underline">{post.username}</Link><p className="text-zinc-500 text-xs">{new Date(post.created_at).toLocaleDateString()}</p></div>
+                                </div>
+                                <p className="text-zinc-100 text-sm leading-relaxed whitespace-pre-wrap break-words">{renderPostText(post.content)}</p>
+                                {post.image_url && <img src={post.image_url} className="mt-2 rounded-xl w-full max-h-64 object-cover" />}
+                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>❤️ {post.like_count}</span><span>💬 {post.comment_count}</span></div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* ===== STORY VIEWER MODAL ===== */}
             {viewingStory && (
@@ -516,7 +570,7 @@ function Feed({ onlineUsers = new Set() }) {
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{post.content}</p>
+                                <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{renderPostText(post.content)}</p>
                             )}
 
                             {post.image_url && <div className="w-full flex justify-center mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden"><img onClick={() => setViewingPostImage(`${post.image_url}`)} src={`${post.image_url}`} className="max-h-[500px] w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl" /></div>}
