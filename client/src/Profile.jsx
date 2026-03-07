@@ -179,7 +179,7 @@ function Profile({ onlineUsers = new Set() }) {
                             {isEditing && <div onClick={() => avatarInputRef.current.click()} className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer hover:bg-black/80 transition rounded-full"><Camera size={28} className="text-white" /><input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => setEditAvatar(e.target.files[0])}/></div>}
                         </div>
                         {/* Online dot — only show if user has active status ON and is actually online */}
-                        {profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
+                        {!!profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
                             <span style={{position:'absolute',bottom:'4px',right:'4px',width:'16px',height:'16px',background:'#4ade80',borderRadius:'50%',border:'3px solid #000',boxShadow:'0 0 8px rgba(74,222,128,0.8)',display:'block',zIndex:30}}></span>
                         )}
                     </div>
@@ -210,7 +210,7 @@ function Profile({ onlineUsers = new Set() }) {
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">{profileData.username} {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}</h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
                     {/* Active status badge */}
-                    {profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
+                    {!!profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
                         <p className="text-green-400 text-xs font-medium mt-1 flex items-center gap-1">
                             <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
                         </p>
