@@ -327,10 +327,11 @@ app.post('/api/posts', upload.array('images', 10), async (req, res) => {
             if (urls.length > 1) images_json = JSON.stringify(urls);
         }
         const { user_id, content, scheduled_at, is_draft, visibility, tagged_users } = req.body;
-        const hashtags = (content.match(/#[\w]+/g) || []).map(h => h.toLowerCase());
-        const mentions = (content.match(/@([\w]+)/g) || []).map(m => m.slice(1).toLowerCase());
+        const safeContent = content || '';
+        const hashtags = (safeContent.match(/#[\w]+/g) || []).map(h => h.toLowerCase());
+        const mentions = (safeContent.match(/@([\w]+)/g) || []).map(m => m.slice(1).toLowerCase());
         const [result] = await pool.query('INSERT INTO posts (user_id, content, image_url, images, scheduled_at, is_draft, hashtags, visibility, tagged_users) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [user_id, content, image_url, images_json, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags), visibility || 'public', tagged_users || null]);
+            [user_id, safeContent, image_url, images_json, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags), visibility || 'public', tagged_users || null]);
         if (mentions.length > 0) {
             try {
                 const [poster] = await pool.query('SELECT username FROM users WHERE id = ?', [user_id]);
