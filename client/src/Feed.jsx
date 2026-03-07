@@ -19,7 +19,7 @@ function formatTimeFriendly(dateString) {
     if (isToday) return `Today at ${timeStr}`; if (isYesterday) return `Yesterday at ${timeStr}`; return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
 
-function Feed() {
+function Feed({ onlineUsers = new Set() }) {
     const[posts, setPosts] = useState([]);
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const[activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -414,10 +414,15 @@ function Feed() {
                 {/* Story bubbles */}
                 {uniqueStories.map(story => (
                     <div key={story.user_id} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => openStoryViewer(story.user_id)}>
-                        <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${story.user_has_viewed ? 'border-zinc-600' : 'border-blue-500'} p-0.5`}>
-                            <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800">
-                                {story.profile_pic_url ? <img src={story.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">{story.username?.charAt(0).toUpperCase()}</div>}
+                        <div className="relative">
+                            <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${story.user_has_viewed ? 'border-zinc-600' : 'border-blue-500'} p-0.5`}>
+                                <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800">
+                                    {story.profile_pic_url ? <img src={story.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">{story.username?.charAt(0).toUpperCase()}</div>}
+                                </div>
                             </div>
+                            {onlineUsers.has(String(story.user_id)) && (
+                                <div className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-black shadow-[0_0_6px_rgba(74,222,128,0.7)]"></div>
+                            )}
                         </div>
                         <span className="text-xs text-zinc-400 truncate w-14 text-center">{story.username}</span>
                     </div>
@@ -458,12 +463,17 @@ function Feed() {
                 {posts.map((post) => (
                     <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
-    <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
-        className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden transition " + (hasStory ? ("p-0.5 " + (viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
-        <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center " + (hasStory ? "border-2 border-black" : "")}>
-            {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
-        </div>
-    </button>
+    <div className="relative">
+        <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
+            className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden transition " + (hasStory ? ("p-0.5 " + (viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+            <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center " + (hasStory ? "border-2 border-black" : "")}>
+                {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
+            </div>
+        </button>
+        {onlineUsers.has(String(post.user_id)) && (
+            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 rounded-full border-2 border-black shadow-[0_0_6px_rgba(74,222,128,0.7)]"></div>
+        )}
+    </div>
 ); })()}
                         <div className="w-full min-w-0">
                             

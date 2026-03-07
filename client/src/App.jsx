@@ -346,7 +346,8 @@ function AppContent() {
   const[showSplash, setShowSplash] = useState(true);
 
   const startCallRef = useRef(null);
-  const [toasts, setToasts] = useState([]); // [{ id, senderName, preview, senderId }]
+  const [toasts, setToasts] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState(new Set()); // [{ id, senderName, preview, senderId }]
 
   const userThemeColor = currentUser?.theme_color || '#3b82f6';
 
@@ -384,6 +385,10 @@ function AppContent() {
   useEffect(() => {
       if (currentUserId) {
           try { globalSocket.emit('join_private_room', currentUserId); } catch(e) {}
+          // Fetch initial online users
+          axios.get(`${BACKEND_URL}/api/online`).then(res => {
+              setOnlineUsers(new Set(res.data.map(u => String(u.userId))));
+          }).catch(() => {});
           const handleNotification = (data) => {
               playNotificationSound();
               axios.get(`${BACKEND_URL}/api/activity/${currentUserId}`)
@@ -393,13 +398,22 @@ function AppContent() {
                   addToast({ senderName: data.senderName, preview: data.preview, senderId: data.senderId });
               }
           };
+          const handleOnlineStatus = ({ userId: uid, online }) => {
+              setOnlineUsers(prev => {
+                  const next = new Set(prev);
+                  online ? next.add(String(uid)) : next.delete(String(uid));
+                  return next;
+              });
+          };
           globalSocket.on('message_updated', handleNotification);
           globalSocket.on('activity_updated', handleNotification);
+          globalSocket.on('online_status', handleOnlineStatus);
 
           subscribeToPush();
           return () => {
               globalSocket.off('message_updated', handleNotification);
               globalSocket.off('activity_updated', handleNotification);
+              globalSocket.off('online_status', handleOnlineStatus);
           };
       }
   }, [currentUserId]);
@@ -475,12 +489,12 @@ function AppContent() {
           <Routes>
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/" element={<ProtectedRoute><Feed themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><Feed themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><Search themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/communities" element={<ProtectedRoute><Communities themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/friends" element={<ProtectedRoute><Friends themeColor={userThemeColor} /></ProtectedRoute>} /> 
             <Route path="/reels" element={<ProtectedRoute><Reels themeColor={userThemeColor} /></ProtectedRoute>} /> 
-            <Route path="/chat" element={<ProtectedRoute><Chat themeColor={userThemeColor} onStartCall={(target, isVideo) => startCallRef.current && startCallRef.current(target, isVideo)} /></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><Chat themeColor={userThemeColor} onStartCall={(target, isVideo) => startCallRef.current && startCallRef.current(target, isVideo)} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} /></ProtectedRoute>} />
