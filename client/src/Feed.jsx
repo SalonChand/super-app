@@ -434,8 +434,10 @@ function Feed({ onlineUsers = new Set() }) {
                 {/* Image lightbox modal */}
                 {viewingPostImage && (
                     <div className="fixed inset-0 z-[150] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingPostImage(null)}>
-                        <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>
-                        <img src={viewingPostImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+                        <button className="absolute top-4 right-4 text-white bg-zinc-800/80 rounded-full p-2 hover:bg-zinc-700 transition z-10"><X size={22} /></button>
+                        <div className="flex items-center justify-center w-full h-full p-4" onClick={e => e.stopPropagation()}>
+                            <img src={viewingPostImage} className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-2xl shadow-2xl" />
+                        </div>
                     </div>
                 )}
 
@@ -471,7 +473,7 @@ function Feed({ onlineUsers = new Set() }) {
             </div>
         </button>
         {onlineUsers.has(String(post.user_id)) && (
-            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 rounded-full border-2 border-black shadow-[0_0_6px_rgba(74,222,128,0.7)]"></div>
+            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-black shadow-[0_0_6px_rgba(74,222,128,0.8)] z-10" style={{bottom: '-1px', right: '-1px'}}></div>
         )}
     </div>
 ); })()}
@@ -518,7 +520,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{post.content}</p>
                             )}
 
-                            {post.image_url && <img onClick={() => setViewingPostImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-[500px] w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
+                            {post.image_url && <div className="w-full flex justify-center mb-3"><img onClick={() => setViewingPostImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-[500px] w-full object-cover cursor-pointer hover:opacity-95 transition" /></div>}
                             
                             <div className="flex justify-between items-center text-zinc-500 mt-2 max-w-sm pr-10">
                                 <div className="flex items-center gap-1 group"><button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 transition ${post.user_liked === 1 ? 'text-pink-600' : 'hover:text-pink-500'}`}><div className="p-2 rounded-full group-hover:bg-pink-500/10"><Heart size={18} className={post.user_liked === 1 ? "fill-pink-600" : ""} /></div></button><span onClick={() => toggleLikes(post.id)} className="text-sm font-medium hover:text-pink-500 hover:underline cursor-pointer">{post.like_count > 0 ? post.like_count : ''}</span></div>
