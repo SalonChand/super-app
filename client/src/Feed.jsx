@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark } from 'lucide-react';
+import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
 
@@ -65,6 +65,8 @@ function Feed({ onlineUsers = new Set() }) {
     const isDrawing = useRef(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [sharingToStory, setSharingToStory] = useState(null); // { post }
+    const [storyShareCaption, setStoryShareCaption] = useState('');
     const openHashtag = async (tag) => {
         setHashtagLoading(true);
         setHashtagView({ tag, posts: [] });
@@ -192,6 +194,35 @@ function Feed({ onlineUsers = new Set() }) {
         if (!userId) return;
         setSavedPosts(prev => { const n = new Set(prev); prev.has(postId) ? n.delete(postId) : n.add(postId); return n; });
         try { await axios.post(`${BACKEND_URL}/api/bookmarks`, { userId, postId }); } catch(e) {}
+    };
+
+    const submitShareToStory = async () => {
+        if (!sharingToStory) return;
+        const post = sharingToStory;
+        const text = storyShareCaption || `"${post.content?.slice(0, 80)}${post.content?.length > 80 ? '...' : ''}" — @${post.username}`;
+        try {
+            const fd = new FormData();
+            fd.append('user_id', userId);
+            fd.append('caption', text);
+            fd.append('media_type', 'text');
+            if (post.image_url) {
+                // Fetch image and attach as blob
+                const imgRes = await fetch(post.image_url);
+                const blob = await imgRes.blob();
+                fd.append('media', blob, 'shared.jpg');
+            } else {
+                // Create a tiny placeholder blob
+                const blob = new Blob(['shared'], { type: 'text/plain' });
+                fd.append('media', blob, 'shared.txt');
+            }
+            fd.append('filter_class', 'none');
+            fd.append('visibility', 'public');
+            fd.append('shared_post_id', post.id);
+            await axios.post(`${BACKEND_URL}/api/stories`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setSharingToStory(null);
+            setStoryShareCaption('');
+            alert('✅ Shared to your story!');
+        } catch(e) { alert('Failed to share. Try again.'); }
     };
 
     const handleLike = async (postId) => {
@@ -498,6 +529,39 @@ function Feed({ onlineUsers = new Set() }) {
 
             {/* ===== POSTS ===== */}
             <div>
+                {/* ===== SHARE TO STORY MODAL ===== */}
+                {sharingToStory && (
+                    <div className="fixed inset-0 z-[200] bg-black/80 flex items-end sm:items-center justify-center animate-fade-in p-4">
+                        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl w-full max-w-sm p-5 shadow-2xl">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-white font-bold text-lg">Share to Story</h3>
+                                <button onClick={() => setSharingToStory(null)} className="text-zinc-400 hover:text-white"><X size={20}/></button>
+                            </div>
+                            {/* Post preview */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 mb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-7 h-7 rounded-full bg-zinc-700 overflow-hidden flex-shrink-0">
+                                        {sharingToStory.profile_pic_url ? <img src={sharingToStory.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs font-bold text-white">{sharingToStory.username?.charAt(0).toUpperCase()}</span>}
+                                    </div>
+                                    <span className="text-white text-sm font-bold">{sharingToStory.username}</span>
+                                </div>
+                                <p className="text-zinc-300 text-sm line-clamp-3">{sharingToStory.content}</p>
+                                {sharingToStory.image_url && <img src={sharingToStory.image_url} className="w-full rounded-xl mt-2 max-h-32 object-cover"/>}
+                            </div>
+                            <input
+                                type="text"
+                                value={storyShareCaption}
+                                onChange={e => setStoryShareCaption(e.target.value)}
+                                placeholder="Add a caption to your story..."
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition mb-4"
+                            />
+                            <button onClick={submitShareToStory} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-2xl transition">
+                                Share to Story ✨
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Image lightbox modal */}
                 {viewingPostImage && (
                     <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.97)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={() => setViewingPostImage(null)}>
@@ -548,7 +612,12 @@ function Feed({ onlineUsers = new Set() }) {
                             {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
                             <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:underline truncate">{post.username}</Link><span className="text-zinc-500 text-sm truncate">@{post.username.toLowerCase()}</span><span className="text-zinc-600 text-sm hidden sm:inline">·</span><span className="text-zinc-500 text-xs w-full sm:w-auto">{formatTimeFriendly(post.created_at)}</span>
+                                    <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:underline truncate">{post.username}</Link>
+                                        {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><Link to={`/profile/${post.co_author_id}`} className="font-bold text-yellow-300 text-sm hover:underline">& {post.co_author_username}</Link></>}
+                                        <span className="text-zinc-500 text-sm truncate">@{post.username.toLowerCase()}</span>
+                                        {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'}</span>}
+                                        <span className="text-zinc-600 text-sm hidden sm:inline">·</span><span className="text-zinc-500 text-xs w-full sm:w-auto">{formatTimeFriendly(post.created_at)}</span>
+                                        {post.tagged_users && (() => { try { const tags = JSON.parse(post.tagged_users); return tags.length > 0 ? <span className="text-blue-400 text-xs w-full">👥 with {tags.length} friend{tags.length>1?'s':''}</span> : null; } catch(e) { return null; } })()}
                                 </div>
                                 
                                 {/* 3 Dots Menu Button */}
@@ -591,7 +660,7 @@ function Feed({ onlineUsers = new Set() }) {
                             <div className="flex justify-between items-center text-zinc-500 mt-2 max-w-sm pr-10">
                                 <div className="flex items-center gap-1 group"><button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 transition ${post.user_liked === 1 ? 'text-pink-600' : 'hover:text-pink-500'}`}><div className="p-2 rounded-full group-hover:bg-pink-500/10"><Heart size={18} className={post.user_liked === 1 ? "fill-pink-600" : ""} /></div></button><span onClick={() => toggleLikes(post.id)} className="text-sm font-medium hover:text-pink-500 hover:underline cursor-pointer">{post.like_count > 0 ? post.like_count : ''}</span></div>
                                 <div className="flex items-center gap-1 group"><button onClick={() => toggleComments(post.id)} className="flex items-center gap-2 hover:text-blue-500 transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><MessageCircle size={18} /></div></button><span onClick={() => toggleComments(post.id)} className="text-sm font-medium hover:text-blue-500 hover:underline cursor-pointer">{post.comment_count > 0 ? post.comment_count : ''}</span></div>
-                                <button className="flex items-center gap-2 hover:text-blue-500 group transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><Share size={18} /></div></button>
+                                <button onClick={() => { setSharingToStory(post); setStoryShareCaption(''); }} className="flex items-center gap-2 hover:text-blue-500 group transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><Share size={18} /></div></button>
                                 <button onClick={() => handleBookmark(post.id)} className={`flex items-center transition group ${savedPosts.has(post.id) ? 'text-yellow-400' : 'hover:text-yellow-400'}`}><div className="p-2 rounded-full group-hover:bg-yellow-400/10"><Bookmark size={18} className={savedPosts.has(post.id) ? 'fill-yellow-400' : ''} /></div></button>
                             </div>
                             

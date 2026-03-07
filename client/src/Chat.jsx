@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
-import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban } from 'lucide-react';
+import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban, Palette } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Use a singleton socket so Chat and App share the same connection
@@ -65,6 +65,16 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const [typingUsers, setTypingUsers] = useState(new Set());
     const typingTimeoutRef = useRef(null);
     const isTypingRef = useRef(false);
+    // Chat themes per conversation (stored in localStorage)
+    const [convThemes, setConvThemes] = useState(() => { try { return JSON.parse(localStorage.getItem('convThemes') || '{}'); } catch(e) { return {}; } });
+    const [showThemePicker, setShowThemePicker] = useState(false);
+    // Waveform
+    const [waveformBars, setWaveformBars] = useState(Array(30).fill(2));
+    const [playingAudioId, setPlayingAudioId] = useState(null);
+    const [audioProgress, setAudioProgress] = useState({});
+    const analyserRef = useRef(null);
+    const waveAnimRef = useRef(null);
+    const audioContextRef = useRef(null);
 
     const formatLastSeen = (friend) => {
         if (!friend) return '';
@@ -271,6 +281,27 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         setShowGameMenu(false);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Waveform analyser
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioContextRef.current = audioCtx;
+                const source = audioCtx.createMediaStreamSource(stream);
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+                analyserRef.current = analyser;
+                const animate = () => {
+                    const data = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(data);
+                    const bars = Array.from({length: 30}, (_, i) => {
+                        const idx = Math.floor(i * data.length / 30);
+                        return Math.max(2, Math.round((data[idx] / 255) * 36));
+                    });
+                    setWaveformBars(bars);
+                    waveAnimRef.current = requestAnimationFrame(animate);
+                };
+                waveAnimRef.current = requestAnimationFrame(animate);
+            } catch(e) {}
             // Pick best supported mime type
             const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4']
                 .find(t => MediaRecorder.isTypeSupported(t)) || '';
@@ -316,6 +347,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         if (!mediaRecorderRef.current || !isRecording) return;
         shouldSendRef.current = true;
         clearInterval(timerRef.current);
+        if (waveAnimRef.current) cancelAnimationFrame(waveAnimRef.current);
+        if (audioContextRef.current) { audioContextRef.current.close().catch(()=>{}); audioContextRef.current = null; }
+        setWaveformBars(Array(30).fill(2));
         setIsRecording(false);
         mediaRecorderRef.current.stop();
     };
@@ -323,6 +357,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         if (!mediaRecorderRef.current || !isRecording) return;
         shouldSendRef.current = false;
         clearInterval(timerRef.current);
+        if (waveAnimRef.current) cancelAnimationFrame(waveAnimRef.current);
+        if (audioContextRef.current) { audioContextRef.current.close().catch(()=>{}); audioContextRef.current = null; }
+        setWaveformBars(Array(30).fill(2));
         setIsRecording(false);
         mediaRecorderRef.current.stop();
     };
@@ -384,7 +421,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                             </div>
                         </button>
                     </div>
-                    {isCurrentlyFriend && onStartCall && (<div className="flex items-center gap-4 mr-2" style={{ color: themeColor }}><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, false)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Phone size={22} /></button><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, true)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Video size={24} /></button></div>)}
+                    {isCurrentlyFriend && onStartCall && (<div className="flex items-center gap-4 mr-2" style={{ color: activeColor }}><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, false)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Phone size={22} /></button><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, true)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Video size={24} /></button></div>)}
                 </div>
                 
                 {/* Search bar in conversation */}
@@ -472,6 +509,28 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     <span className="text-zinc-400 font-medium">Report</span>
                                     <ChevronRight size={18} className="text-zinc-600 ml-auto" />
                                 </button>
+
+                                {/* Chat Theme */}
+                                <div className="px-6 py-4">
+                                    <div className="flex items-center gap-4 mb-3">
+                                        <div className="w-9 h-9 rounded-full bg-pink-500/20 flex items-center justify-center"><Palette size={18} className="text-pink-400" /></div>
+                                        <span className="text-white font-medium">Chat Theme</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 pl-[52px]">
+                                        {['#3b82f6','#8b5cf6','#ec4899','#f97316','#10b981','#ef4444','#eab308','#06b6d4','#f43f5e','#64748b'].map(color => (
+                                            <button key={color} type="button"
+                                                onClick={() => {
+                                                    const updated = {...convThemes, [selectedUser.id]: color};
+                                                    setConvThemes(updated);
+                                                    localStorage.setItem('convThemes', JSON.stringify(updated));
+                                                    setShowChatSettings(false);
+                                                }}
+                                                className="w-8 h-8 rounded-full border-2 transition hover:scale-110"
+                                                style={{background: color, borderColor: (convThemes[selectedUser.id] || themeColor) === color ? 'white' : 'transparent'}}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Close button */}
@@ -485,7 +544,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                     </div>
                 )}
 
-                {pinnedMessage ? (<div className="bg-zinc-900 border-b border-zinc-800 p-2 px-4 flex items-center gap-3 shadow-md z-10"><Pin size={16} style={{ color: themeColor }} className="flex-shrink-0" /><div className="flex-1 overflow-hidden"><p className="text-xs font-bold" style={{ color: themeColor }}>Pinned Message</p><p className="text-zinc-300 text-sm truncate">{pinnedMessage.content || "Media Attachment"}</p></div></div>) : null}
+                {pinnedMessage ? (<div className="bg-zinc-900 border-b border-zinc-800 p-2 px-4 flex items-center gap-3 shadow-md z-10"><Pin size={16} style={{ color: activeColor }} className="flex-shrink-0" /><div className="flex-1 overflow-hidden"><p className="text-xs font-bold" style={{ color: activeColor }}>Pinned Message</p><p className="text-zinc-300 text-sm truncate">{pinnedMessage.content || "Media Attachment"}</p></div></div>) : null}
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-40">
                     {!isCurrentlyFriend && (<div className="bg-zinc-900 border border-zinc-700 p-3 rounded-xl text-center mb-4"><p className="text-sm text-zinc-300">You are not friends with this user.</p><p className="text-xs text-zinc-500">Go to the Friends tab to add them to call them.</p></div>)}
@@ -514,12 +573,12 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     {msg.reply_to_id ? ( <div className={`text-xs p-2 mb-1 w-fit rounded-t-xl rounded-br-none border-l-4 opacity-80 ${isMyMessage ? 'bg-zinc-800 border-zinc-500 text-zinc-300 self-end' : 'bg-zinc-800 border-zinc-500 text-zinc-300 self-start'}`}><span className="font-bold block">{msg.reply_username}</span><span className="truncate block max-w-[200px]">{msg.reply_content || "Media"}</span></div> ) : null}
                                     
                                     {tttData ? (
-                                        <div className={`w-48 bg-zinc-950 p-2 rounded-2xl border-2 shadow-xl ${isMyMessage ? 'self-end' : 'self-start'}`} style={{ borderColor: isMyMessage ? themeColor : '#27272a' }}>
+                                        <div className={`w-48 bg-zinc-950 p-2 rounded-2xl border-2 shadow-xl ${isMyMessage ? 'self-end' : 'self-start'}`} style={{ borderColor: isMyMessage ? activeColor : '#27272a' }}>
                                             <div className="text-center text-xs font-bold mb-3 text-white">{tttData.winner ? (tttData.winner === 'Draw' ? "🤝 It's a Draw!" : `🏆 ${tttData.winner} Wins!`) : (tttData.nextTurn === userId ? "🟢 Your Turn!" : "⏳ Opponent's Turn...")}</div>
                                             <div className="grid grid-cols-3 gap-1">
                                                 {tttData.board.map((cell, i) => (
                                                     <button key={i} onClick={() => handleGameMove(msg.id, i, 'tictactoe')} disabled={cell !== null || tttData.winner !== null || tttData.nextTurn !== userId} className="w-14 h-14 bg-zinc-800 rounded-xl flex items-center justify-center text-2xl font-extrabold hover:bg-zinc-700 disabled:opacity-100 transition">
-                                                        {cell === 'X' ? <span style={{ color: themeColor }} className="drop-shadow-md">X</span> : cell === 'O' ? <span className="text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">O</span> : ''}
+                                                        {cell === 'X' ? <span style={{ color: activeColor }} className="drop-shadow-md">X</span> : cell === 'O' ? <span className="text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">O</span> : ''}
                                                     </button>
                                                 ))}
                                             </div>
@@ -534,43 +593,54 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                     {(() => {
                                                         const isP1 = rpsData.player1 === userId;
                                                         const myChoice = isP1 ? rpsData.p1Choice : rpsData.p2Choice;
-                                                        if (myChoice) { return <div style={{ color: themeColor }} className="text-xs font-bold animate-pulse py-2">Waiting for opponent... ⏳</div>; } 
+                                                        if (myChoice) { return <div style={{ color: activeColor }} className="text-xs font-bold animate-pulse py-2">Waiting for opponent... ⏳</div>; } 
                                                         else { return ( <div className="flex justify-center gap-3"><button onClick={() => handleGameMove(msg.id, null, 'rps', '✊')} className="hover:scale-125 transition-transform text-3xl hover:-translate-y-2 drop-shadow-md">✊</button><button onClick={() => handleGameMove(msg.id, null, 'rps', '✋')} className="hover:scale-125 transition-transform text-3xl hover:-translate-y-2 drop-shadow-md">✋</button><button onClick={() => handleGameMove(msg.id, null, 'rps', '✌️')} className="hover:scale-125 transition-transform text-3xl hover:-translate-y-2 drop-shadow-md">✌️</button></div> ); }
                                                     })()}
                                                 </div>
                                             )}
                                         </div>
                                     ) : (
-                                        <div className={`px-4 py-2 text-left w-fit whitespace-pre-wrap break-words relative shadow-sm ${isCallLog ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-full mx-auto my-2 text-sm px-4 py-2' : isMyMessage ? (msg.reply_to_id ? 'text-white rounded-tr-sm rounded-tl-2xl rounded-b-2xl self-end' : 'text-white rounded-2xl rounded-br-sm self-end') : (msg.reply_to_id ? 'bg-zinc-800 text-zinc-100 rounded-tl-sm rounded-tr-2xl rounded-b-2xl self-start' : 'bg-zinc-800 text-zinc-100 rounded-2xl rounded-bl-sm self-start')} ${msg.content ? 'px-4 py-2' : 'p-1'}`} style={isMyMessage && !isCallLog ? { backgroundColor: themeColor } : {}}>
+                                        <div className={`px-4 py-2 text-left w-fit whitespace-pre-wrap break-words relative shadow-sm ${isCallLog ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-full mx-auto my-2 text-sm px-4 py-2' : isMyMessage ? (msg.reply_to_id ? 'text-white rounded-tr-sm rounded-tl-2xl rounded-b-2xl self-end' : 'text-white rounded-2xl rounded-br-sm self-end') : (msg.reply_to_id ? 'bg-zinc-800 text-zinc-100 rounded-tl-sm rounded-tr-2xl rounded-b-2xl self-start' : 'bg-zinc-800 text-zinc-100 rounded-2xl rounded-bl-sm self-start')} ${msg.content ? 'px-4 py-2' : 'p-1'}`} style={isMyMessage && !isCallLog ? { backgroundColor: activeColor } : {}}>
                                             {msg.is_forwarded === 1 ? <div className="text-[10px] text-white/70 italic flex items-center gap-1 mb-1 px-2 pt-1"><Forward size={10}/> Forwarded</div> : null}
                                             {msg.media_url ? ( 
                                                 <div className="mb-1 mt-1">
                                                     {msg.media_type === 'image' ? <img onClick={() => setViewingImage(`${msg.media_url}`)} src={`${msg.media_url}`} className="rounded-xl max-w-[250px] sm:max-w-[300px] w-full cursor-pointer hover:opacity-90 transition object-cover" /> 
                                                     : msg.media_type === 'video' ? <video src={`${msg.media_url}`} controls className="rounded-xl max-w-[250px] sm:max-w-[300px] w-full" /> 
-                                                    : msg.media_type === 'audio' ? (
-                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[220px]">
-                                                            <button type="button" onClick={(e) => {
-                                                                const audio = e.currentTarget.nextSibling;
-                                                                const icon = e.currentTarget.querySelector('span');
-                                                                if (audio.paused) { audio.play(); icon.textContent = '⏸'; }
-                                                                else { audio.pause(); icon.textContent = '▶'; }
-                                                            }} className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white/20 hover:bg-white/30 transition">
-                                                                <span className="text-sm">▶</span>
+                                                    : msg.media_type === 'audio' ? (() => {
+                                                        const msgId = msg.id;
+                                                        const prog = audioProgress[msgId] || 0;
+                                                        const isPlaying = playingAudioId === msgId;
+                                                        // 20 fixed bar heights for waveform shape
+                                                        const BARS = [4,7,5,9,6,8,5,7,4,9,7,5,8,6,9,5,7,4,8,6];
+                                                        return (
+                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[200px]">
+                                                            <button type="button" id={`play-${msgId}`} onClick={() => {
+                                                                const audio = document.getElementById(`audio-${msgId}`);
+                                                                if (!audio) return;
+                                                                if (audio.paused) { audio.play(); setPlayingAudioId(msgId); }
+                                                                else { audio.pause(); setPlayingAudioId(null); }
+                                                            }} className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white/20 hover:bg-white/30 transition flex-shrink-0">
+                                                                <span className="text-sm">{isPlaying ? '⏸' : '▶'}</span>
                                                             </button>
-                                                            <audio src={`${msg.media_url}`} className="hidden" onEnded={(e) => { const btn = e.currentTarget.previousSibling.querySelector('span'); if(btn) btn.textContent='▶'; }} />
+                                                            <audio id={`audio-${msgId}`} src={`${msg.media_url}`}
+                                                                onTimeUpdate={(e) => { const p = e.target.duration ? (e.target.currentTime / e.target.duration) : 0; setAudioProgress(prev => ({...prev, [msgId]: p})); }}
+                                                                onEnded={() => { setPlayingAudioId(null); setAudioProgress(prev => ({...prev, [msgId]: 0})); }} className="hidden" />
                                                             <div className="flex-1">
-                                                                <div className="flex items-end gap-0.5 h-6 cursor-pointer" onClick={(e) => {
-                                                                    const audio = e.currentTarget.closest('.flex.items-center').querySelector('audio');
-                                                                    if(audio) { audio.paused ? audio.play() : audio.pause(); }
+                                                                <div className="flex items-end gap-[3px] h-8" onClick={() => {
+                                                                    const audio = document.getElementById(`audio-${msgId}`);
+                                                                    if (audio) { audio.paused ? (audio.play(), setPlayingAudioId(msgId)) : (audio.pause(), setPlayingAudioId(null)); }
                                                                 }}>
-                                                                    {[3,5,4,7,6,4,5,3,6,5,4,6,5,4,3].map((h,i) => (
-                                                                        <div key={i} className="w-1 rounded-full bg-white/60" style={{height: `${h*3}px`}}></div>
-                                                                    ))}
+                                                                    {BARS.map((h, i) => {
+                                                                        const pct = i / BARS.length;
+                                                                        const played = pct <= prog;
+                                                                        return <div key={i} className="w-[4px] rounded-full transition-all duration-75 cursor-pointer" style={{height:`${h*3}px`, background: played ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.3)'}} />;
+                                                                    })}
                                                                 </div>
                                                                 <p className="text-[10px] text-white/50 mt-0.5">Voice message</p>
                                                             </div>
                                                         </div>
-                                                    )
+                                                        );
+                                                    })()
                                                     : <a href={`${msg.media_url}`} target="_blank" className="flex items-center gap-2 underline text-zinc-300 px-3"><FileText size={16} /> Document</a>}
                                                 </div> 
                                             ) : null}
@@ -599,8 +669,8 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 </div>
                 
                 <div className="absolute bottom-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col z-20">
-                    {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: themeColor }}><div><p className="text-xs font-bold" style={{ color: themeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate max-w-[250px]">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1"><X size={18}/></button></div> ) : null}
-                    {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: themeColor }}>Uploading...</p>}
+                    {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: activeColor }}><div><p className="text-xs font-bold" style={{ color: activeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate max-w-[250px]">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1"><X size={18}/></button></div> ) : null}
+                    {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: activeColor }}>Uploading...</p>}
                     
                     {mentionResults.length > 0 && (
                         <div className="absolute bottom-[72px] left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-slide-up">
@@ -620,7 +690,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                     <form onSubmit={sendMessage} className="flex gap-2 items-center w-full p-3 pt-2">
                         {isRecording ? (
                             <div className="flex-1 flex items-center justify-between bg-red-500/10 border border-red-500/30 rounded-full py-2.5 px-4 shadow-inner transition-all w-full animate-fade-in">
-                                <div className="flex items-center gap-3"><div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div><span className="text-red-400 font-semibold text-sm w-10">{formatDuration(recordingDuration)}</span><div className="flex items-center gap-1 h-5 ml-2"><div className="w-1 bg-red-400 animate-wave rounded-full"></div><div className="w-1 bg-red-400 animate-wave delay-100 rounded-full"></div><div className="w-1 bg-red-400 animate-wave delay-200 rounded-full"></div><div className="w-1 bg-red-400 animate-wave delay-300 rounded-full"></div><div className="w-1 bg-red-400 animate-wave delay-400 rounded-full"></div></div></div>
+                                <div className="flex items-center gap-3"><div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div><span className="text-red-400 font-semibold text-sm w-10">{formatDuration(recordingDuration)}</span><div className="flex items-end gap-[2px] h-8 ml-2">{waveformBars.map((h,i) => (<div key={i} className="w-[3px] bg-red-400 rounded-full transition-all duration-75" style={{height:`${h}px`}}></div>))}</div></div>
                                 <div className="flex items-center gap-4"><button type="button" onClick={cancelRecording} className="text-zinc-500 hover:text-red-400 transition"><Trash2 size={18}/></button><button type="button" onClick={stopAndSendRecording} className="bg-red-600 text-white p-2 rounded-full hover:bg-red-500 transition shadow-lg shadow-red-600/30"><Send size={16}/></button></div>
                             </div>
                         ) : (
@@ -651,7 +721,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                             } else { setMentionResults([]); }
                                         } else { setMentionQuery(''); setMentionResults([]); }
                                     }} placeholder="Type a message..." className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-3 px-5 text-white placeholder-zinc-500 outline-none transition shadow-inner" />
-                                {currentMessage.trim() === '' ? ( <button type="button" onClick={startRecording} className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full flex-shrink-0 transition shadow-lg"><Mic size={20} /></button> ) : ( <button type="submit" className="text-white p-3 rounded-full flex-shrink-0 transition shadow-lg shadow-black/20" style={{ backgroundColor: themeColor }}><Send size={20} /></button> )}
+                                {currentMessage.trim() === '' ? ( <button type="button" onClick={startRecording} className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full flex-shrink-0 transition shadow-lg"><Mic size={20} /></button> ) : ( <button type="submit" className="text-white p-3 rounded-full flex-shrink-0 transition shadow-lg shadow-black/20" style={{ backgroundColor: activeColor }}><Send size={20} /></button> )}
                             </>
                         )}
                     </form>
@@ -659,6 +729,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             </div>
         );
     }
+
+    // Use per-conversation theme color if set
+    const activeColor = (selectedUser && convThemes[selectedUser.id]) ? convThemes[selectedUser.id] : themeColor;
 
     return (
         <div className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full bg-black">

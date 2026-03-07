@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Bell, MessageCircle, UserPlus, Check, AtSign, Heart, Users } from 'lucide-react';
+import { Bell, MessageCircle, UserPlus, Check, AtSign, Heart, Users, Cake } from 'lucide-react';
 import { BACKEND_URL } from './config';
 
 function formatTimeFriendly(dateString) {
@@ -30,6 +30,7 @@ function Notifications() {
     const [activity, setActivity] = useState([]);
     const [suggestions, setSuggestions] = useState([]);
     const [addedIds, setAddedIds] = useState(new Set());
+    const [birthdayFriends, setBirthdayFriends] = useState([]);
 
     useEffect(() => {
         if (!userId) return;
@@ -38,6 +39,9 @@ function Notifications() {
             .catch(() => {});
         axios.get(`${BACKEND_URL}/api/friends/suggestions/${userId}`)
             .then(res => { if (Array.isArray(res.data)) setSuggestions(res.data); })
+            .catch(() => {});
+        axios.get(`${BACKEND_URL}/api/users/${userId}/birthday-friends`)
+            .then(res => { if (Array.isArray(res.data)) setBirthdayFriends(res.data); })
             .catch(() => {});
     }, []);
 
@@ -53,6 +57,28 @@ function Notifications() {
                 <Bell size={24} className="text-white" />
                 <h2 className="text-2xl font-bold text-white">Notifications</h2>
             </div>
+
+            {birthdayFriends.length > 0 && (
+                <div className="mx-4 mt-4 bg-gradient-to-r from-pink-500/20 to-yellow-500/20 border border-pink-500/30 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Cake size={18} className="text-pink-400"/>
+                        <h3 className="text-white font-bold text-sm">🎂 Birthdays Today!</h3>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        {birthdayFriends.map(friend => (
+                            <Link key={friend.id} to={`/profile/${friend.id}`} className="flex items-center gap-3 hover:opacity-80 transition">
+                                <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
+                                    {friend.profile_pic_url ? <img src={friend.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full font-bold text-white text-sm">{friend.username.charAt(0).toUpperCase()}</span>}
+                                </div>
+                                <div>
+                                    <p className="text-white font-bold text-sm">{friend.username}</p>
+                                    <p className="text-pink-300 text-xs">🎉 It's their birthday today!</p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {suggestions.length > 0 && (
                 <div className="px-4 pt-4">

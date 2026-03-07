@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -43,7 +43,15 @@ function Profile({ onlineUsers = new Set() }) {
     const[drafts, setDrafts] = useState([]);
     const[showDrafts, setShowDrafts] = useState(false);
     const[selectedImage, setSelectedImage] = useState(null); 
-    const[previewUrl, setPreviewUrl] = useState(null); 
+    const[previewUrl, setPreviewUrl] = useState(null);
+    const[postVisibility, setPostVisibility] = useState('public');
+    const[showVisibilityPicker, setShowVisibilityPicker] = useState(false);
+    const[taggedFriends, setTaggedFriends] = useState([]);
+    const[showTagPicker, setShowTagPicker] = useState(false);
+    const[collabInviteId, setCollabInviteId] = useState(null);
+    const[showCollabPicker, setShowCollabPicker] = useState(false);
+    const[collabInvites, setCollabInvites] = useState([]);
+    const[friendsList, setFriendsList] = useState([]);
 
     // 🔥 POST EDITING STATES 🔥
     const [menuOpenPostId, setMenuOpenPostId] = useState(null);
@@ -78,6 +86,15 @@ function Profile({ onlineUsers = new Set() }) {
             axios.get(`${BACKEND_URL}/api/reels/user/${id}?currentUserId=${currentUserId || 0}`)
                 .then(r => { if (Array.isArray(r.data)) setUserReels(r.data); })
                 .catch(() => {});
+            // Load friends list (for tag picker + collab)
+            if (isMyProfile && currentUserId) {
+                axios.get(`${BACKEND_URL}/api/friends/list/${currentUserId}`)
+                    .then(r => { if (Array.isArray(r.data)) setFriendsList(r.data); })
+                    .catch(() => {});
+                axios.get(`${BACKEND_URL}/api/posts/collab-invites/${currentUserId}`)
+                    .then(r => { if (Array.isArray(r.data)) setCollabInvites(r.data); })
+                    .catch(() => {});
+            }
         } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
         finally { setIsRefreshing(false); }
     };
@@ -124,12 +141,18 @@ function Profile({ onlineUsers = new Set() }) {
             const formData = new FormData();
             formData.append('user_id', currentUserId);
             formData.append('content', newPost);
+            formData.append('visibility', postVisibility);
+            if (taggedFriends.length > 0) formData.append('tagged_users', JSON.stringify(taggedFriends.map(f => f.id)));
             if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString());
             if (isDraftRef.current || saveAsDraft) formData.append('is_draft', 'true');
             if (selectedImage) formData.append('image', selectedImage);
-            await axios.post(`${BACKEND_URL}/api/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const res = await axios.post(`${BACKEND_URL}/api/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            // Send collab invite if selected
+            if (collabInviteId && res.data?.id) {
+                await axios.post(`${BACKEND_URL}/api/posts/${res.data.id}/collab-invite`, { coAuthorId: collabInviteId }).catch(()=>{});
+            }
             setSaveAsDraft(false); isDraftRef.current = false; setScheduledAt(''); loadDrafts();
-            setNewPost(''); removeImage(); loadProfileData(); 
+            setNewPost(''); removeImage(); setTaggedFriends([]); setCollabInviteId(null); setPostVisibility('public'); loadProfileData(); 
         } catch (error) { console.error(error); }
     };
 
@@ -295,15 +318,109 @@ function Profile({ onlineUsers = new Set() }) {
                     <div className="w-12 h-12 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700">{avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{profileData.username.charAt(0).toUpperCase()}</span>}</div>
                     <form id="profile-post-form" onSubmit={handlePost} className="w-full pt-1">
                         <textarea className="w-full bg-transparent text-xl text-white placeholder-zinc-500 outline-none resize-none overflow-hidden" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="What's on your mind?" rows="2" />
+                        
+                        {/* Tagged friends display */}
+                        {taggedFriends.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                                {taggedFriends.map(f => (
+                                    <span key={f.id} className="bg-blue-500/20 text-blue-400 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                        @{f.username}
+                                        <button type="button" onClick={() => setTaggedFriends(prev => prev.filter(tf => tf.id !== f.id))}><X size={10}/></button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        {/* Collab invite display */}
+                        {collabInviteId && (
+                            <div className="flex items-center gap-2 mb-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-1.5">
+                                <Star size={12} className="text-yellow-400"/>
+                                <span className="text-yellow-300 text-xs">Co-author: {friendsList.find(f=>f.id==collabInviteId)?.username}</span>
+                                <button type="button" onClick={() => setCollabInviteId(null)} className="ml-auto"><X size={12} className="text-zinc-400"/></button>
+                            </div>
+                        )}
+
                         {previewUrl && <div className="relative mt-2 mb-2 w-fit"><img src={previewUrl} className="max-h-64 rounded-2xl object-cover border border-zinc-700" /><button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full hover:bg-black transition"><X size={18} className="text-white" /></button></div>}
+
+                        {/* Visibility picker dropdown */}
+                        {showVisibilityPicker && (
+                            <div className="mb-2 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden animate-fade-in">
+                                {[
+                                    { value: 'public', icon: <Globe size={14}/>, label: 'Everyone', desc: 'Anyone can see this post' },
+                                    { value: 'friends', icon: <Users size={14}/>, label: 'Friends Only', desc: 'Only your friends' },
+                                    { value: 'close_friends', icon: <Star size={14}/>, label: 'Close Friends', desc: 'Your close friends list' },
+                                    { value: 'only_me', icon: <EyeOff size={14}/>, label: 'Only Me', desc: 'Just you' },
+                                ].map(opt => (
+                                    <button key={opt.value} type="button"
+                                        onClick={() => { setPostVisibility(opt.value); setShowVisibilityPicker(false); }}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800 transition text-left border-b border-zinc-800 last:border-0 ${postVisibility === opt.value ? 'bg-blue-500/10' : ''}`}>
+                                        <span className={postVisibility === opt.value ? 'text-blue-400' : 'text-zinc-400'}>{opt.icon}</span>
+                                        <div>
+                                            <p className={`text-sm font-semibold ${postVisibility === opt.value ? 'text-blue-400' : 'text-white'}`}>{opt.label}</p>
+                                            <p className="text-zinc-500 text-xs">{opt.desc}</p>
+                                        </div>
+                                        {postVisibility === opt.value && <Check size={14} className="ml-auto text-blue-400"/>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Tag Friends picker */}
+                        {showTagPicker && (
+                            <div className="mb-2 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden max-h-40 overflow-y-auto animate-fade-in">
+                                <p className="text-zinc-500 text-xs px-4 py-2 border-b border-zinc-800">Tag a friend:</p>
+                                {friendsList.filter(f => !taggedFriends.find(tf => tf.id === f.id)).map(f => (
+                                    <button key={f.id} type="button"
+                                        onClick={() => { setTaggedFriends(prev => [...prev, f]); setShowTagPicker(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
+                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
+                                            {f.profile_pic_url ? <img src={f.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs text-white font-bold">{f.username.charAt(0).toUpperCase()}</span>}
+                                        </div>
+                                        <span className="text-white text-sm">{f.username}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Collab picker */}
+                        {showCollabPicker && (
+                            <div className="mb-2 bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden max-h-40 overflow-y-auto animate-fade-in">
+                                <p className="text-zinc-500 text-xs px-4 py-2 border-b border-zinc-800">Invite co-author:</p>
+                                {friendsList.map(f => (
+                                    <button key={f.id} type="button"
+                                        onClick={() => { setCollabInviteId(f.id); setShowCollabPicker(false); }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition text-left">
+                                        <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
+                                            {f.profile_pic_url ? <img src={f.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs text-white font-bold">{f.username.charAt(0).toUpperCase()}</span>}
+                                        </div>
+                                        <span className="text-white text-sm">{f.username}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
-                            <div className="flex gap-2 text-blue-500">
+                            <div className="flex gap-1 text-blue-500 flex-wrap">
                                 <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
-                                <button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition"><ImageIcon size={20} /></button>
+                                <button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition" title="Add image"><ImageIcon size={18} /></button>
                                 <button type="button" onClick={() => { loadDrafts(); setShowDrafts(p => !p); }}
                                     className={"hover:bg-zinc-800 p-2 rounded-full transition relative " + (drafts.length > 0 ? "text-yellow-400" : "text-zinc-500")} title="View Drafts">
-                                    <Clock size={20} />
+                                    <Clock size={18} />
                                     {drafts.length > 0 && <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{drafts.length}</span>}
+                                </button>
+                                {/* Visibility button */}
+                                <button type="button" onClick={() => { setShowVisibilityPicker(p=>!p); setShowTagPicker(false); setShowCollabPicker(false); }}
+                                    className="hover:bg-zinc-800 p-2 rounded-full transition text-zinc-400 flex items-center gap-1" title="Post visibility">
+                                    {postVisibility === 'public' ? <Globe size={18} className="text-green-400"/> : postVisibility === 'friends' ? <Users size={18} className="text-blue-400"/> : postVisibility === 'close_friends' ? <Star size={18} className="text-yellow-400"/> : <EyeOff size={18} className="text-zinc-400"/>}
+                                    <ChevronDown size={12} className="text-zinc-600"/>
+                                </button>
+                                {/* Tag friend button */}
+                                <button type="button" onClick={() => { setShowTagPicker(p=>!p); setShowVisibilityPicker(false); setShowCollabPicker(false); }}
+                                    className={"hover:bg-zinc-800 p-2 rounded-full transition " + (taggedFriends.length > 0 ? "text-blue-400" : "text-zinc-500")} title="Tag a friend">
+                                    <Users size={18}/>
+                                </button>
+                                {/* Collab button */}
+                                <button type="button" onClick={() => { setShowCollabPicker(p=>!p); setShowVisibilityPicker(false); setShowTagPicker(false); }}
+                                    className={"hover:bg-zinc-800 p-2 rounded-full transition " + (collabInviteId ? "text-yellow-400" : "text-zinc-500")} title="Invite co-author">
+                                    <Star size={18}/>
                                 </button>
                             </div>
                             <div className="flex gap-2">
@@ -345,6 +462,23 @@ function Profile({ onlineUsers = new Set() }) {
                 </div>
             )}
 
+            {/* Collab invites banner */}
+            {collabInvites.length > 0 && (
+                <div className="mx-4 mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-3">
+                    <p className="text-yellow-300 text-xs font-bold mb-2 flex items-center gap-1"><Star size={12}/> Co-author Invites</p>
+                    {collabInvites.map(inv => (
+                        <div key={inv.id} className="flex items-center gap-2 mb-1 last:mb-0">
+                            <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-800 flex-shrink-0">
+                                {inv.author_pic ? <img src={inv.author_pic} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-xs text-white">{inv.author_username?.charAt(0).toUpperCase()}</span>}
+                            </div>
+                            <p className="text-white text-xs flex-1 truncate"><span className="font-bold">{inv.author_username}</span> invited you to co-author</p>
+                            <button onClick={async () => { await axios.put(`${BACKEND_URL}/api/posts/${inv.id}/collab-respond`, { accept: true, userId: currentUserId }); setCollabInvites(p => p.filter(i => i.id !== inv.id)); }} className="bg-green-600 hover:bg-green-500 text-white text-xs px-2 py-1 rounded-full">Accept</button>
+                            <button onClick={async () => { await axios.put(`${BACKEND_URL}/api/posts/${inv.id}/collab-respond`, { accept: false, userId: currentUserId }); setCollabInvites(p => p.filter(i => i.id !== inv.id)); }} className="bg-zinc-700 hover:bg-zinc-600 text-white text-xs px-2 py-1 rounded-full">Decline</button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <div className="w-full">
                 {/* Tabs */}
                 <div className="flex border-b border-zinc-800 sticky top-0 bg-black z-10">
@@ -375,9 +509,12 @@ function Profile({ onlineUsers = new Set() }) {
                                         <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-bold text-white">{post.username}</span>
+                                        {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><span className="font-bold text-yellow-300 text-sm">& {post.co_author_username}</span></>}
                                         <span className="text-zinc-500 text-sm">@{post.username.toLowerCase()}</span>
+                                        {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'} {post.visibility.replace('_', ' ')}</span>}
                                         <span className="text-zinc-600 text-sm hidden sm:inline">·</span>
                                         <span className="text-zinc-500 text-xs w-full sm:w-auto">{formatTimeFriendly(post.created_at)}</span>
+                                        {post.tagged_users && (() => { try { const tags = JSON.parse(post.tagged_users); return tags.length > 0 ? <span className="text-blue-400 text-xs w-full">👥 with {tags.length} friend{tags.length>1?'s':''}</span> : null; } catch(e) { return null; } })()}
                                     </div>
                                     
                                     {/* 3 Dots Menu Button */}

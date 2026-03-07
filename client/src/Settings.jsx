@@ -24,12 +24,14 @@ function Settings() {
     const[oldPassword, setOldPassword] = useState('');
     const[newPassword, setNewPassword] = useState('');
     const[passwordMsg, setPasswordMsg] = useState('');
+    const[birthday, setBirthday] = useState('');
+    const[birthdayMsg, setBirthdayMsg] = useState('');
 
     useEffect(() => {
         if (!currentUserId) return;
         const isDark = localStorage.getItem('darkMode') !== 'false';
         setDarkMode(isDark); if (!isDark) document.body.classList.add('light-theme');
-        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { setPrivateAccount(res.data.is_private); setNotifications(res.data.notifications); }).catch(err => console.error(err));
+        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { setPrivateAccount(res.data.is_private); setNotifications(res.data.notifications); if (res.data.birthday) setBirthday(res.data.birthday.slice(0,10)); }).catch(err => console.error(err));
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -82,6 +84,14 @@ function Settings() {
         } catch (error) { setPasswordMsg(`❌ ${error.response?.data?.error || "Error"}`); }
     };
 
+    const saveBirthday = async () => {
+        try {
+            await axios.put(`${BACKEND_URL}/api/users/${currentUserId}/birthday`, { birthday: birthday || null });
+            setBirthdayMsg('✅ Birthday saved!');
+            setTimeout(() => setBirthdayMsg(''), 2500);
+        } catch(e) { setBirthdayMsg('❌ Failed to save'); }
+    };
+
     const handleDeleteAccount = async () => {
         if (window.confirm("Are you ABSOLUTELY sure? This will permanently delete your account.")) {
             try { await axios.delete(`${BACKEND_URL}/api/users/${currentUserId}`); handleLogout(); } catch (error) { console.error(error); }
@@ -103,6 +113,19 @@ function Settings() {
                         <div className="flex flex-col border-b border-zinc-800/50">
                             <div onClick={() => setShowPasswordForm(!showPasswordForm)} className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition"><div className="flex items-center gap-4"><Lock className="text-zinc-400" size={22} /><div><h3 className="text-white font-medium">Password & Security</h3></div></div><ChevronRight className={`text-zinc-600 transition-transform ${showPasswordForm ? 'rotate-90' : ''}`} size={20} /></div>
                             {showPasswordForm && (<form onSubmit={handleChangePassword} className="p-4 bg-zinc-950 border-t border-zinc-800"><input type="password" placeholder="Current Password" required value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 mb-2 text-white outline-none" /><input type="password" placeholder="New Password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 mb-3 text-white outline-none" /><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg">Update Password</button>{passwordMsg && <p className="text-center text-sm mt-2">{passwordMsg}</p>}</form>)}
+                            {/* Birthday */}
+                            <div className="p-4 border-t border-zinc-800/50">
+                                <div className="flex items-center gap-4 mb-3">
+                                    <span className="text-xl">🎂</span>
+                                    <div><h3 className="text-white font-medium">Birthday</h3><p className="text-zinc-500 text-xs">Friends will be notified on your birthday</p></div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)}
+                                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white outline-none focus:border-blue-500 transition text-sm" />
+                                    <button onClick={saveBirthday} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl transition text-sm">Save</button>
+                                </div>
+                                {birthdayMsg && <p className="text-sm mt-2 text-center">{birthdayMsg}</p>}
+                            </div>
                         </div>
                     </div>
                 </div>
