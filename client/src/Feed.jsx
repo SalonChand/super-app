@@ -21,8 +21,8 @@ function formatTimeFriendly(dateString) {
 
 function Feed({ onlineUsers = new Set() }) {
     const[posts, setPosts] = useState([]);
+    const[savedPosts, setSavedPosts] = useState(new Set());
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
-    const[savedPosts, setSavedPosts] = useState(new Set()); // post ids the user bookmarked
     const[activeCommentPostId, setActiveCommentPostId] = useState(null);
     const[commentsData, setCommentsData] = useState({});
     const[newComment, setNewComment] = useState('');
@@ -90,6 +90,7 @@ function Feed({ onlineUsers = new Set() }) {
 
     const fetchData = async () => {
         setIsRefreshing(true);
+        // Fetch each independently so one failure doesn't block the others
         try {
             const postsRes = await axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}`);
             if (Array.isArray(postsRes.data)) setPosts(postsRes.data);
@@ -103,7 +104,6 @@ function Feed({ onlineUsers = new Set() }) {
         try {
             const storiesRes = await axios.get(`${BACKEND_URL}/api/stories?userId=${userId || 0}`);
             if (Array.isArray(storiesRes.data)) setStories(storiesRes.data);
-        } catch (err) { console.error('Stories error:', err); }
         } catch (err) { console.error('Stories error:', err); }
         try {
             if (userId) {
@@ -190,8 +190,7 @@ function Feed({ onlineUsers = new Set() }) {
 
     const handleBookmark = async (postId) => {
         if (!userId) return;
-        const isSaved = savedPosts.has(postId);
-        setSavedPosts(prev => { const n = new Set(prev); isSaved ? n.delete(postId) : n.add(postId); return n; });
+        setSavedPosts(prev => { const n = new Set(prev); prev.has(postId) ? n.delete(postId) : n.add(postId); return n; });
         try { await axios.post(`${BACKEND_URL}/api/bookmarks`, { userId, postId }); } catch(e) {}
     };
 

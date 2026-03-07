@@ -67,12 +67,10 @@ function Profile({ onlineUsers = new Set() }) {
             setProfileData(userRes.data); setEditBio(userRes.data.bio || ''); setEditAnthem(userRes.data.anthem_url || ''); try { setEditLinks(JSON.parse(userRes.data.profile_links || '[]')); } catch(e) { setEditLinks([]); }
             if (Array.isArray(postsRes.data)) setUserPosts(postsRes.data);
             if (friendRes) setFriendStatus(friendRes.data.status);
-            // Load mutual friends if viewing someone else
             if (!isMyProfile && currentUserId) {
-                try {
-                    const mutualRes = await axios.get(`${BACKEND_URL}/api/friends/mutual/${currentUserId}/${id}`);
-                    if (Array.isArray(mutualRes.data)) setMutualFriends(mutualRes.data);
-                } catch(e) {}
+                axios.get(`${BACKEND_URL}/api/friends/mutual/${currentUserId}/${id}`)
+                    .then(r => { if (Array.isArray(r.data)) setMutualFriends(r.data); })
+                    .catch(() => {});
             }
         } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
         finally { setIsRefreshing(false); }
@@ -224,28 +222,19 @@ function Profile({ onlineUsers = new Set() }) {
                         </p>
                     )}
                     {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
-                    
-                    {/* Joined date */}
                     {profileData.created_at && (
-                        <p className="text-zinc-500 text-xs mt-1 mb-1">
-                            📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}
-                        </p>
+                        <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
                     )}
-
-                    {/* Mutual friends (only on other people's profiles) */}
                     {!isMyProfile && mutualFriends.length > 0 && (
                         <div className="flex items-center gap-2 mt-2 mb-1">
                             <div className="flex -space-x-2">
                                 {mutualFriends.slice(0, 3).map(f => (
-                                    <div key={f.id} className="w-6 h-6 rounded-full border-2 border-black overflow-hidden bg-zinc-700">
-                                        {f.profile_pic_url ? <img src={f.profile_pic_url} className="w-full h-full object-cover" /> : <span className="text-[10px] flex items-center justify-center w-full h-full text-zinc-300">{f.username.charAt(0).toUpperCase()}</span>}
+                                    <div key={f.id} className="w-6 h-6 rounded-full border-2 border-black overflow-hidden bg-zinc-700 flex items-center justify-center">
+                                        {f.profile_pic_url ? <img src={f.profile_pic_url} className="w-full h-full object-cover" /> : <span className="text-[10px] text-zinc-300">{f.username.charAt(0).toUpperCase()}</span>}
                                     </div>
                                 ))}
                             </div>
-                            <p className="text-zinc-400 text-xs">
-                                {mutualFriends.length} mutual {mutualFriends.length === 1 ? 'friend' : 'friends'}
-                                {mutualFriends.length > 0 && ` · ${mutualFriends[0].username}${mutualFriends.length > 1 ? ` and ${mutualFriends.length - 1} more` : ''}`}
-                            </p>
+                            <p className="text-zinc-400 text-xs">{mutualFriends.length} mutual {mutualFriends.length === 1 ? 'friend' : 'friends'}{mutualFriends.length > 0 ? ` · ${mutualFriends[0].username}${mutualFriends.length > 1 ? ` +${mutualFriends.length - 1}` : ''}` : ''}</p>
                         </div>
                     )}
                     

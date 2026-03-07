@@ -57,7 +57,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [typingUsers, setTypingUsers] = useState(new Set()); // userIds currently typing
+    const [typingUsers, setTypingUsers] = useState(new Set());
     const typingTimeoutRef = useRef(null);
     const isTypingRef = useRef(false);
 
@@ -67,12 +67,11 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         if (!friend.show_active_status) return '';
         if (!friend.last_seen) return '● Offline';
         const d = new Date(friend.last_seen);
-        const now = new Date();
-        const diff = Math.floor((now - d) / 1000);
+        const diff = Math.floor((Date.now() - d) / 1000);
         if (diff < 60) return 'Last seen just now';
         if (diff < 3600) return `Last seen ${Math.floor(diff/60)}m ago`;
         if (diff < 86400) return `Last seen ${Math.floor(diff/3600)}h ago`;
-        return `Last seen ${d.toLocaleDateString([], {month:'short',day:'numeric'})}`;
+        return `Last seen ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
     };
     const loadInbox = async () => {
         setIsRefreshing(true);
@@ -187,15 +186,17 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const sendMessage = async (e) => {
         e.preventDefault();
         if (currentMessage.trim() !== '' && selectedUser) {
-            socket.emit('typing_stop', { senderId: userId, receiverId: selectedUser.id });
-            isTypingRef.current = false;
+            if (isTypingRef.current) {
+                isTypingRef.current = false;
+                socket.emit('typing_stop', { senderId: userId, receiverId: selectedUser.id });
+            }
             socket.emit('send_private_message', { senderId: userId, receiverId: selectedUser.id, content: currentMessage, replyToId: replyingTo ? replyingTo.id : null });
             setCurrentMessage(''); setReplyingTo(null); setShowGameMenu(false);
         }
     };
 
-    const handleInputChange = (e) => {
-        setCurrentMessage(e.target.value);
+    const handleInputChange = (val) => {
+        setCurrentMessage(val);
         if (!selectedUser) return;
         if (!isTypingRef.current) {
             isTypingRef.current = true;
@@ -343,9 +344,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
 ); })()}
                             <div>
                                 <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
-                                <p className={"text-xs font-medium " + (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status ? "text-green-400" : "text-zinc-500")}>
+                                <p className={"text-xs font-medium " + (typingUsers.has(String(selectedUser.id)) || (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status) ? "text-green-400" : "text-zinc-500")}>
                                     {typingUsers.has(String(selectedUser.id))
-                                        ? <span className="text-green-400 animate-pulse">typing...</span>
+                                        ? <span className="animate-pulse">typing...</span>
                                         : formatLastSeen(selectedUser)
                                     }
                                 </p>
@@ -451,7 +452,10 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     {isMyMessage && !isCallLog && (
                                         <div className="flex justify-end mt-0.5 pr-1 items-center gap-1">
                                             {msg.is_read ? (
-                                                <span className="text-[10px] text-blue-400 font-bold" title={msg.read_at ? `Seen at ${new Date(msg.read_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Seen'}>✓✓ {msg.read_at && <span className="text-zinc-500 font-normal">{new Date(msg.read_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>}</span>
+                                                <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1">
+                                                    ✓✓
+                                                    {msg.read_at && <span className="text-zinc-500 font-normal">{new Date(msg.read_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>}
+                                                </span>
                                             ) : (
                                                 <span className="text-[10px] text-zinc-500">✓</span>
                                             )}
@@ -508,7 +512,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                 </div>
                                 <input type="text" value={currentMessage} onChange={(e) => {
                                         const val = e.target.value;
-                                        handleInputChange(e);
+                                        handleInputChange(val);
                                         const match = val.match(/@(\w*)$/);
                                         if (match) {
                                             const q = match[1];

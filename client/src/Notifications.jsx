@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, UserPlus, Check, AtSign, Heart, Users } from 'lucide-react';
-
 import { BACKEND_URL } from './config';
+
 function formatTimeFriendly(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString); const now = new Date();
@@ -11,7 +11,9 @@ function formatTimeFriendly(dateString) {
     const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
     const isYesterday = date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth() && date.getFullYear() === yesterday.getFullYear();
     const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (isToday) return `Today at ${timeStr}`; if (isYesterday) return `Yesterday at ${timeStr}`; return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
+    if (isToday) return `Today at ${timeStr}`;
+    if (isYesterday) return `Yesterday at ${timeStr}`;
+    return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
 
 const TYPE_CONFIG = {
@@ -29,27 +31,21 @@ function Notifications() {
     const [suggestions, setSuggestions] = useState([]);
     const [addedIds, setAddedIds] = useState(new Set());
 
-    const fetchActivity = () => {
+    useEffect(() => {
         if (!userId) return;
         axios.get(`${BACKEND_URL}/api/notifications/${userId}`)
-             .then(res => { if (Array.isArray(res.data)) setActivity(res.data); })
-             .catch(err => console.error(err));
-    };
-
-    const fetchSuggestions = () => {
-        if (!userId) return;
+            .then(res => { if (Array.isArray(res.data)) setActivity(res.data); })
+            .catch(() => {});
         axios.get(`${BACKEND_URL}/api/friends/suggestions/${userId}`)
-             .then(res => { if (Array.isArray(res.data)) setSuggestions(res.data); })
-             .catch(() => {});
-    };
+            .then(res => { if (Array.isArray(res.data)) setSuggestions(res.data); })
+            .catch(() => {});
+    }, []);
 
     const sendRequest = (targetId) => {
         axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: userId, receiver_id: targetId })
             .then(() => setAddedIds(prev => new Set([...prev, targetId])))
             .catch(() => {});
     };
-
-    useEffect(() => { fetchActivity(); fetchSuggestions(); }, []);
 
     return (
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in relative">
@@ -58,29 +54,31 @@ function Notifications() {
                 <h2 className="text-2xl font-bold text-white">Notifications</h2>
             </div>
 
-            {/* People You May Know */}
             {suggestions.length > 0 && (
                 <div className="px-4 pt-4">
-                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Users size={14} /> People You May Know</h3>
-                    <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
+                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Users size={13} /> People You May Know
+                    </h3>
+                    <div className="flex gap-3 overflow-x-auto pb-3">
                         {suggestions.map(user => (
                             <div key={user.id} className="flex-shrink-0 w-36 bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex flex-col items-center gap-2">
                                 <Link to={`/profile/${user.id}`}>
-                                    <div className="w-14 h-14 rounded-full bg-zinc-700 overflow-hidden">
-                                        {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center w-full h-full text-xl font-bold text-zinc-400">{user.username.charAt(0).toUpperCase()}</span>}
+                                    <div className="w-14 h-14 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">
+                                        {user.profile_pic_url
+                                            ? <img src={user.profile_pic_url} className="w-full h-full object-cover" />
+                                            : <span className="text-xl font-bold text-zinc-400">{user.username.charAt(0).toUpperCase()}</span>}
                                     </div>
                                 </Link>
-                                <Link to={`/profile/${user.id}`} className="text-white text-sm font-bold text-center truncate w-full text-center">{user.username}</Link>
+                                <Link to={`/profile/${user.id}`} className="text-white text-sm font-bold text-center truncate w-full">{user.username}</Link>
                                 <p className="text-zinc-500 text-xs">{user.mutual_count} mutual</p>
-                                {addedIds.has(user.id) ? (
-                                    <span className="text-green-400 text-xs font-bold">✓ Sent</span>
-                                ) : (
-                                    <button onClick={() => sendRequest(user.id)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded-full transition">Add Friend</button>
-                                )}
+                                {addedIds.has(user.id)
+                                    ? <span className="text-green-400 text-xs font-bold">Added!</span>
+                                    : <button onClick={() => sendRequest(user.id)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded-full transition">Add Friend</button>
+                                }
                             </div>
                         ))}
                     </div>
-                    <div className="border-t border-zinc-800 mt-3 mb-1" />
+                    <div className="border-t border-zinc-800 mt-1 mb-1" />
                 </div>
             )}
 
@@ -94,43 +92,22 @@ function Notifications() {
                     activity.map((item, i) => {
                         const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG['message'];
                         const { color, Icon, link } = cfg;
-
                         return (
-                            <Link
-                                to={link}
-                                key={i}
-                                className="flex items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-2xl hover:bg-zinc-800 transition shadow-md block"
-                            >
+                            <Link to={link} key={i} className="flex items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-2xl hover:bg-zinc-800 transition shadow-md">
                                 <div className="relative flex-shrink-0">
-                                    <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800">
-                                        {item.profile_pic_url ? (
-                                            <img src={`${item.profile_pic_url}`} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="flex items-center justify-center w-full h-full font-bold text-zinc-500 text-lg">
-                                                {(item.username || '?').charAt(0).toUpperCase()}
-                                            </div>
-                                        )}
+                                    <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center">
+                                        {item.profile_pic_url
+                                            ? <img src={`${item.profile_pic_url}`} className="w-full h-full object-cover" />
+                                            : <span className="font-bold text-zinc-500 text-lg">{(item.username || '?').charAt(0).toUpperCase()}</span>}
                                     </div>
                                     <div className={`absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-zinc-900 ${color}`}>
                                         <Icon size={10} className="text-white" />
                                     </div>
                                 </div>
-
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-white text-sm leading-snug">
-                                        {item.content || (
-                                            <>
-                                                <span className="font-bold">{item.username}</span>
-                                                {item.type === 'message' ? ' sent you a message.' : item.type === 'request' ? ' sent a friend request.' : ' interacted with you.'}
-                                            </>
-                                        )}
-                                    </p>
-                                    {item.type === 'message' && item.content && (
-                                        <p className="text-zinc-400 text-xs truncate mt-0.5 font-medium">"{item.content}"</p>
-                                    )}
+                                    <p className="text-white text-sm leading-snug">{item.content || `${item.username} interacted with you.`}</p>
                                     <p className="text-zinc-600 text-[10px] mt-1">{formatTimeFriendly(item.created_at)}</p>
                                 </div>
-
                                 <div className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition text-white flex-shrink-0">
                                     <Check size={18} />
                                 </div>

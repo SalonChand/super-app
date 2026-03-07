@@ -41,7 +41,6 @@ function Search() {
 
     return (
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
-            {/* Search bar */}
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex items-center gap-3 backdrop-blur-md">
                 <SearchIcon className="text-zinc-400 flex-shrink-0" size={22} />
                 <input
@@ -54,16 +53,13 @@ function Search() {
                 />
             </div>
 
-            {/* Filter tabs */}
             <div className="flex border-b border-zinc-800 bg-zinc-950/60 sticky top-[72px] z-10">
                 {FILTERS.map(({ key, label, Icon }) => (
                     <button
                         key={key}
                         onClick={() => switchFilter(key)}
                         className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition border-b-2 ${
-                            filter === key
-                                ? 'border-blue-500 text-white'
-                                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                            filter === key ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
                         }`}
                     >
                         <Icon size={15} />
@@ -77,7 +73,7 @@ function Search() {
                     <p className="text-zinc-500 text-center mt-10">No {filter} found for "{query}".</p>
                 )}
 
-                {filter === 'people' && results.map((user) => (
+                {filter === 'people' && results.map(user => (
                     <Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition">
                         <div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">
                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-400" />}
@@ -89,13 +85,11 @@ function Search() {
                     </Link>
                 ))}
 
-                {filter === 'posts' && results.map((post) => (
+                {filter === 'posts' && results.map(post => (
                     <div key={post.id} className="p-4 rounded-xl bg-zinc-900 border border-zinc-800">
                         <div className="flex items-center gap-2 mb-2">
-                            <Link to={`/profile/${post.user_id}`}>
-                                <div className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden">
-                                    {post.profile_pic_url ? <img src={post.profile_pic_url} className="w-full h-full object-cover" /> : <User size={14} className="m-auto mt-2 text-zinc-500" />}
-                                </div>
+                            <Link to={`/profile/${post.user_id}`} className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                {post.profile_pic_url ? <img src={post.profile_pic_url} className="w-full h-full object-cover" /> : <User size={14} className="text-zinc-500" />}
                             </Link>
                             <Link to={`/profile/${post.user_id}`} className="font-semibold text-white text-sm hover:underline">{post.username}</Link>
                             <span className="text-zinc-600 text-xs ml-auto">{new Date(post.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
@@ -106,8 +100,8 @@ function Search() {
                     </div>
                 ))}
 
-                {filter === 'communities' && results.map((comm) => (
-                    <Link key={comm.id} to={`/communities`} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition">
+                {filter === 'communities' && results.map(comm => (
+                    <Link key={comm.id} to="/communities" className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition">
                         <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center">
                             {comm.banner_url ? <img src={comm.banner_url} className="w-full h-full object-cover" /> : <Users size={22} className="text-zinc-500" />}
                         </div>
@@ -122,4 +116,5 @@ function Search() {
         </div>
     );
 }
+
 export default Search;
