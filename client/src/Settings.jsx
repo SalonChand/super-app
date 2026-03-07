@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Radio } from 'lucide-react';
+import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2 } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Helper to convert VAPID keys
@@ -20,7 +20,6 @@ function Settings() {
     const[darkMode, setDarkMode] = useState(true);
     const[privateAccount, setPrivateAccount] = useState(false);
     const[notifications, setNotifications] = useState(true);
-    const[activeStatus, setActiveStatus] = useState(true);
     const[showPasswordForm, setShowPasswordForm] = useState(false);
     const[oldPassword, setOldPassword] = useState('');
     const[newPassword, setNewPassword] = useState('');
@@ -30,44 +29,67 @@ function Settings() {
         if (!currentUserId) return;
         const isDark = localStorage.getItem('darkMode') !== 'false';
         setDarkMode(isDark); if (!isDark) document.body.classList.add('light-theme');
-        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { setPrivateAccount(res.data.is_private); setNotifications(res.data.notifications); setActiveStatus(res.data.show_active_status ?? true); }).catch(err => console.error(err));
+        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { setPrivateAccount(res.data.is_private); setNotifications(res.data.notifications); }).catch(err => console.error(err));
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
     const enableOSNotifications = async () => {
         try {
-            // Ask for explicit permission first!
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                alert("You denied notifications. Please enable them in your browser settings.");
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                alert("Push notifications are not supported in this browser.");
                 return;
             }
 
-            if ('serviceWorker' in navigator && 'PushManager' in window) {
-                const reg = await navigator.serviceWorker.ready;
-                const vapidRes = await axios.get(`${BACKEND_URL}/api/vapidPublicKey`);
-                const convertedVapidKey = urlBase64ToUint8Array(vapidRes.data);
-                
-                const subscription = await reg.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: convertedVapidKey
-                });
-
-                await axios.post(`${BACKEND_URL}/api/subscribe`, {
-                    userId: currentUserId,
-                    subscription: subscription
-                });
-                
-                alert("Success! OS Notifications are now active.");
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                alert("Please allow notifications when prompted, then try again.");
+                return;
             }
-        } catch (e) { console.error("Push Error:", e); alert("Failed to enable push notifications."); }
+
+            // Register SW if not already registered
+            let reg = await navigator.serviceWorker.getRegistration('/');
+            if (!reg) {
+                reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+                // Wait for it to be ready
+                await new Promise(resolve => {
+                    if (reg.active) return resolve();
+                    const sw = reg.installing || reg.waiting;
+                    sw.addEventListener('statechange', (e) => {
+                        if (e.target.state === 'activated') resolve();
+                    });
+                });
+            }
+
+            // Wait for ready
+            const readyReg = await navigator.serviceWorker.ready;
+
+            // Get VAPID key
+            const vapidRes = await axios.get(`${BACKEND_URL}/api/vapidPublicKey`);
+            const convertedVapidKey = urlBase64ToUint8Array(vapidRes.data);
+
+            // Subscribe
+            const subscription = await readyReg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: convertedVapidKey
+            });
+
+            // Save to server
+            await axios.post(`${BACKEND_URL}/api/subscribe`, {
+                userId: currentUserId,
+                subscription: subscription.toJSON()
+            });
+
+            alert("✅ Desktop alerts are now active!");
+        } catch (e) {
+            console.error("Push Error:", e);
+            alert("Failed: " + e.message);
+        }
     };
 
     const toggleDarkMode = () => { const newMode = !darkMode; setDarkMode(newMode); localStorage.setItem('darkMode', newMode); if (newMode) document.body.classList.remove('light-theme'); else document.body.classList.add('light-theme'); };
-    const updateDbSettings = async (isPriv, notif, showActive) => { try { await axios.put(`${BACKEND_URL}/api/users/${currentUserId}/settings`, { is_private: isPriv, notifications: notif, show_active_status: showActive }); } catch (error) { console.error(error); } };
-    const handlePrivateToggle = () => { const newVal = !privateAccount; setPrivateAccount(newVal); updateDbSettings(newVal, notifications, activeStatus); };
-    const handleNotifToggle = () => { const newVal = !notifications; setNotifications(newVal); updateDbSettings(privateAccount, newVal, activeStatus); };
-    const handleActiveStatusToggle = () => { const newVal = !activeStatus; setActiveStatus(newVal); updateDbSettings(privateAccount, notifications, newVal); };
+    const updateDbSettings = async (isPriv, notif) => { try { await axios.put(`${BACKEND_URL}/api/users/${currentUserId}/settings`, { is_private: isPriv, notifications: notif }); } catch (error) { console.error(error); } };
+    const handlePrivateToggle = () => { const newVal = !privateAccount; setPrivateAccount(newVal); updateDbSettings(newVal, notifications); };
+    const handleNotifToggle = () => { const newVal = !notifications; setNotifications(newVal); updateDbSettings(privateAccount, newVal); };
 
     const handleChangePassword = async (e) => {
         e.preventDefault();
@@ -105,19 +127,6 @@ function Settings() {
                     <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Preferences</h3>
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                         <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={handlePrivateToggle}><div className="flex items-center gap-4"><Shield className="text-green-500" size={22} /><div><h3 className="text-white font-medium">Private Account</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${privateAccount ? 'bg-green-500' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${privateAccount ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
-
-                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={handleActiveStatusToggle}>
-                            <div className="flex items-center gap-4">
-                                <Radio className={activeStatus ? "text-green-400" : "text-zinc-500"} size={22} />
-                                <div>
-                                    <h3 className="text-white font-medium">Active Status</h3>
-                                    <p className="text-zinc-500 text-xs mt-0.5">{activeStatus ? 'Others can see when you\'re online' : 'You appear offline to everyone'}</p>
-                                </div>
-                            </div>
-                            <div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${activeStatus ? 'bg-green-500' : 'bg-zinc-700'}`}>
-                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${activeStatus ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                            </div>
-                        </div>
                         
                         {/* 🔥 EXPLICIT OS NOTIFICATION BUTTON 🔥 */}
                         <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={enableOSNotifications}><div className="flex items-center gap-4"><Bell className="text-pink-500" size={22} /><div><h3 className="text-white font-medium">Enable Desktop Alerts</h3></div></div></div>
