@@ -75,6 +75,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const analyserRef = useRef(null);
     const waveAnimRef = useRef(null);
     const audioContextRef = useRef(null);
+    const audioRefs = useRef({}); // stable map: msgId -> audio element
 
     const formatLastSeen = (friend) => {
         if (!friend) return '';
@@ -397,7 +398,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         const pinnedMessage = messages.slice().reverse().find(m => m.is_pinned);
 
         return (
-            <div className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full relative bg-black">
+            <div className="flex flex-col w-full relative bg-black" style={{height: 'calc(100dvh - 70px)'}}>
                 {viewingImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
                 {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><span className="text-white font-bold">{friend.username}</span><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
 
@@ -446,7 +447,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 {/* Chat Settings Panel */}
                 {showChatSettings && (
                     <div className="absolute inset-0 z-50 flex flex-col animate-fade-in" style={{background:'rgba(0,0,0,0.6)'}}>
-                        <div className="mt-auto bg-zinc-950 border-t border-zinc-800 rounded-t-3xl overflow-hidden shadow-2xl">
+                        <div className="mt-auto bg-zinc-950 border-t border-zinc-800 rounded-t-3xl shadow-2xl overflow-y-auto max-h-[85vh]">
                             {/* Handle bar */}
                             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-zinc-700 rounded-full" /></div>
 
@@ -549,7 +550,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
 
                 {pinnedMessage ? (<div className="bg-zinc-900 border-b border-zinc-800 p-2 px-4 flex items-center gap-3 shadow-md z-10"><Pin size={16} style={{ color: activeColor }} className="flex-shrink-0" /><div className="flex-1 overflow-hidden"><p className="text-xs font-bold" style={{ color: activeColor }}>Pinned Message</p><p className="text-zinc-300 text-sm truncate">{pinnedMessage.content || "Media Attachment"}</p></div></div>) : null}
                 
-                <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-40">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6 pb-4" ref={null}>
                     {!isCurrentlyFriend && (<div className="bg-zinc-900 border border-zinc-700 p-3 rounded-xl text-center mb-4"><p className="text-sm text-zinc-300">You are not friends with this user.</p><p className="text-xs text-zinc-500">Go to the Friends tab to add them to call them.</p></div>)}
                     
                     {filteredMessages.map((msg) => { 
@@ -613,30 +614,47 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                         const msgId = msg.id;
                                                         const prog = audioProgress[msgId] || 0;
                                                         const isPlaying = playingAudioId === msgId;
-                                                        // 20 fixed bar heights for waveform shape
                                                         const BARS = [4,7,5,9,6,8,5,7,4,9,7,5,8,6,9,5,7,4,8,6];
+                                                        const togglePlay = () => {
+                                                            // Stop any other playing audio first
+                                                            if (playingAudioId && playingAudioId !== msgId) {
+                                                                const prev = audioRefs.current[playingAudioId];
+                                                                if (prev) { prev.pause(); prev.currentTime = 0; }
+                                                            }
+                                                            const audio = audioRefs.current[msgId];
+                                                            if (!audio) return;
+                                                            if (audio.paused) {
+                                                                audio.play().then(() => setPlayingAudioId(msgId)).catch(e => console.warn('Audio play failed:', e));
+                                                            } else {
+                                                                audio.pause();
+                                                                setPlayingAudioId(null);
+                                                            }
+                                                        };
                                                         return (
-                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[200px]">
-                                                            <button type="button" id={`play-${msgId}`} onClick={() => {
-                                                                const audio = document.getElementById(`audio-${msgId}`);
-                                                                if (!audio) return;
-                                                                if (audio.paused) { audio.play(); setPlayingAudioId(msgId); }
-                                                                else { audio.pause(); setPlayingAudioId(null); }
-                                                            }} className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white/20 hover:bg-white/30 transition flex-shrink-0">
+                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[180px] max-w-[240px]">
+                                                            <button type="button" onClick={togglePlay}
+                                                                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white/20 hover:bg-white/30 transition">
                                                                 <span className="text-sm">{isPlaying ? '⏸' : '▶'}</span>
                                                             </button>
-                                                            <audio id={`audio-${msgId}`} src={`${msg.media_url}`}
-                                                                onTimeUpdate={(e) => { const p = e.target.duration ? (e.target.currentTime / e.target.duration) : 0; setAudioProgress(prev => ({...prev, [msgId]: p})); }}
-                                                                onEnded={() => { setPlayingAudioId(null); setAudioProgress(prev => ({...prev, [msgId]: 0})); }} className="hidden" />
-                                                            <div className="flex-1">
-                                                                <div className="flex items-end gap-[3px] h-8" onClick={() => {
-                                                                    const audio = document.getElementById(`audio-${msgId}`);
-                                                                    if (audio) { audio.paused ? (audio.play(), setPlayingAudioId(msgId)) : (audio.pause(), setPlayingAudioId(null)); }
-                                                                }}>
+                                                            <audio
+                                                                ref={el => { if (el) audioRefs.current[msgId] = el; }}
+                                                                src={`${msg.media_url}`}
+                                                                preload="metadata"
+                                                                onTimeUpdate={(e) => {
+                                                                    const p = e.target.duration ? (e.target.currentTime / e.target.duration) : 0;
+                                                                    setAudioProgress(prev => ({...prev, [msgId]: p}));
+                                                                }}
+                                                                onEnded={() => { setPlayingAudioId(null); setAudioProgress(prev => ({...prev, [msgId]: 0})); }}
+                                                                onPause={() => { if (playingAudioId === msgId) setPlayingAudioId(null); }}
+                                                                style={{display:'none'}}
+                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-end gap-[3px] h-8 cursor-pointer" onClick={togglePlay}>
                                                                     {BARS.map((h, i) => {
                                                                         const pct = i / BARS.length;
                                                                         const played = pct <= prog;
-                                                                        return <div key={i} className="w-[4px] rounded-full transition-all duration-75 cursor-pointer" style={{height:`${h*3}px`, background: played ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.3)'}} />;
+                                                                        return <div key={i} className="w-[4px] rounded-full transition-colors duration-75 flex-shrink-0"
+                                                                            style={{height:`${h*3}px`, background: played ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.28)'}} />;
                                                                     })}
                                                                 </div>
                                                                 <p className="text-[10px] text-white/50 mt-0.5">Voice message</p>
@@ -668,15 +686,15 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                             </div>
                         ); 
                     })}
-                    <div ref={messagesEndRef} /> 
+                    <div ref={messagesEndRef} />
                 </div>
                 
-                <div className="absolute bottom-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col z-20">
+                <div className="flex-shrink-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col z-20">
                     {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: activeColor }}><div><p className="text-xs font-bold" style={{ color: activeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate max-w-[250px]">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1"><X size={18}/></button></div> ) : null}
                     {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: activeColor }}>Uploading...</p>}
                     
                     {mentionResults.length > 0 && (
-                        <div className="absolute bottom-[72px] left-4 right-4 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-slide-up">
+                        <div className="absolute bottom-full left-4 right-4 mb-1 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-slide-up">
                             {mentionResults.map(u => (
                                 <button key={u.id} type="button" onClick={() => {
                                     setCurrentMessage(prev => prev.replace(/@\w*$/, `@${u.username} `));
@@ -690,7 +708,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                             ))}
                         </div>
                     )}
-                    <form onSubmit={sendMessage} className="flex gap-2 items-center w-full p-3 pt-2">
+                    <form onSubmit={sendMessage} className="flex gap-1.5 sm:gap-2 items-center w-full p-2 sm:p-3 pt-1.5 sm:pt-2">
                         {isRecording ? (
                             <div className="flex-1 flex items-center justify-between bg-red-500/10 border border-red-500/30 rounded-full py-2.5 px-4 shadow-inner transition-all w-full animate-fade-in">
                                 <div className="flex items-center gap-3"><div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div><span className="text-red-400 font-semibold text-sm w-10">{formatDuration(recordingDuration)}</span><div className="flex items-end gap-[2px] h-8 ml-2">{waveformBars.map((h,i) => (<div key={i} className="w-[3px] bg-red-400 rounded-full transition-all duration-75" style={{height:`${h}px`}}></div>))}</div></div>
@@ -705,7 +723,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     <div className="relative">
                                         <button type="button" onClick={() => setShowGameMenu(!showGameMenu)} className="hover:scale-110 transition cursor-pointer text-zinc-500 hover:text-white"><Gamepad2 size={22} /></button>
                                         {showGameMenu && (
-                                            <div className="absolute bottom-10 left-0 bg-zinc-900 border border-zinc-700 rounded-xl p-2 shadow-2xl flex flex-col gap-1 w-48 z-50 mb-2 animate-slide-up">
+                                            <div className="absolute bottom-full left-0 mb-2 bg-zinc-900 border border-zinc-700 rounded-xl p-2 shadow-2xl flex flex-col gap-1 w-48 z-50 animate-slide-up">
                                                 <button onClick={() => startNewGame('tictactoe')} className="text-left px-3 py-2 hover:bg-zinc-800 rounded-lg text-white text-sm font-bold flex items-center gap-2">❌⭕ Tic-Tac-Toe</button>
                                                 <button onClick={() => startNewGame('rps')} className="text-left px-3 py-2 hover:bg-zinc-800 rounded-lg text-white text-sm font-bold flex items-center gap-2">✊✋ Rock, Paper, Scissors</button>
                                             </div>
@@ -734,9 +752,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     }
 
     return (
-        <div className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full bg-black">
-            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Messages</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 sm:pb-20">
+        <div className="flex flex-col w-full bg-black" style={{height: 'calc(100dvh - 70px)', minHeight: 0}}>
+            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex-shrink-0"><h2 className="text-2xl font-bold text-white">Messages</h2></div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-4">
                 {requests.length > 0 && (
                     <div><h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2"><BellRing size={16} className="text-pink-500" /> Message Requests ({requests.length})</h3><div className="space-y-2">{requests.map((req, index) => (<div key={index} onClick={() => handleSelectUser({ id: req.sender_id, username: req.username, profile_pic_url: req.profile_pic_url })} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition"><div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">{req.profile_pic_url ? <img src={`${req.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-xl">{req.username.charAt(0).toUpperCase()}</span>}</div><div><h4 className="font-bold text-white">{req.username}</h4><p className="text-sm text-zinc-400 truncate max-w-[200px]">{req.content}</p></div><div className="ml-auto w-3 h-3 bg-blue-500 rounded-full"></div></div>))}</div></div>
                 )}
