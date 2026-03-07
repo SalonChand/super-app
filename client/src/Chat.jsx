@@ -301,8 +301,8 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
 ); })()}
                             <div>
                                 <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
-                                <p className={"text-xs font-medium " + (onlineUsers.has(String(selectedUser.id)) ? "text-green-400" : "text-zinc-500")}>
-                                    {onlineUsers.has(String(selectedUser.id)) ? "● Online" : "● Offline"}
+                                <p className={"text-xs font-medium " + (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status ? "text-green-400" : "text-zinc-500")}>
+                                    {onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status ? "● Online" : "● Offline"}
                                 </p>
                             </div>
                         </Link>
@@ -500,7 +500,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     </div>
                                 </div>
                             ); })()}<div className="flex-1 min-w-0"><h4 className="font-bold text-white">{friend.username}</h4><p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-bold' : 'text-zinc-500'}`}>{friend.last_sender === userId ? 'You: ' : ''}{friend.last_message || 'Sent an attachment'}</p></div>{friend.unread_count > 0 && (<div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">{friend.unread_count}</div>)}
-                                    {onlineUsers.has(String(friend.id)) && friend.unread_count === 0 && (<div className="w-2.5 h-2.5 rounded-full bg-green-400 ml-auto shadow-[0_0_6px_rgba(74,222,128,0.6)]"></div>)}</div>))}</div>
+                                    {onlineUsers.has(String(friend.id)) && friend.show_active_status && friend.unread_count === 0 && (<div className="w-2.5 h-2.5 rounded-full bg-green-400 ml-auto shadow-[0_0_6px_rgba(74,222,128,0.6)]"></div>)}</div>))}</div>
                     )}
                 </div>
             </div>

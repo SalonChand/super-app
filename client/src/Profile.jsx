@@ -215,7 +215,7 @@ function Profile({ onlineUsers = new Set() }) {
                             <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
                         </p>
                     )}
-                    {canSeeDetails && <p className="text-white font-bold mt-2 mb-2">{profileData.friend_count || 0} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                    {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-2">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
                     
                     {isEditing ? (
                         <div className="space-y-4 mt-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">

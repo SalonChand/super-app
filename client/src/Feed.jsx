@@ -474,7 +474,7 @@ function Feed({ onlineUsers = new Set() }) {
                                     {story.profile_pic_url ? <img src={story.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">{story.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
                             </div>
-                            {onlineUsers.has(String(story.user_id)) && (
+                            {onlineUsers.has(String(story.user_id)) && story.show_active_status && (
                                 <div className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-black shadow-[0_0_6px_rgba(74,222,128,0.7)]"></div>
                             )}
                         </div>
@@ -525,7 +525,7 @@ function Feed({ onlineUsers = new Set() }) {
                 {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
             </div>
         </button>
-        {onlineUsers.has(String(post.user_id)) && (
+        {onlineUsers.has(String(post.user_id)) && post.show_active_status && (
             <span style={{position:'absolute', bottom:'1px', right:'1px', width:'11px', height:'11px', background:'#4ade80', borderRadius:'50%', border:'2px solid #09090b', boxShadow:'0 0 6px rgba(74,222,128,0.9)', zIndex:20, display:'block'}}></span>
         )}
     </div>
