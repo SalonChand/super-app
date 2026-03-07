@@ -201,7 +201,7 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
                             <span className="text-white text-sm font-semibold drop-shadow-md">Duet</span>
                         </div>
                     )}
-                </div>                </div>
+                </div>
             </div>
 
             {/* 🔥 SLIDE-UP COMMENT PANEL 🔥 */}
