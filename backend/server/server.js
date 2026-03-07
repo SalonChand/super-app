@@ -236,7 +236,7 @@ app.get('/api/posts', async (req, res) => {
              (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count,
              (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked
              FROM posts p JOIN users u ON p.user_id = u.id
-             WHERE (p.is_draft = FALSE OR p.is_draft IS NULL)
+             WHERE (p.is_draft IS NULL OR p.is_draft = FALSE OR p.is_draft = 0)
                AND (p.scheduled_at IS NULL OR p.scheduled_at <= NOW())
              ORDER BY p.created_at DESC`, [currentUserId]);
         res.json(posts);
