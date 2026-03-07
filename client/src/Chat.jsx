@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
@@ -51,6 +51,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
     const [isRecording, setIsRecording] = useState(false);
+    const shouldSendRef = React.useRef(false); // true = send, false = cancel
     const [mentionQuery, setMentionQuery] = useState(''); // text after @ for autocomplete
     const [mentionResults, setMentionResults] = useState([]);
     const[recordingDuration, setRecordingDuration] = useState(0);
@@ -200,7 +201,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             audioChunksRef.current =[];
             mediaRecorderRef.current.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
             mediaRecorderRef.current.onstop = async () => {
-                if (!isRecording) return; 
+                if (!shouldSendRef.current) return; // cancelled
+                shouldSendRef.current = false;
+                if (audioChunksRef.current.length === 0) return;
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 const formData = new FormData(); formData.append('media', audioBlob, `voicenote-${Date.now()}.webm`);
                 try {
@@ -214,8 +217,8 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             timerRef.current = setInterval(() => { setRecordingDuration((prev) => prev + 1); }, 1000);
         } catch (err) { console.error(err); alert(`Microphone Error: ${err.name}\n${err.message}`); }
     };
-    const stopAndSendRecording = () => { if (mediaRecorderRef.current && isRecording) { mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); clearInterval(timerRef.current); setIsRecording(false); } };
-    const cancelRecording = () => { if (mediaRecorderRef.current && isRecording) { setIsRecording(false); mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); clearInterval(timerRef.current); } };
+    const stopAndSendRecording = () => { if (mediaRecorderRef.current && isRecording) { shouldSendRef.current = true; setIsRecording(false); clearInterval(timerRef.current); mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); } };
+    const cancelRecording = () => { if (mediaRecorderRef.current && isRecording) { shouldSendRef.current = false; setIsRecording(false); clearInterval(timerRef.current); mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); } };
     const formatDuration = (seconds) => { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m}:${s < 10 ? '0' : ''}${s}`; };
 
     const reactToMessage = (msgId, reaction) => { socket.emit('react_message', { messageId: msgId, reaction: reaction, senderId: userId, receiverId: selectedUser.id }); setHoveredMessageId(null); };

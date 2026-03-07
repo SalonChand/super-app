@@ -159,9 +159,18 @@ function CallManager({ currentUserId, startCallRef }) {
             if (e.candidate) globalSocket.emit('ice_candidate', { to: callTargetRef.current, candidate: e.candidate });
         };
         pc.ontrack = (e) => {
-            const stream = e.streams[0]; if (!stream) return;
-            if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play().catch(() => {}); }
-            if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.play().catch(() => {}); }
+            const stream = e.streams[0] || new MediaStream([e.track]);
+            // Always pipe to audio element (works for both voice and video calls)
+            if (remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = stream;
+                remoteAudioRef.current.volume = 1.0;
+                remoteAudioRef.current.play().catch(err => console.warn('Audio play failed:', err));
+            }
+            // Also pipe to video element if it's rendered
+            if (remoteVideoRef.current && remoteVideoRef.current.isConnected) {
+                remoteVideoRef.current.srcObject = stream;
+                remoteVideoRef.current.play().catch(() => {});
+            }
         };
         pc.oniceconnectionstatechange = () => {
             if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') setCallStatus('connected');
@@ -236,6 +245,12 @@ function CallManager({ currentUserId, startCallRef }) {
                 for (const c of pendingIce.current) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
                 pendingIce.current = [];
             }
+            // Ensure audio is playing after connection established
+            setTimeout(() => {
+                if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+                    remoteAudioRef.current.play().catch(() => {});
+                }
+            }, 500);
         };
         const onIce = async (candidate) => {
             if (peerConnectionRef.current?.remoteDescription) {
@@ -260,7 +275,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
     return (
         <>
-            <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
+            <audio ref={remoteAudioRef} autoPlay playsInline controls={false} style={{ position:"fixed", width:"1px", height:"1px", opacity:0, pointerEvents:"none", left:"-9999px" }} />
 
             {incomingCall && !activeCall && (
                 <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
