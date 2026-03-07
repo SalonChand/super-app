@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon } from 'lucide-react';
+import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
 
@@ -22,6 +22,7 @@ function formatTimeFriendly(dateString) {
 function Feed({ onlineUsers = new Set() }) {
     const[posts, setPosts] = useState([]);
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
+    const[savedPosts, setSavedPosts] = useState(new Set()); // post ids the user bookmarked
     const[activeCommentPostId, setActiveCommentPostId] = useState(null);
     const[commentsData, setCommentsData] = useState({});
     const[newComment, setNewComment] = useState('');
@@ -89,14 +90,20 @@ function Feed({ onlineUsers = new Set() }) {
 
     const fetchData = async () => {
         setIsRefreshing(true);
-        // Fetch each independently so one failure doesn't block the others
         try {
             const postsRes = await axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}`);
             if (Array.isArray(postsRes.data)) setPosts(postsRes.data);
         } catch (err) { console.error('Posts error:', err); }
         try {
+            if (userId) {
+                const bmRes = await axios.get(`${BACKEND_URL}/api/bookmarks/${userId}`);
+                if (Array.isArray(bmRes.data)) setSavedPosts(new Set(bmRes.data.map(p => p.id)));
+            }
+        } catch (err) {}
+        try {
             const storiesRes = await axios.get(`${BACKEND_URL}/api/stories?userId=${userId || 0}`);
             if (Array.isArray(storiesRes.data)) setStories(storiesRes.data);
+        } catch (err) { console.error('Stories error:', err); }
         } catch (err) { console.error('Stories error:', err); }
         try {
             if (userId) {
@@ -179,6 +186,13 @@ function Feed({ onlineUsers = new Set() }) {
         navigator.clipboard.writeText(`${window.location.origin}/post/${postId}`);
         alert("Link copied to clipboard!");
         setMenuOpenPostId(null);
+    };
+
+    const handleBookmark = async (postId) => {
+        if (!userId) return;
+        const isSaved = savedPosts.has(postId);
+        setSavedPosts(prev => { const n = new Set(prev); isSaved ? n.delete(postId) : n.add(postId); return n; });
+        try { await axios.post(`${BACKEND_URL}/api/bookmarks`, { userId, postId }); } catch(e) {}
     };
 
     const handleLike = async (postId) => {
@@ -579,6 +593,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <div className="flex items-center gap-1 group"><button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 transition ${post.user_liked === 1 ? 'text-pink-600' : 'hover:text-pink-500'}`}><div className="p-2 rounded-full group-hover:bg-pink-500/10"><Heart size={18} className={post.user_liked === 1 ? "fill-pink-600" : ""} /></div></button><span onClick={() => toggleLikes(post.id)} className="text-sm font-medium hover:text-pink-500 hover:underline cursor-pointer">{post.like_count > 0 ? post.like_count : ''}</span></div>
                                 <div className="flex items-center gap-1 group"><button onClick={() => toggleComments(post.id)} className="flex items-center gap-2 hover:text-blue-500 transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><MessageCircle size={18} /></div></button><span onClick={() => toggleComments(post.id)} className="text-sm font-medium hover:text-blue-500 hover:underline cursor-pointer">{post.comment_count > 0 ? post.comment_count : ''}</span></div>
                                 <button className="flex items-center gap-2 hover:text-blue-500 group transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><Share size={18} /></div></button>
+                                <button onClick={() => handleBookmark(post.id)} className={`flex items-center transition group ${savedPosts.has(post.id) ? 'text-yellow-400' : 'hover:text-yellow-400'}`}><div className="p-2 rounded-full group-hover:bg-yellow-400/10"><Bookmark size={18} className={savedPosts.has(post.id) ? 'fill-yellow-400' : ''} /></div></button>
                             </div>
                             
                             {/* Comments and Likes panels remain exactly the same below... */}

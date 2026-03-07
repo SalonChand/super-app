@@ -75,9 +75,18 @@ io.on('connection', (socket) => {
     });
     socket.on('disconnect', () => {
         if (socket._userId) {
+            const lastSeen = new Date();
             onlineUsers.delete(String(socket._userId));
-            io.emit('online_status', { userId: socket._userId, online: false, lastSeen: new Date() });
+            io.emit('online_status', { userId: socket._userId, online: false, lastSeen });
+            // Save last_seen to DB
+            pool.query('UPDATE users SET last_seen = ? WHERE id = ?', [lastSeen, socket._userId]).catch(()=>{});
         }
+    });
+    socket.on('typing_start', ({ senderId, receiverId }) => {
+        io.to(receiverId.toString()).emit('typing_start', { userId: senderId });
+    });
+    socket.on('typing_stop', ({ senderId, receiverId }) => {
+        io.to(receiverId.toString()).emit('typing_stop', { userId: senderId });
     });
     socket.on('send_private_message', async (data) => {
         try {
@@ -165,6 +174,9 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE stories ADD COLUMN song_name VARCHAR(100)");
     await patch("ALTER TABLE stories ADD COLUMN visibility VARCHAR(20) DEFAULT 'public'");
     await patch("ALTER TABLE stories ADD COLUMN visible_to TEXT DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP NULL DEFAULT NULL");
+    await patch("ALTER TABLE messages ADD COLUMN read_at TIMESTAMP NULL DEFAULT NULL");
+    await patch(`CREATE TABLE IF NOT EXISTS saved_posts (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, post_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, post_id), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE)`);
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -200,7 +212,57 @@ app.get('/api/users/:id/settings', async (req, res) => { try { const[users] = aw
 app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/password', async (req, res) => { try { const[users] = await pool.query('SELECT password_hash FROM users WHERE id = ?',[req.params.id]); if (!(await bcrypt.compare(req.body.oldPassword, users[0].password_hash))) return res.status(401).json({ error: "Incorrect password" }); const hash = await bcrypt.hash(req.body.newPassword, 10); await pool.query('UPDATE users SET password_hash = ? WHERE id = ?',[hash, req.params.id]); res.json({ message: "Password updated!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.delete('/api/users/:id', async (req, res) => { try { await pool.query('DELETE FROM users WHERE id = ?',[req.params.id]); res.json({ message: "Deleted." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.get('/api/search', async (req, res) => { try { const { q, userId } = req.query; const [users] = await pool.query("SELECT id, username, profile_pic_url FROM users WHERE username LIKE ? AND id != ? AND username != 'superadmin' LIMIT 20",[`%${q}%`, userId]); res.json(users); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/search', async (req, res) => {
+    try {
+        const { q, userId, filter = 'people' } = req.query;
+        if (filter === 'posts') {
+            const [posts] = await pool.query(`SELECT p.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.content LIKE ? AND p.is_draft = 0 ORDER BY p.created_at DESC LIMIT 30`, [`%${q}%`]);
+            return res.json(posts);
+        }
+        if (filter === 'communities') {
+            const [comms] = await pool.query(`SELECT c.*, u.username as creator_name, (SELECT COUNT(*) FROM community_members WHERE community_id = c.id) AS member_count FROM communities c JOIN users u ON c.creator_id = u.id WHERE c.name LIKE ? LIMIT 20`, [`%${q}%`]);
+            return res.json(comms);
+        }
+        // default: people
+        const [users] = await pool.query("SELECT id, username, profile_pic_url FROM users WHERE username LIKE ? AND id != ? AND username != 'superadmin' LIMIT 20",[`%${q}%`, userId || 0]);
+        res.json(users);
+    } catch (err) { res.status(500).json({ error: "Server error." }); }
+});
+
+// Bookmarks
+app.get('/api/bookmarks/:userId', async (req, res) => { try { const [posts] = await pool.query(`SELECT p.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM saved_posts sp JOIN posts p ON sp.post_id = p.id JOIN users u ON p.user_id = u.id WHERE sp.user_id = ? ORDER BY sp.created_at DESC`, [req.params.userId, req.params.userId]); res.json(posts); } catch(e) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/bookmarks', async (req, res) => { try { const { userId, postId } = req.body; const [ex] = await pool.query('SELECT id FROM saved_posts WHERE user_id = ? AND post_id = ?', [userId, postId]); if (ex.length > 0) { await pool.query('DELETE FROM saved_posts WHERE user_id = ? AND post_id = ?', [userId, postId]); return res.json({ saved: false }); } await pool.query('INSERT INTO saved_posts (user_id, post_id) VALUES (?, ?)', [userId, postId]); res.json({ saved: true }); } catch(e) { res.status(500).json({ error: "Server error." }); } });
+
+// Mutual friends
+app.get('/api/friends/mutual/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const [mutual] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url FROM users u WHERE u.id IN (SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted') AND u.id IN (SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted')`, [user1,user1,user1, user2,user2,user2]); res.json(mutual); } catch(e) { res.status(500).json({ error: "Server error." }); } });
+
+// People you may know (friends of friends)
+app.get('/api/friends/suggestions/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        // Get my friend IDs
+        const [myFriends] = await pool.query(`SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END AS fid FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`, [userId, userId, userId]);
+        const myFriendIds = myFriends.map(r => r.fid);
+        if (myFriendIds.length === 0) return res.json([]);
+        // Get friends-of-friends excluding self and existing friends
+        const placeholders = myFriendIds.map(() => '?').join(',');
+        const [suggestions] = await pool.query(
+            `SELECT u.id, u.username, u.profile_pic_url, COUNT(*) as mutual_count
+             FROM users u
+             JOIN connections c ON (c.requester_id = u.id OR c.receiver_id = u.id) AND c.status = 'accepted'
+             WHERE (CASE WHEN c.requester_id = u.id THEN c.receiver_id ELSE c.requester_id END) IN (${placeholders})
+             AND u.id != ?
+             AND u.id NOT IN (${placeholders})
+             AND u.username != 'superadmin'
+             GROUP BY u.id ORDER BY mutual_count DESC LIMIT 10`,
+            [...myFriendIds, userId, ...myFriendIds]
+        );
+        res.json(suggestions);
+    } catch(e) { res.status(500).json({ error: "Server error." }); }
+});
+
+// Last seen
+app.get('/api/users/:id/last-seen', async (req, res) => { try { const [r] = await pool.query('SELECT last_seen, show_active_status FROM users WHERE id = ?', [req.params.id]); res.json(r[0] || {}); } catch(e) { res.status(500).json({ error: "Server error." }); } });
 
 app.get('/api/online', (req, res) => {
     const onlineList = Array.from(onlineUsers.keys()).map(id => ({ userId: id, online: true }));
@@ -306,19 +368,19 @@ app.get('/api/posts', async (req, res) => {
         res.json(filtered);
     } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
 });
-app.post('/api/posts/:id/like', async (req, res) => { try { const postId = req.params.id; const { userId } = req.body; const [existing] = await pool.query('SELECT * FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)',[postId, userId]); res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/posts/:id/like', async (req, res) => { try { const postId = req.params.id; const { userId } = req.body; const [existing] = await pool.query('SELECT * FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM likes WHERE post_id = ? AND user_id = ?',[postId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO likes (post_id, user_id) VALUES (?, ?)',[postId, userId]); const [post] = await pool.query('SELECT user_id FROM posts WHERE id = ?', [postId]); if (post[0] && post[0].user_id != userId) { const [liker] = await pool.query('SELECT username FROM users WHERE id = ?', [userId]); await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [post[0].user_id, userId, 'like', `${liker[0]?.username} liked your post`]).catch(()=>{}); io.to(post[0].user_id.toString()).emit('activity_updated'); } res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/posts/:id/likes', async (req, res) => { try { const [likes] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url FROM likes l JOIN users u ON l.user_id = u.id WHERE l.post_id = ? ORDER BY l.id DESC`,[req.params.id]); res.json(likes); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/posts/:id/comments', async (req, res) => { try { const[comments] = await pool.query(`SELECT c.*, u.username, u.profile_pic_url FROM comments c JOIN users u ON c.user_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC`,[req.params.id]); res.json(comments); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/posts/:id/comment', async (req, res) => { try { await pool.query('INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)',[req.params.id, req.body.userId, req.body.content]); res.json({ message: "Comment added!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/posts/:id/comment', async (req, res) => { try { await pool.query('INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)',[req.params.id, req.body.userId, req.body.content]); const [post] = await pool.query('SELECT user_id FROM posts WHERE id = ?', [req.params.id]); if (post[0] && post[0].user_id != req.body.userId) { const [commenter] = await pool.query('SELECT username FROM users WHERE id = ?', [req.body.userId]); await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [post[0].user_id, req.body.userId, 'comment', `${commenter[0]?.username} commented on your post`]).catch(()=>{}); io.to(post[0].user_id.toString()).emit('activity_updated'); } res.json({ message: "Comment added!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 // CHAT MEDIA
 app.post('/api/messages/upload', upload.single('media'), async (req, res) => { try { if (!req.file) return res.status(400).json({ error: "No file provided" }); const media_url = req.file.path; let media_type = 'document'; if (req.file.mimetype.startsWith('image/')) media_type = 'image'; else if (req.file.mimetype.startsWith('video/')) media_type = 'video'; else if (req.file.mimetype.startsWith('audio/')) media_type = 'audio'; res.json({ media_url, media_type }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 app.put('/api/messages/read', async (req, res) => {
     try {
         const { senderId, receiverId } = req.body;
-        await pool.query('UPDATE messages SET is_read = TRUE WHERE sender_id = ? AND receiver_id = ? AND is_read = FALSE', [senderId, receiverId]);
-        // Notify sender that messages were seen
-        io.to(String(senderId)).emit('messages_seen', { by: receiverId, to: senderId });
+        const readAt = new Date();
+        await pool.query('UPDATE messages SET is_read = TRUE, read_at = ? WHERE sender_id = ? AND receiver_id = ? AND is_read = FALSE', [readAt, senderId, receiverId]);
+        io.to(String(senderId)).emit('messages_seen', { by: receiverId, to: senderId, readAt });
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Server error." }); }
 });
@@ -333,13 +395,13 @@ app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, 
 
 app.post('/api/friends/request', async (req, res) => { try { const { requester_id, receiver_id } = req.body; if (requester_id === receiver_id) return res.status(400).json({ error: "Cannot friend yourself." }); await pool.query('INSERT IGNORE INTO connections (requester_id, receiver_id, status) VALUES (?, ?, ?)',[requester_id, receiver_id, 'pending']); io.to(receiver_id.toString()).emit('activity_updated'); res.json({ message: "Request sent!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 app.post('/api/friends/remove', async (req, res) => { try { const { user1, user2 } = req.body; await pool.query(`DELETE FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); io.to(user1.toString()).emit('activity_updated'); io.to(user2.toString()).emit('activity_updated'); res.json({ message: "Unfriended" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.put('/api/friends/accept', async (req, res) => { try { const { requester_id, receiver_id } = req.body; await pool.query('UPDATE connections SET status = ? WHERE requester_id = ? AND receiver_id = ?',['accepted', requester_id, receiver_id]); await pool.query('UPDATE messages SET is_request = false WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',[requester_id, receiver_id, receiver_id, requester_id]); io.to(requester_id.toString()).emit('activity_updated'); res.json({ message: "Request accepted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.put('/api/friends/accept', async (req, res) => { try { const { requester_id, receiver_id } = req.body; await pool.query('UPDATE connections SET status = ? WHERE requester_id = ? AND receiver_id = ?',['accepted', requester_id, receiver_id]); await pool.query('UPDATE messages SET is_request = false WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',[requester_id, receiver_id, receiver_id, requester_id]); const [actor] = await pool.query('SELECT username FROM users WHERE id = ?', [receiver_id]); await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [requester_id, receiver_id, 'friend_accepted', `${actor[0]?.username} accepted your friend request`]); io.to(requester_id.toString()).emit('activity_updated'); res.json({ message: "Request accepted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/status/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const[connections] = await pool.query(`SELECT * FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); if (connections.length === 0) return res.json({ status: 'none' }); const conn = connections[0]; if (conn.status === 'accepted') return res.json({ status: 'friends' }); if (conn.requester_id == user1) return res.json({ status: 'sent_request' }); return res.json({ status: 'received_request', requester_id: conn.requester_id }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/pending/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT users.id, users.username, users.profile_pic_url FROM connections JOIN users ON connections.requester_id = users.id WHERE connections.receiver_id = ? AND connections.status = 'pending'`,[req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/sent/:userId', async (req, res) => { try { const [sent] = await pool.query(`SELECT users.id, users.username, users.profile_pic_url FROM connections JOIN users ON connections.receiver_id = users.id WHERE connections.requester_id = ? AND connections.status = 'pending'`,[req.params.userId]); res.json(sent); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/friends/cancel', async (req, res) => { try { const { requester_id, receiver_id } = req.body; await pool.query('DELETE FROM connections WHERE requester_id = ? AND receiver_id = ? AND status = ?',[requester_id, receiver_id, 'pending']); res.json({ message: "Request cancelled." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/explore/:userId', async (req, res) => { try { const[explore] = await pool.query(`SELECT id, username, profile_pic_url FROM users WHERE id != ? AND username != 'superadmin' AND id NOT IN (SELECT receiver_id FROM connections WHERE requester_id = ?) AND id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ?)`,[req.params.userId, req.params.userId, req.params.userId]); res.json(explore); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.get('/api/friends/list/:userId', async (req, res) => { try { const { userId } = req.params; const [friends] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url, COALESCE(u.show_active_status, 1) as show_active_status, (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND receiver_id = ? AND is_read = FALSE) AS unread_count, (SELECT content FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message, (SELECT sender_id FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_sender, (SELECT created_at FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message_time FROM users u JOIN connections c ON (c.requester_id = u.id AND c.receiver_id = ?) OR (c.receiver_id = u.id AND c.requester_id = ?) WHERE c.status = 'accepted' ORDER BY last_message_time DESC`,[userId, userId, userId, userId, userId, userId, userId, userId, userId]); res.json(friends); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
+app.get('/api/friends/list/:userId', async (req, res) => { try { const { userId } = req.params; const [friends] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url, COALESCE(u.show_active_status, 1) as show_active_status, u.last_seen, (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND receiver_id = ? AND is_read = FALSE) AS unread_count, (SELECT content FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message, (SELECT sender_id FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_sender, (SELECT created_at FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message_time FROM users u JOIN connections c ON (c.requester_id = u.id AND c.receiver_id = ?) OR (c.receiver_id = u.id AND c.requester_id = ?) WHERE c.status = 'accepted' ORDER BY last_message_time DESC`,[userId, userId, userId, userId, userId, userId, userId, userId, userId]); res.json(friends); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 
 // STORIES & REELS
 app.post('/api/stories', upload.single('media'), async (req, res) => {

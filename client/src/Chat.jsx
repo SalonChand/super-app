@@ -57,6 +57,23 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [typingUsers, setTypingUsers] = useState(new Set()); // userIds currently typing
+    const typingTimeoutRef = useRef(null);
+    const isTypingRef = useRef(false);
+
+    const formatLastSeen = (friend) => {
+        if (!friend) return '';
+        if (onlineUsers.has(String(friend.id)) && friend.show_active_status) return '● Online';
+        if (!friend.show_active_status) return '';
+        if (!friend.last_seen) return '● Offline';
+        const d = new Date(friend.last_seen);
+        const now = new Date();
+        const diff = Math.floor((now - d) / 1000);
+        if (diff < 60) return 'Last seen just now';
+        if (diff < 3600) return `Last seen ${Math.floor(diff/60)}m ago`;
+        if (diff < 86400) return `Last seen ${Math.floor(diff/3600)}h ago`;
+        return `Last seen ${d.toLocaleDateString([], {month:'short',day:'numeric'})}`;
+    };
     const loadInbox = async () => {
         setIsRefreshing(true);
         try {
@@ -135,18 +152,27 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             });
         };
         const handleMessagesSeen = ({ by, to }) => {
-            // Refresh messages to show seen ticks
             if (selectedUser && (String(by) === String(selectedUser.id) || String(to) === String(selectedUser.id))) {
                 loadMessages();
             }
         };
+        const handleTypingStart = ({ userId: uid }) => {
+            setTypingUsers(prev => new Set([...prev, String(uid)]));
+        };
+        const handleTypingStop = ({ userId: uid }) => {
+            setTypingUsers(prev => { const n = new Set(prev); n.delete(String(uid)); return n; });
+        };
         socket.on('message_updated', handleMessageUpdate);
         socket.on('online_status', handleOnlineStatus);
         socket.on('messages_seen', handleMessagesSeen);
+        socket.on('typing_start', handleTypingStart);
+        socket.on('typing_stop', handleTypingStop);
         return () => {
             socket.off('message_updated', handleMessageUpdate);
             socket.off('online_status', handleOnlineStatus);
             socket.off('messages_seen', handleMessagesSeen);
+            socket.off('typing_start', handleTypingStart);
+            socket.off('typing_stop', handleTypingStop);
         };
     }, [selectedUser]);
 
@@ -161,9 +187,25 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const sendMessage = async (e) => {
         e.preventDefault();
         if (currentMessage.trim() !== '' && selectedUser) {
+            socket.emit('typing_stop', { senderId: userId, receiverId: selectedUser.id });
+            isTypingRef.current = false;
             socket.emit('send_private_message', { senderId: userId, receiverId: selectedUser.id, content: currentMessage, replyToId: replyingTo ? replyingTo.id : null });
             setCurrentMessage(''); setReplyingTo(null); setShowGameMenu(false);
         }
+    };
+
+    const handleInputChange = (e) => {
+        setCurrentMessage(e.target.value);
+        if (!selectedUser) return;
+        if (!isTypingRef.current) {
+            isTypingRef.current = true;
+            socket.emit('typing_start', { senderId: userId, receiverId: selectedUser.id });
+        }
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+            isTypingRef.current = false;
+            socket.emit('typing_stop', { senderId: userId, receiverId: selectedUser.id });
+        }, 2000);
     };
 
     const handleMediaUpload = async (e) => {
@@ -302,7 +344,10 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                             <div>
                                 <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
                                 <p className={"text-xs font-medium " + (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status ? "text-green-400" : "text-zinc-500")}>
-                                    {onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status ? "● Online" : "● Offline"}
+                                    {typingUsers.has(String(selectedUser.id))
+                                        ? <span className="text-green-400 animate-pulse">typing...</span>
+                                        : formatLastSeen(selectedUser)
+                                    }
                                 </p>
                             </div>
                         </Link>
@@ -404,9 +449,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     )}
                                     {msg.reaction ? <div className={`absolute -bottom-3 ${isMyMessage ? '-left-2' : '-right-2'} bg-zinc-800 border border-zinc-700 rounded-full px-1.5 py-0.5 text-sm shadow-md z-10`}>{msg.reaction}</div> : null}
                                     {isMyMessage && !isCallLog && (
-                                        <div className="flex justify-end mt-0.5 pr-1">
+                                        <div className="flex justify-end mt-0.5 pr-1 items-center gap-1">
                                             {msg.is_read ? (
-                                                <span className="text-[10px] text-blue-400 font-bold">✓✓</span>
+                                                <span className="text-[10px] text-blue-400 font-bold" title={msg.read_at ? `Seen at ${new Date(msg.read_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}` : 'Seen'}>✓✓ {msg.read_at && <span className="text-zinc-500 font-normal">{new Date(msg.read_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>}</span>
                                             ) : (
                                                 <span className="text-[10px] text-zinc-500">✓</span>
                                             )}
@@ -463,7 +508,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                 </div>
                                 <input type="text" value={currentMessage} onChange={(e) => {
                                         const val = e.target.value;
-                                        setCurrentMessage(val);
+                                        handleInputChange(e);
                                         const match = val.match(/@(\w*)$/);
                                         if (match) {
                                             const q = match[1];
