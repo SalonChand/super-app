@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -21,6 +21,8 @@ function Profile({ onlineUsers = new Set() }) {
 
     const[profileData, setProfileData] = useState(null);
     const[userPosts, setUserPosts] = useState([]);
+    const[userReels, setUserReels] = useState([]);
+    const[activeTab, setActiveTab] = useState('posts');
     const[friendStatus, setFriendStatus] = useState('none'); 
     const[errorMessage, setErrorMessage] = useState(''); 
     const[viewingImage, setViewingImage] = useState(null);
@@ -72,6 +74,10 @@ function Profile({ onlineUsers = new Set() }) {
                     .then(r => { if (Array.isArray(r.data)) setMutualFriends(r.data); })
                     .catch(() => {});
             }
+            // Load reels for this profile
+            axios.get(`${BACKEND_URL}/api/reels/user/${id}?currentUserId=${currentUserId || 0}`)
+                .then(r => { if (Array.isArray(r.data)) setUserReels(r.data); })
+                .catch(() => {});
         } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
         finally { setIsRefreshing(false); }
     };
@@ -340,16 +346,34 @@ function Profile({ onlineUsers = new Set() }) {
             )}
 
             <div className="w-full">
-                <h3 className="p-4 font-bold text-lg border-b border-zinc-800">Posts</h3>
-                {displayedPosts.length === 0 ? <p className="text-zinc-500 text-center p-8">No posts yet.</p> : (
-                    displayedPosts.map((post) => (
-                        <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 flex gap-4">
-                            <div className="w-12 h-12 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden">{avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}</div>
-                            <div className="w-full">
-                                
-                                {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
-                                <div className="flex items-center justify-between mb-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
+                {/* Tabs */}
+                <div className="flex border-b border-zinc-800 sticky top-0 bg-black z-10">
+                    <button
+                        onClick={() => setActiveTab('posts')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition border-b-2 ${activeTab === 'posts' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                        <ImageIcon size={15} /> Posts
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('reels')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition border-b-2 ${activeTab === 'reels' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                        <Film size={15} /> Reels {userReels.length > 0 && <span className="text-xs bg-zinc-700 px-1.5 py-0.5 rounded-full">{userReels.length}</span>}
+                    </button>
+                </div>
+
+                {/* Posts tab */}
+                {activeTab === 'posts' && (
+                    <>
+                        {displayedPosts.length === 0 ? <p className="text-zinc-500 text-center p-8">No posts yet.</p> : (
+                            displayedPosts.map((post) => (
+                                <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 flex gap-4">
+                                    <div className="w-12 h-12 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden">{avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}</div>
+                                    <div className="w-full">
+                                        
+                                        {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-bold text-white">{post.username}</span>
                                         <span className="text-zinc-500 text-sm">@{post.username.toLowerCase()}</span>
                                         <span className="text-zinc-600 text-sm hidden sm:inline">·</span>
@@ -392,11 +416,50 @@ function Profile({ onlineUsers = new Set() }) {
                                 )}
 
                                 {post.image_url && <img onClick={() => setViewingImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
-                            </div>
-                        </div>
-                    ))
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                        {!canSeeDetails && <div className="text-center p-10 border border-zinc-800 rounded-2xl m-4 bg-zinc-900/50"><Lock className="mx-auto text-zinc-500 mb-2" size={32} /><h3 className="text-white font-bold">This Account is Private</h3><p className="text-zinc-500 text-sm mt-1">Add them as a friend to see their posts.</p></div>}
+                    </>
                 )}
-                {!canSeeDetails && <div className="text-center p-10 border border-zinc-800 rounded-2xl m-4 bg-zinc-900/50"><Lock className="mx-auto text-zinc-500 mb-2" size={32} /><h3 className="text-white font-bold">This Account is Private</h3><p className="text-zinc-500 text-sm mt-1">Add them as a friend to see their friend count and all other posts.</p></div>}
+
+                {/* Reels tab */}
+                {activeTab === 'reels' && (
+                    <div className="p-4">
+                        {userReels.length === 0 ? (
+                            <div className="text-center p-10 text-zinc-500">
+                                <Film size={40} className="mx-auto mb-3 opacity-30" />
+                                <p>No reels yet.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {userReels.map(reel => (
+                                    <div key={reel.id} className="relative aspect-[9/16] bg-zinc-900 rounded-xl overflow-hidden group cursor-pointer border border-zinc-800">
+                                        <video
+                                            src={reel.video_url}
+                                            className="w-full h-full object-cover"
+                                            muted
+                                            loop
+                                            onMouseEnter={e => e.target.play()}
+                                            onMouseLeave={e => { e.target.pause(); e.target.currentTime = 0; }}
+                                        />
+                                        <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition flex items-center justify-center">
+                                            <Play size={28} className="text-white opacity-80 group-hover:opacity-0 transition" fill="white" />
+                                        </div>
+                                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent">
+                                            <div className="flex items-center gap-1 text-white text-xs">
+                                                <Heart size={12} className={reel.user_liked ? 'fill-pink-500 text-pink-500' : ''} />
+                                                <span>{reel.like_count}</span>
+                                            </div>
+                                            {reel.caption && <p className="text-white text-xs truncate mt-0.5">{reel.caption}</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
