@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon } from 'lucide-react';
@@ -36,6 +36,7 @@ function Profile() {
     const[newPost, setNewPost] = useState('');
     const[scheduledAt, setScheduledAt] = useState('');
     const[saveAsDraft, setSaveAsDraft] = useState(false);
+    const isDraftRef = React.useRef(false);
     const[drafts, setDrafts] = useState([]);
     const[showDrafts, setShowDrafts] = useState(false);
     const[selectedImage, setSelectedImage] = useState(null); 
@@ -111,10 +112,10 @@ function Profile() {
             formData.append('user_id', currentUserId);
             formData.append('content', newPost);
             if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString());
-            if (saveAsDraft) formData.append('is_draft', 'true');
+            if (isDraftRef.current || saveAsDraft) formData.append('is_draft', 'true');
             if (selectedImage) formData.append('image', selectedImage);
             await axios.post(`${BACKEND_URL}/api/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            setScheduledAt(''); setSaveAsDraft(false); loadDrafts();
+            setSaveAsDraft(false); isDraftRef.current = false; setScheduledAt(''); loadDrafts();
             setNewPost(''); removeImage(); loadProfileData(); 
         } catch (error) { console.error(error); }
     };
@@ -220,36 +221,30 @@ function Profile() {
             {isMyProfile && (
                 <div className="p-4 border-b border-zinc-800 bg-zinc-950/30 flex gap-4">
                     <div className="w-12 h-12 rounded-full flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700">{avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{profileData.username.charAt(0).toUpperCase()}</span>}</div>
-                    <form onSubmit={handlePost} className="w-full pt-1">
+                    <form id="profile-post-form" onSubmit={handlePost} className="w-full pt-1">
                         <textarea className="w-full bg-transparent text-xl text-white placeholder-zinc-500 outline-none resize-none overflow-hidden" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="What's on your mind?" rows="2" />
                         {previewUrl && <div className="relative mt-2 mb-2 w-fit"><img src={previewUrl} className="max-h-64 rounded-2xl object-cover border border-zinc-700" /><button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full hover:bg-black transition"><X size={18} className="text-white" /></button></div>}
-                        {/* Schedule / Draft options */}
-                        <div className="flex flex-wrap gap-2 mt-2 mb-1">
-                            <label className="flex items-center gap-1.5 text-zinc-400 text-xs cursor-pointer">
-                                <input type="checkbox" checked={saveAsDraft} onChange={e => { setSaveAsDraft(e.target.checked); if(e.target.checked) setScheduledAt(''); }}
-                                    className="accent-blue-500" />
-                                Save as Draft
-                            </label>
-                            {!saveAsDraft && (
-                                <label className="flex items-center gap-1.5 text-zinc-400 text-xs">
-                                    <Clock size={12} />
-                                    <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
-                                        className="bg-zinc-800 text-zinc-300 text-xs rounded-lg px-2 py-1 outline-none border border-zinc-700 focus:border-blue-500" />
-                                </label>
-                            )}
-                        </div>
                         <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
                             <div className="flex gap-2 text-blue-500">
                                 <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
                                 <button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition"><ImageIcon size={20} /></button>
-                                <button type="button" onClick={() => { loadDrafts(); setShowDrafts(p => !p); }} className={"hover:bg-zinc-800 p-2 rounded-full transition " + (drafts.length > 0 ? "text-yellow-400" : "text-zinc-500")} title="Drafts & Scheduled">
+                                <button type="button" onClick={() => { loadDrafts(); setShowDrafts(p => !p); }}
+                                    className={"hover:bg-zinc-800 p-2 rounded-full transition relative " + (drafts.length > 0 ? "text-yellow-400" : "text-zinc-500")} title="View Drafts">
                                     <Clock size={20} />
-                                    {drafts.length > 0 && <span className="text-[10px] font-bold ml-0.5">{drafts.length}</span>}
+                                    {drafts.length > 0 && <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{drafts.length}</span>}
                                 </button>
                             </div>
-                            <button type="submit" disabled={!newPost.trim() && !selectedImage} className={"text-white font-bold py-1.5 px-6 rounded-full transition disabled:opacity-50 " + (saveAsDraft ? "bg-zinc-600 hover:bg-zinc-500" : scheduledAt ? "bg-purple-600 hover:bg-purple-500" : "bg-blue-600 hover:bg-blue-500")}>
-                                {saveAsDraft ? "Save Draft" : scheduledAt ? "Schedule" : "Post"}
-                            </button>
+                            <div className="flex gap-2">
+                                <button type="button" disabled={!newPost.trim() && !selectedImage}
+                                    onClick={() => { isDraftRef.current = true; document.getElementById('profile-post-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }}
+                                    className="text-zinc-300 bg-zinc-700 hover:bg-zinc-600 font-bold py-1.5 px-5 rounded-full transition disabled:opacity-50 text-sm">
+                                    Save Draft
+                                </button>
+                                <button type="submit" disabled={!newPost.trim() && !selectedImage}
+                                    className="text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-6 rounded-full transition disabled:opacity-50 text-sm">
+                                    Post
+                                </button>
+                            </div>
                         </div>
                         {/* Drafts panel */}
                         {showDrafts && (
