@@ -131,7 +131,14 @@ function CallManager({ currentUserId, startCallRef }) {
     const pendingIce = React.useRef([]);
     const callTargetRef = React.useRef(null);
     const myStreamRef = React.useRef(null);
-    const remoteStreamRef = React.useRef(null);
+    const remoteStreamRef = React.useRef(new MediaStream());
+
+    const playRemoteAudio = () => {
+        if (!remoteAudioRef.current) return;
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        remoteAudioRef.current.volume = 1.0;
+        remoteAudioRef.current.play().catch(e => console.warn('play blocked:', e));
+    };
 
     const [incomingCall, setIncomingCall] = React.useState(null);
     const [activeCall, setActiveCall] = React.useState(null);
@@ -141,9 +148,9 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const stopAllMedia = () => {
         if (myStreamRef.current) { myStreamRef.current.getTracks().forEach(t => t.stop()); myStreamRef.current = null; }
-        remoteStreamRef.current = null;
-        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; }
         if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
+        remoteStreamRef.current = new MediaStream();
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     };
 
     const createPC = (targetId) => {
@@ -162,28 +169,23 @@ function CallManager({ currentUserId, startCallRef }) {
             if (e.candidate) globalSocket.emit('ice_candidate', { to: callTargetRef.current, candidate: e.candidate });
         };
         pc.ontrack = (e) => {
-            const stream = e.streams[0] || new MediaStream([e.track]);
-            remoteStreamRef.current = stream;
-            // Attach to audio element
-            if (remoteAudioRef.current) {
-                remoteAudioRef.current.srcObject = stream;
-                remoteAudioRef.current.volume = 1.0;
-                const playPromise = remoteAudioRef.current.play();
-                if (playPromise) playPromise.catch(() => {
-                    // Autoplay blocked - will retry on next user interaction
-                    document.addEventListener('click', () => {
-                        if (remoteAudioRef.current) remoteAudioRef.current.play().catch(()=>{});
-                    }, { once: true });
-                });
+            // Add track to our persistent remoteStream
+            if (!remoteStreamRef.current.getTrackById(e.track.id)) {
+                remoteStreamRef.current.addTrack(e.track);
             }
-            // Video element if visible
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = stream;
-                remoteVideoRef.current.play().catch(() => {});
+            playRemoteAudio();
+            if (remoteVideoRef.current && e.track.kind === 'video') {
+                remoteVideoRef.current.srcObject = remoteStreamRef.current;
+                remoteVideoRef.current.play().catch(()=>{});
             }
+            // Also retry when track becomes active
+            e.track.onunmute = () => { playRemoteAudio(); };
         };
         pc.oniceconnectionstatechange = () => {
-            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') setCallStatus('connected');
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                setCallStatus('connected');
+                setTimeout(playRemoteAudio, 300); // retry play after connection
+            }
         };
         return pc;
     };
@@ -239,13 +241,8 @@ function CallManager({ currentUserId, startCallRef }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             globalSocket.emit('answer_call', { signal: answer, to: caller.from });
-            // Play remote audio immediately - we're inside a user gesture (button click)
-            setTimeout(() => {
-                if (remoteAudioRef.current && remoteStreamRef.current) {
-                    remoteAudioRef.current.srcObject = remoteStreamRef.current;
-                    remoteAudioRef.current.play().catch(()=>{});
-                }
-            }, 300);
+            // Play audio - we're inside a user gesture (button tap) so autoplay is allowed
+            setTimeout(playRemoteAudio, 300);
         } catch (err) {
             hangUp(true);
             alert('Could not answer call: ' + err.message);
@@ -262,13 +259,7 @@ function CallManager({ currentUserId, startCallRef }) {
                 for (const c of pendingIce.current) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
                 pendingIce.current = [];
             }
-            // Ensure audio is playing after connection established
-            setTimeout(() => {
-                if (remoteAudioRef.current) {
-                    if (remoteStreamRef.current) remoteAudioRef.current.srcObject = remoteStreamRef.current;
-                    remoteAudioRef.current.play().catch(() => {});
-                }
-            }, 500);
+            setTimeout(playRemoteAudio, 500);
         };
         const onIce = async (candidate) => {
             if (peerConnectionRef.current?.remoteDescription) {
@@ -293,7 +284,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
     return (
         <>
-            <audio ref={remoteAudioRef} autoPlay playsInline style={{ position:"absolute", width:0, height:0, overflow:"hidden" }} />
+            <audio ref={remoteAudioRef} autoPlay playsInline style={{ position:'absolute', width:0, height:0, opacity:0 }} />
 
             {incomingCall && !activeCall && (
                 <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
