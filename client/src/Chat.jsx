@@ -22,12 +22,14 @@ if (!window._superAppSocket) {
 const socket = window._superAppSocket;
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
-function Chat({ themeColor, onStartCall }) {
+function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const userId = parseInt(localStorage.getItem('userId'));
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const [friends, setFriends] = useState([]);
     const[requests, setRequests] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [onlineUsersLocal, setOnlineUsersLocal] = useState(new Set());
+    const onlineUsers = onlineUsersProp || onlineUsersLocal;
     const [friendStories, setFriendStories] = useState({}); // { userId: { hasStory, viewed } }
     const [viewingStory, setViewingStory] = useState(null);
     const[messages, setMessages] = useState([]);
@@ -76,6 +78,10 @@ function Chat({ themeColor, onStartCall }) {
         socket.emit('join_private_room', userId);
         axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => setCurrentUserInfo(res.data)).catch(err => console.error(err));
         loadInbox();
+        // Fetch initial online users
+        axios.get(`${BACKEND_URL}/api/online`).then(res => {
+            setOnlineUsersLocal(new Set(res.data.map(u => String(u.userId))));
+        }).catch(() => {});
         // Load stories for friends
         axios.get(`${BACKEND_URL}/api/stories?userId=${userId}`).then(res => {
             const map = {};
@@ -116,10 +122,29 @@ function Chat({ themeColor, onStartCall }) {
     useEffect(() => {
         const handleMessageUpdate = (data) => {
             loadMessages();
-            loadInbox(); // re-fetches and re-sorts friends list
+            loadInbox();
+        };
+        const handleOnlineStatus = ({ userId: uid, online }) => {
+            setOnlineUsersLocal(prev => {
+                const next = new Set(prev);
+                online ? next.add(String(uid)) : next.delete(String(uid));
+                return next;
+            });
+        };
+        const handleMessagesSeen = ({ by, to }) => {
+            // Refresh messages to show seen ticks
+            if (selectedUser && (String(by) === String(selectedUser.id) || String(to) === String(selectedUser.id))) {
+                loadMessages();
+            }
         };
         socket.on('message_updated', handleMessageUpdate);
-        return () => { socket.off('message_updated', handleMessageUpdate); };
+        socket.on('online_status', handleOnlineStatus);
+        socket.on('messages_seen', handleMessagesSeen);
+        return () => {
+            socket.off('message_updated', handleMessageUpdate);
+            socket.off('online_status', handleOnlineStatus);
+            socket.off('messages_seen', handleMessagesSeen);
+        };
     }, [selectedUser]);
 
     const handleSelectUser = async (friend) => {
@@ -236,7 +261,12 @@ function Chat({ themeColor, onStartCall }) {
         </div>
     </div>
 ); })()}
-                            <div><h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2><p className="text-xs text-zinc-500">Private Chat</p></div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
+                                <p className={"text-xs font-medium " + (onlineUsers.has(String(selectedUser.id)) ? "text-green-400" : "text-zinc-500")}>
+                                    {onlineUsers.has(String(selectedUser.id)) ? "● Online" : "● Offline"}
+                                </p>
+                            </div>
                         </Link>
                     </div>
                     {isCurrentlyFriend && onStartCall && (<div className="flex items-center gap-4 mr-2" style={{ color: themeColor }}><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, false)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Phone size={22} /></button><button onClick={() => onStartCall({ id: selectedUser.id, username: selectedUser.username }, true)} className="hover:bg-zinc-800 p-2 rounded-full transition"><Video size={24} /></button></div>)}
@@ -312,6 +342,15 @@ function Chat({ themeColor, onStartCall }) {
                                         </div>
                                     )}
                                     {msg.reaction ? <div className={`absolute -bottom-3 ${isMyMessage ? '-left-2' : '-right-2'} bg-zinc-800 border border-zinc-700 rounded-full px-1.5 py-0.5 text-sm shadow-md z-10`}>{msg.reaction}</div> : null}
+                                    {isMyMessage && !isCallLog && (
+                                        <div className="flex justify-end mt-0.5 pr-1">
+                                            {msg.is_read ? (
+                                                <span className="text-[10px] text-blue-400 font-bold">✓✓</span>
+                                            ) : (
+                                                <span className="text-[10px] text-zinc-500">✓</span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 {!isCallLog && <span className={`text-[10px] text-zinc-600 mt-1 px-1 ${msg.reaction ? 'mt-3' : ''}`}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                             </div>
@@ -373,7 +412,8 @@ function Chat({ themeColor, onStartCall }) {
                                         {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{friend.username.charAt(0).toUpperCase()}</span>}
                                     </div>
                                 </div>
-                            ); })()}<div className="flex-1 min-w-0"><h4 className="font-bold text-white">{friend.username}</h4><p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-bold' : 'text-zinc-500'}`}>{friend.last_sender === userId ? 'You: ' : ''}{friend.last_message || 'Sent an attachment'}</p></div>{friend.unread_count > 0 && (<div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">{friend.unread_count}</div>)}</div>))}</div>
+                            ); })()}<div className="flex-1 min-w-0"><h4 className="font-bold text-white">{friend.username}</h4><p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-bold' : 'text-zinc-500'}`}>{friend.last_sender === userId ? 'You: ' : ''}{friend.last_message || 'Sent an attachment'}</p></div>{friend.unread_count > 0 && (<div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">{friend.unread_count}</div>)}
+                                    {onlineUsers.has(String(friend.id)) && friend.unread_count === 0 && (<div className="w-2.5 h-2.5 rounded-full bg-green-400 ml-auto shadow-[0_0_6px_rgba(74,222,128,0.6)]"></div>)}</div>))}</div>
                     )}
                 </div>
             </div>
