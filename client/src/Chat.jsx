@@ -370,6 +370,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const executeForward = (targetFriendId) => { socket.emit('send_private_message', { senderId: userId, receiverId: targetFriendId, content: forwardingMessage.content, media_url: forwardingMessage.media_url, media_type: forwardingMessage.media_type, isForwarded: true }); setForwardingMessage(null); alert("Message forwarded!"); };
     const deleteMessage = (msgId) => { if(window.confirm("Delete this message for everyone?")) { socket.emit('delete_message', { messageId: msgId, senderId: userId, receiverId: selectedUser.id }); setHoveredMessageId(null); } };
 
+    // Use per-conversation theme color if set
+    const activeColor = (selectedUser && convThemes[selectedUser.id]) ? convThemes[selectedUser.id] : themeColor;
+
     // Story viewer modal
     if (viewingStory) {
         return (
@@ -729,9 +732,6 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             </div>
         );
     }
-
-    // Use per-conversation theme color if set
-    const activeColor = (selectedUser && convThemes[selectedUser.id]) ? convThemes[selectedUser.id] : themeColor;
 
     return (
         <div className="flex flex-col h-[calc(100vh-140px)] sm:h-screen w-full bg-black">
