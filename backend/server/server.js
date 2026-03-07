@@ -147,6 +147,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN anthem_url VARCHAR(255)");
     await patch("ALTER TABLE users ADD COLUMN is_private BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE users ADD COLUMN notifications BOOLEAN DEFAULT TRUE");
+    await patch(`CREATE TABLE IF NOT EXISTS notifications_history (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, actor_id INT NOT NULL, type VARCHAR(30) NOT NULL, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE)`);
     await patch("ALTER TABLE users ADD COLUMN profile_links JSON DEFAULT NULL");
     await patch("ALTER TABLE posts ADD COLUMN hashtags JSON DEFAULT NULL");
     await patch("ALTER TABLE messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE");
@@ -215,6 +216,21 @@ app.get('/api/hashtags/:tag', async (req, res) => {
              ORDER BY p.created_at DESC LIMIT 50`,
             [currentUserId, `%#${tag}%`]);
         res.json(posts);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.get('/api/notifications/:userId', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT n.*, u.username, u.profile_pic_url
+             FROM notifications_history n
+             JOIN users u ON n.actor_id = u.id
+             WHERE n.user_id = ?
+             ORDER BY n.created_at DESC
+             LIMIT 100`,
+            [req.params.userId]
+        );
+        res.json(rows);
     } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 

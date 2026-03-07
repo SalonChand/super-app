@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Bell, MessageCircle, UserPlus, Check } from 'lucide-react';
+import { Bell, MessageCircle, UserPlus, Check, AtSign, Hash } from 'lucide-react';
 
 import { BACKEND_URL } from './config';
 function formatTimeFriendly(dateString) {
@@ -44,7 +44,7 @@ function Notifications() {
                 ) : (
                     activity.map((item, i) => {
                         // Determine where clicking this notification takes you
-                        const linkTarget = item.type === 'message' ? '/chat' : '/friends';
+                        const linkTarget = item.type === 'message' ? '/chat' : item.type === 'mention' ? '/' : '/friends';
                         
                         return (
                             <Link 
@@ -62,15 +62,15 @@ function Notifications() {
                                             </div>
                                         )}
                                     </div>
-                                    <div className={`absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-zinc-900 ${item.type === 'message' ? 'bg-blue-500' : 'bg-pink-500'}`}>
-                                        {item.type === 'message' ? <MessageCircle size={10} className="text-white" /> : <UserPlus size={10} className="text-white" />}
+                                    <div className={`absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-zinc-900 ${item.type === 'message' ? 'bg-blue-500' : item.type === 'mention' ? 'bg-purple-500' : 'bg-pink-500'}`}>
+                                        {item.type === 'message' ? <MessageCircle size={10} className="text-white" /> : item.type === 'mention' ? <AtSign size={10} className="text-white" /> : <UserPlus size={10} className="text-white" />}
                                     </div>
                                 </div>
 
                                 <div className="flex-1 min-w-0">
                                     <p className="text-white text-sm">
-                                        <span className="font-bold">{item.username}</span> 
-                                        {item.type === 'message' ? ' sent you a message.' : ' sent a friend request.'}
+                                        <span className="font-bold">{item.username}</span>
+                                        {item.type === 'message' ? ' sent you a message.' : item.type === 'mention' ? ' mentioned you in a post.' : ' sent a friend request.'}
                                     </p>
                                     {item.type === 'message' && (
                                         <p className="text-zinc-400 text-xs truncate mt-0.5 font-medium">
