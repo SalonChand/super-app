@@ -199,26 +199,52 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
             audioChunksRef.current =[];
-            mediaRecorderRef.current.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+            audioChunksRef.current = [];
+            mediaRecorderRef.current.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data); };
             mediaRecorderRef.current.onstop = async () => {
-                if (!shouldSendRef.current) return; // cancelled
+                if (!shouldSendRef.current) { audioChunksRef.current = []; return; } // cancelled
                 shouldSendRef.current = false;
-                if (audioChunksRef.current.length === 0) return;
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const formData = new FormData(); formData.append('media', audioBlob, `voicenote-${Date.now()}.webm`);
+                const chunks = [...audioChunksRef.current];
+                audioChunksRef.current = [];
+                if (chunks.length === 0) { alert("No audio recorded"); return; }
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                const audioBlob = new Blob(chunks, { type: mimeType });
+                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                const formData = new FormData();
+                formData.append('media', audioBlob, `voicenote-${Date.now()}.${ext}`);
                 try {
                     setUploadingMedia(true);
                     const res = await axios.post(`${BACKEND_URL}/api/messages/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    if (!res.data.media_url) throw new Error("No media_url returned");
                     socket.emit('send_private_message', { senderId: userId, receiverId: selectedUser.id, content: '', media_url: res.data.media_url, media_type: 'audio', replyToId: replyingTo ? replyingTo.id : null });
                     setUploadingMedia(false); setReplyingTo(null);
-                } catch(err) { console.error(err); setUploadingMedia(false); alert("Voice note upload failed"); }
+                } catch(err) { console.error("Voice upload error:", err); setUploadingMedia(false); alert("Voice note failed: " + err.message); }
             };
-            mediaRecorderRef.current.start(); setIsRecording(true); setRecordingDuration(0);
+            mediaRecorderRef.current.start(100); // collect data every 100ms
+            setIsRecording(true); setRecordingDuration(0);
             timerRef.current = setInterval(() => { setRecordingDuration((prev) => prev + 1); }, 1000);
         } catch (err) { console.error(err); alert(`Microphone Error: ${err.name}\n${err.message}`); }
     };
-    const stopAndSendRecording = () => { if (mediaRecorderRef.current && isRecording) { shouldSendRef.current = true; setIsRecording(false); clearInterval(timerRef.current); mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); } };
-    const cancelRecording = () => { if (mediaRecorderRef.current && isRecording) { shouldSendRef.current = false; setIsRecording(false); clearInterval(timerRef.current); mediaRecorderRef.current.stop(); mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop()); } };
+    const stopAndSendRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            shouldSendRef.current = true;
+            setIsRecording(false);
+            clearInterval(timerRef.current);
+            const tracks = mediaRecorderRef.current.stream ? mediaRecorderRef.current.stream.getTracks() : [];
+            mediaRecorderRef.current.stop();
+            tracks.forEach(t => t.stop());
+        }
+    };
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            shouldSendRef.current = false;
+            setIsRecording(false);
+            clearInterval(timerRef.current);
+            const tracks = mediaRecorderRef.current.stream ? mediaRecorderRef.current.stream.getTracks() : [];
+            mediaRecorderRef.current.stop();
+            tracks.forEach(t => t.stop());
+        }
+    };
     const formatDuration = (seconds) => { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m}:${s < 10 ? '0' : ''}${s}`; };
 
     const reactToMessage = (msgId, reaction) => { socket.emit('react_message', { messageId: msgId, reaction: reaction, senderId: userId, receiverId: selectedUser.id }); setHoveredMessageId(null); };

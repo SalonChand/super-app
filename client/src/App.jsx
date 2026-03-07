@@ -131,6 +131,7 @@ function CallManager({ currentUserId, startCallRef }) {
     const pendingIce = React.useRef([]);
     const callTargetRef = React.useRef(null);
     const myStreamRef = React.useRef(null);
+    const remoteStreamRef = React.useRef(null);
 
     const [incomingCall, setIncomingCall] = React.useState(null);
     const [activeCall, setActiveCall] = React.useState(null);
@@ -140,6 +141,8 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const stopAllMedia = () => {
         if (myStreamRef.current) { myStreamRef.current.getTracks().forEach(t => t.stop()); myStreamRef.current = null; }
+        remoteStreamRef.current = null;
+        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; }
         if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
     };
 
@@ -160,14 +163,21 @@ function CallManager({ currentUserId, startCallRef }) {
         };
         pc.ontrack = (e) => {
             const stream = e.streams[0] || new MediaStream([e.track]);
-            // Always pipe to audio element (works for both voice and video calls)
+            remoteStreamRef.current = stream;
+            // Attach to audio element
             if (remoteAudioRef.current) {
                 remoteAudioRef.current.srcObject = stream;
                 remoteAudioRef.current.volume = 1.0;
-                remoteAudioRef.current.play().catch(err => console.warn('Audio play failed:', err));
+                const playPromise = remoteAudioRef.current.play();
+                if (playPromise) playPromise.catch(() => {
+                    // Autoplay blocked - will retry on next user interaction
+                    document.addEventListener('click', () => {
+                        if (remoteAudioRef.current) remoteAudioRef.current.play().catch(()=>{});
+                    }, { once: true });
+                });
             }
-            // Also pipe to video element if it's rendered
-            if (remoteVideoRef.current && remoteVideoRef.current.isConnected) {
+            // Video element if visible
+            if (remoteVideoRef.current) {
                 remoteVideoRef.current.srcObject = stream;
                 remoteVideoRef.current.play().catch(() => {});
             }
@@ -229,6 +239,13 @@ function CallManager({ currentUserId, startCallRef }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             globalSocket.emit('answer_call', { signal: answer, to: caller.from });
+            // Play remote audio immediately - we're inside a user gesture (button click)
+            setTimeout(() => {
+                if (remoteAudioRef.current && remoteStreamRef.current) {
+                    remoteAudioRef.current.srcObject = remoteStreamRef.current;
+                    remoteAudioRef.current.play().catch(()=>{});
+                }
+            }, 300);
         } catch (err) {
             hangUp(true);
             alert('Could not answer call: ' + err.message);
@@ -247,7 +264,8 @@ function CallManager({ currentUserId, startCallRef }) {
             }
             // Ensure audio is playing after connection established
             setTimeout(() => {
-                if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+                if (remoteAudioRef.current) {
+                    if (remoteStreamRef.current) remoteAudioRef.current.srcObject = remoteStreamRef.current;
                     remoteAudioRef.current.play().catch(() => {});
                 }
             }, 500);
@@ -275,7 +293,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
     return (
         <>
-            <audio ref={remoteAudioRef} autoPlay playsInline controls={false} style={{ position:"fixed", width:"1px", height:"1px", opacity:0, pointerEvents:"none", left:"-9999px" }} />
+            <audio ref={remoteAudioRef} autoPlay playsInline style={{ position:"absolute", width:0, height:0, overflow:"hidden" }} />
 
             {incomingCall && !activeCall && (
                 <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
