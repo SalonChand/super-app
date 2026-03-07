@@ -21,6 +21,12 @@ function Communities({ themeColor }) {
     const [posts, setPosts] = useState([]);
     const [friends, setFriends] = useState([]);
     
+    // Channel states
+    const [channels, setChannels] = useState([]);
+    const [activeChannelId, setActiveChannelId] = useState(null); // null = all channels
+    const [showChannelManager, setShowChannelManager] = useState(false);
+    const [newChannelName, setNewChannelName] = useState('');
+    
     // Create Community States
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newCommName, setNewCommName] = useState('');
@@ -55,13 +61,33 @@ function Communities({ themeColor }) {
         loadFriends();
     }, []);
 
-    const loadCommunityPosts = (commId) => {
-        axios.get(`${BACKEND_URL}/api/communities/${commId}/posts?userId=${userId}`).then(res => setPosts(res.data)).catch(err => console.error(err));
+    const loadCommunityPosts = (commId, channelId = null) => {
+        const url = channelId 
+            ? `${BACKEND_URL}/api/communities/${commId}/posts?userId=${userId}&channel_id=${channelId}`
+            : `${BACKEND_URL}/api/communities/${commId}/posts?userId=${userId}`;
+        axios.get(url).then(res => setPosts(res.data)).catch(err => console.error(err));
+    };
+
+    const loadChannels = (commId) => {
+        axios.get(`${BACKEND_URL}/api/communities/${commId}/channels`)
+            .then(res => setChannels(res.data))
+            .catch(() => setChannels([]));
     };
 
     const handleOpenCommunity = (comm) => {
         setActiveCommunity(comm);
+        setActiveChannelId(null);
         loadCommunityPosts(comm.id);
+        loadChannels(comm.id);
+    };
+
+    const addChannel = async () => {
+        if (!newChannelName.trim() || !activeCommunity) return;
+        try {
+            const r = await axios.post(`${BACKEND_URL}/api/communities/${activeCommunity.id}/channels`, { name: newChannelName.trim() });
+            setChannels(prev => [...prev, r.data]);
+            setNewChannelName('');
+        } catch(e) {}
     };
 
     const handleCreateCommunity = async (e) => {
@@ -105,9 +131,10 @@ function Communities({ themeColor }) {
         const formData = new FormData();
         formData.append('user_id', userId); formData.append('content', newPostContent);
         if (selectedImage) formData.append('image', selectedImage);
+        if (activeChannelId) formData.append('channel_id', activeChannelId);
         try {
             await axios.post(`${BACKEND_URL}/api/communities/${activeCommunity.id}/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            setNewPostContent(''); removeImage(); loadCommunityPosts(activeCommunity.id);
+            setNewPostContent(''); removeImage(); loadCommunityPosts(activeCommunity.id, activeChannelId);
         } catch (err) { console.error(err); }
     };
 
@@ -192,10 +219,45 @@ function Communities({ themeColor }) {
                         <p className="text-xs text-zinc-500 flex items-center gap-1"><Users size={12}/> {activeCommunity.member_count} Members</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        <button onClick={() => setShowChannelManager(!showChannelManager)} className="text-zinc-300 hover:text-white p-2 rounded-full bg-zinc-800 hover:bg-zinc-700 transition" title="Channels"># </button>
                         <button onClick={() => setShowInviteModal(true)} className="text-zinc-300 hover:text-white p-2 rounded-full bg-zinc-800 hover:bg-zinc-700 transition" title="Invite Friends"><UserPlus size={20}/></button>
                         <button onClick={() => {setActiveCommunity(null); loadCommunities();}} className="text-zinc-400 hover:text-white p-2 rounded-full bg-zinc-900 transition"><X size={20}/></button>
                     </div>
                 </div>
+
+                {/* Channel Manager */}
+                {showChannelManager && (
+                    <div className="bg-zinc-950 border-b border-zinc-800 p-4 animate-fade-in">
+                        <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-3">Channels</p>
+                        <div className="flex gap-2 flex-wrap mb-3">
+                            {channels.map(c => (
+                                <button key={c.id} onClick={() => { setActiveChannelId(c.id); loadCommunityPosts(activeCommunity.id, c.id); setShowChannelManager(false); }}
+                                    className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 rounded-full px-3 py-1 text-sm text-white transition">
+                                    # {c.name}
+                                </button>
+                            ))}
+                            {channels.length === 0 && <p className="text-zinc-600 text-sm">No channels yet</p>}
+                        </div>
+                        {activeCommunity.creator_id == userId && (
+                            <div className="flex gap-2">
+                                <input value={newChannelName} onChange={e => setNewChannelName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addChannel()} placeholder="New channel name..." className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none placeholder-zinc-600 focus:border-zinc-500 transition"/>
+                                <button onClick={addChannel} className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition">Add</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Channel tabs */}
+                {channels.length > 0 && (
+                    <div className="flex gap-2 px-4 py-2 overflow-x-auto border-b border-zinc-800" style={{scrollbarWidth:'none'}}>
+                        <button onClick={() => { setActiveChannelId(null); loadCommunityPosts(activeCommunity.id); }} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition ${activeChannelId === null ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`} style={activeChannelId === null ? {backgroundColor: themeColor} : {}}>All</button>
+                        {channels.map(c => (
+                            <button key={c.id} onClick={() => { setActiveChannelId(c.id); loadCommunityPosts(activeCommunity.id, c.id); }} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition ${activeChannelId === c.id ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`} style={activeChannelId === c.id ? {backgroundColor: themeColor} : {}}>
+                                # {c.name}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 <div className="p-4 border-b border-zinc-800 bg-zinc-900/30 flex flex-col gap-4">
                     <p className="text-zinc-300 text-sm leading-relaxed">{activeCommunity.description}</p>

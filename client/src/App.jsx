@@ -364,6 +364,7 @@ function CallManager({ currentUserId, startCallRef }) {
 function AppContent() {
   const currentUserId = localStorage.getItem('userId');
   const[currentUser, setCurrentUser] = useState(null);
+  const [liveAccentColor, setLiveAccentColor] = useState(null);
   const location = useLocation();
   const[mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [badges, setBadges] = useState({ unread_messages: 0, pending_requests: 0, total_notifications: 0 });
@@ -371,9 +372,16 @@ function AppContent() {
 
   const startCallRef = useRef(null);
   const [toasts, setToasts] = useState([]);
-  const [onlineUsers, setOnlineUsers] = useState(new Set()); // [{ id, senderName, preview, senderId }]
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
 
-  const userThemeColor = currentUser?.theme_color || '#3b82f6';
+  const userThemeColor = liveAccentColor || currentUser?.theme_color || '#3b82f6';
+
+  // Listen for live accent color changes from Settings
+  useEffect(() => {
+      const handler = (e) => setLiveAccentColor(e.detail.color);
+      window.addEventListener('theme_color_changed', handler);
+      return () => window.removeEventListener('theme_color_changed', handler);
+  }, []);
 
   const fetchBadges = () => {
       if (currentUserId) {

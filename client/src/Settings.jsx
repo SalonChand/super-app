@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2 } from 'lucide-react';
+import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Helper to convert VAPID keys
@@ -26,12 +26,28 @@ function Settings() {
     const[passwordMsg, setPasswordMsg] = useState('');
     const[birthday, setBirthday] = useState('');
     const[birthdayMsg, setBirthdayMsg] = useState('');
+    // Accent color
+    const[accentColor, setAccentColor] = useState('#3b82f6');
+    const[accentMsg, setAccentMsg] = useState('');
+    // 2FA
+    const[twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+    const[show2FASetup, setShow2FASetup] = useState(false);
+    const[twoFASecret, setTwoFASecret] = useState('');
+    const[twoFAQR, setTwoFAQR] = useState('');
+    const[twoFACode, setTwoFACode] = useState('');
+    const[twoFAMsg, setTwoFAMsg] = useState('');
 
     useEffect(() => {
         if (!currentUserId) return;
         const isDark = localStorage.getItem('darkMode') !== 'false';
         setDarkMode(isDark); if (!isDark) document.body.classList.add('light-theme');
-        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { setPrivateAccount(res.data.is_private); setNotifications(res.data.notifications); if (res.data.birthday) setBirthday(res.data.birthday.slice(0,10)); }).catch(err => console.error(err));
+        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/settings`).then((res) => { 
+            setPrivateAccount(res.data.is_private); 
+            setNotifications(res.data.notifications); 
+            if (res.data.birthday) setBirthday(res.data.birthday.slice(0,10));
+            if (res.data.theme_color) setAccentColor(res.data.theme_color);
+            setTwoFactorEnabled(!!res.data.two_factor_enabled);
+        }).catch(err => console.error(err));
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -92,6 +108,50 @@ function Settings() {
         } catch(e) { setBirthdayMsg('❌ Failed to save'); }
     };
 
+    const saveAccentColor = async (color) => {
+        setAccentColor(color);
+        try {
+            await axios.put(`${BACKEND_URL}/api/users/${currentUserId}/settings`, { 
+                is_private: privateAccount, notifications, theme_color: color
+            });
+            setAccentMsg('✅ Accent color saved!');
+            // Update theme in page immediately
+            window.dispatchEvent(new CustomEvent('theme_color_changed', { detail: { color } }));
+            setTimeout(() => setAccentMsg(''), 2000);
+        } catch(e) { setAccentMsg('❌ Failed'); }
+    };
+
+    const setup2FA = async () => {
+        try {
+            const res = await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/2fa/setup`);
+            setTwoFASecret(res.data.secret);
+            setTwoFAQR(res.data.qrCodeUrl);
+            setShow2FASetup(true);
+            setTwoFAMsg('');
+        } catch(e) { setTwoFAMsg('❌ Setup failed'); }
+    };
+
+    const verify2FA = async () => {
+        try {
+            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/2fa/verify`, { code: twoFACode });
+            setTwoFactorEnabled(true);
+            setShow2FASetup(false);
+            setTwoFACode('');
+            setTwoFAMsg('✅ 2FA enabled!');
+            setTimeout(() => setTwoFAMsg(''), 3000);
+        } catch(e) { setTwoFAMsg('❌ Invalid code. Try again.'); }
+    };
+
+    const disable2FA = async () => {
+        if (!window.confirm('Disable two-factor authentication?')) return;
+        try {
+            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/2fa/disable`);
+            setTwoFactorEnabled(false);
+            setTwoFAMsg('2FA disabled.');
+            setTimeout(() => setTwoFAMsg(''), 2000);
+        } catch(e) { setTwoFAMsg('❌ Failed'); }
+    };
+
     const handleDeleteAccount = async () => {
         if (window.confirm("Are you ABSOLUTELY sure? This will permanently delete your account.")) {
             try { await axios.delete(`${BACKEND_URL}/api/users/${currentUserId}`); handleLogout(); } catch (error) { console.error(error); }
@@ -134,11 +194,65 @@ function Settings() {
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                         <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={handlePrivateToggle}><div className="flex items-center gap-4"><Shield className="text-green-500" size={22} /><div><h3 className="text-white font-medium">Private Account</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${privateAccount ? 'bg-green-500' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${privateAccount ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
                         
+                        {/* Accent Color */}
+                        <div className="p-4 border-b border-zinc-800/50">
+                            <div className="flex items-center gap-4 mb-3">
+                                <Palette className="text-pink-400" size={22} />
+                                <div><h3 className="text-white font-medium">Accent Color</h3><p className="text-zinc-500 text-xs">Applied everywhere across the app</p></div>
+                                <div className="ml-auto w-7 h-7 rounded-full border-2 border-zinc-600" style={{backgroundColor: accentColor}}/>
+                            </div>
+                            <div className="flex flex-wrap gap-2 pl-[38px]">
+                                {['#3b82f6','#8b5cf6','#ec4899','#f97316','#10b981','#ef4444','#eab308','#06b6d4','#f43f5e','#64748b','#84cc16','#a855f7'].map(color => (
+                                    <button key={color} onClick={() => saveAccentColor(color)} className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${accentColor === color ? 'border-white scale-110' : 'border-transparent'}`} style={{backgroundColor: color}} />
+                                ))}
+                            </div>
+                            {accentMsg && <p className="text-sm mt-2 ml-[38px]">{accentMsg}</p>}
+                        </div>
+                        
                         {/* 🔥 EXPLICIT OS NOTIFICATION BUTTON 🔥 */}
                         <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={enableOSNotifications}><div className="flex items-center gap-4"><Bell className="text-pink-500" size={22} /><div><h3 className="text-white font-medium">Enable Desktop Alerts</h3></div></div></div>
                         
                         <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={handleNotifToggle}><div className="flex items-center gap-4"><Bell className="text-zinc-500" size={22} /><div><h3 className="text-white font-medium">In-App Sounds</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${notifications ? 'bg-zinc-300' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-black rounded-full transition-transform ${notifications ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
                         <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition" onClick={toggleDarkMode}><div className="flex items-center gap-4"><Moon className="text-purple-500" size={22} /><div><h3 className="text-white font-medium">Dark Mode</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${darkMode ? 'bg-purple-500' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
+                    </div>
+                </div>
+
+                {/* 2FA Section */}
+                <div>
+                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Security</h3>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                        <div className="p-4 border-b border-zinc-800/50">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-4">
+                                    <ShieldCheck className={twoFactorEnabled ? "text-green-400" : "text-zinc-400"} size={22} />
+                                    <div>
+                                        <h3 className="text-white font-medium">Two-Factor Authentication</h3>
+                                        <p className="text-zinc-500 text-xs">{twoFactorEnabled ? '✅ 2FA is active on this account' : 'Add an extra layer of security'}</p>
+                                    </div>
+                                </div>
+                                {twoFactorEnabled ? (
+                                    <button onClick={disable2FA} className="text-red-400 text-sm font-bold hover:text-red-300 transition px-3 py-1 rounded-full border border-red-500/30 hover:bg-red-500/10">Disable</button>
+                                ) : (
+                                    <button onClick={setup2FA} className="text-green-400 text-sm font-bold hover:text-green-300 transition px-3 py-1 rounded-full border border-green-500/30 hover:bg-green-500/10">Enable</button>
+                                )}
+                            </div>
+                            {twoFAMsg && <p className="text-sm mt-1">{twoFAMsg}</p>}
+                            {show2FASetup && (
+                                <div className="mt-4 bg-zinc-950 rounded-2xl p-4 border border-zinc-800 animate-fade-in">
+                                    <p className="text-white font-bold mb-2">1. Scan this QR code with an authenticator app</p>
+                                    <div className="bg-white p-3 rounded-xl w-fit mb-3">
+                                        <img src={twoFAQR} alt="2FA QR Code" className="w-40 h-40" />
+                                    </div>
+                                    <p className="text-zinc-400 text-xs mb-1">Or enter this secret manually:</p>
+                                    <code className="text-green-400 text-xs bg-zinc-900 px-3 py-1.5 rounded-lg block mb-4 break-all">{twoFASecret}</code>
+                                    <p className="text-white font-bold mb-2">2. Enter the 6-digit code to confirm</p>
+                                    <div className="flex gap-2">
+                                        <input type="text" inputMode="numeric" maxLength={6} value={twoFACode} onChange={e => setTwoFACode(e.target.value.replace(/\D/g,''))} placeholder="000000" className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2 text-white text-center text-xl tracking-widest outline-none focus:border-green-500 transition" />
+                                        <button onClick={verify2FA} disabled={twoFACode.length !== 6} className="bg-green-600 hover:bg-green-500 text-white font-bold px-5 py-2 rounded-xl transition disabled:opacity-50">Verify</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div>

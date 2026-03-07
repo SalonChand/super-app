@@ -1,10 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink } from 'lucide-react';
+import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+
+// Carousel post component
+function CarouselPost({ images, onImageClick }) {
+    const [idx, setIdx] = useState(0);
+    const prev = (e) => { e.stopPropagation(); setIdx(i => Math.max(0, i - 1)); };
+    const next = (e) => { e.stopPropagation(); setIdx(i => Math.min(images.length - 1, i + 1)); };
+    return (
+        <div className="relative mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden select-none">
+            <img src={images[idx]} onClick={() => onImageClick(images[idx])} className="max-h-[500px] w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl" />
+            {idx > 0 && <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full transition backdrop-blur-sm"><ChevronLeft size={18}/></button>}
+            {idx < images.length - 1 && <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full transition backdrop-blur-sm"><ChevronRightIcon size={18}/></button>}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {images.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === idx ? 'bg-white scale-125' : 'bg-white/40'}`}/>)}
+            </div>
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">{idx+1}/{images.length}</div>
+        </div>
+    );
+}
 const STORY_FILTERS =[{ name: 'Normal', value: 'none' }, { name: 'Clarendon', value: 'contrast(1.2) saturate(1.3) sepia(0.2) hue-rotate(-10deg)' }, { name: 'Gingham', value: 'brightness(1.1) contrast(1.1) sepia(0.3) hue-rotate(-20deg)' }, { name: 'Moon', value: 'grayscale(100%) contrast(1.2) brightness(1.1)' }, { name: 'Warm', value: 'sepia(0.5) saturate(1.5) contrast(1.1)' }, { name: 'Neon', value: 'hue-rotate(90deg) saturate(2) contrast(1.2)' }];
 const SONG_LIST =["No Music", "Lo-Fi Beats 🎵", "Trending Hits 🔥", "Chill Vibes 🎧", "Gym Motivation 💪"];
 const DRAW_COLORS =['#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#000000'];
@@ -122,6 +140,16 @@ function Feed({ onlineUsers = new Set() }) {
         setIsRefreshing(false);
     };
     useEffect(() => { fetchData(); }, []);
+
+    // Track post views when feed loads
+    useEffect(() => {
+        if (!userId || !posts.length) return;
+        posts.forEach(post => {
+            if (post.user_id != userId) {
+                axios.post(`${BACKEND_URL}/api/posts/${post.id}/view`, { userId }).catch(() => {});
+            }
+        });
+    }, [posts.length]);
 
         useEffect(() => {
         if (viewingStory && userId) {
@@ -655,7 +683,17 @@ function Feed({ onlineUsers = new Set() }) {
                                 <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{renderPostText(post.content)}</p>
                             )}
 
-                            {post.image_url && <div className="w-full flex justify-center mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden"><img onClick={() => setViewingPostImage(`${post.image_url}`)} src={`${post.image_url}`} className="max-h-[500px] w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl" /></div>}
+                            {/* Carousel or single image */}
+                            {(() => {
+                                const imgs = (() => { try { return post.images ? JSON.parse(post.images) : null; } catch(e) { return null; } })();
+                                const allImgs = imgs && imgs.length > 1 ? imgs : (post.image_url ? [post.image_url] : null);
+                                if (!allImgs) return null;
+                                if (allImgs.length === 1) {
+                                    return <div className="w-full flex justify-center mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden"><img onClick={() => setViewingPostImage(allImgs[0])} src={allImgs[0]} className="max-h-[500px] w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl" /></div>;
+                                }
+                                // Multi-image carousel
+                                return <CarouselPost images={allImgs} onImageClick={setViewingPostImage} />;
+                            })()}
                             
                             <div className="flex justify-between items-center text-zinc-500 mt-2 max-w-sm pr-10">
                                 <div className="flex items-center gap-1 group"><button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 transition ${post.user_liked === 1 ? 'text-pink-600' : 'hover:text-pink-500'}`}><div className="p-2 rounded-full group-hover:bg-pink-500/10"><Heart size={18} className={post.user_liked === 1 ? "fill-pink-600" : ""} /></div></button><span onClick={() => toggleLikes(post.id)} className="text-sm font-medium hover:text-pink-500 hover:underline cursor-pointer">{post.like_count > 0 ? post.like_count : ''}</span></div>

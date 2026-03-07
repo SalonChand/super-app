@@ -44,6 +44,9 @@ function Profile({ onlineUsers = new Set() }) {
     const[showDrafts, setShowDrafts] = useState(false);
     const[selectedImage, setSelectedImage] = useState(null); 
     const[previewUrl, setPreviewUrl] = useState(null);
+    // Carousel: multiple images
+    const[selectedImages, setSelectedImages] = useState([]); // array of File
+    const[previewUrls, setPreviewUrls] = useState([]); // array of blob urls
     const[postVisibility, setPostVisibility] = useState('public');
     const[showVisibilityPicker, setShowVisibilityPicker] = useState(false);
     const[taggedFriends, setTaggedFriends] = useState([]);
@@ -52,6 +55,13 @@ function Profile({ onlineUsers = new Set() }) {
     const[showCollabPicker, setShowCollabPicker] = useState(false);
     const[collabInvites, setCollabInvites] = useState([]);
     const[friendsList, setFriendsList] = useState([]);
+    // QR code modal
+    const[showQR, setShowQR] = useState(false);
+    // Post analytics
+    const[postAnalytics, setPostAnalytics] = useState({});
+    const[showAnalyticsPostId, setShowAnalyticsPostId] = useState(null);
+    // Profile-level analytics (for own profile)
+    const[profileAnalytics, setProfileAnalytics] = useState(null);
 
     // 🔥 POST EDITING STATES 🔥
     const [menuOpenPostId, setMenuOpenPostId] = useState(null);
@@ -94,6 +104,13 @@ function Profile({ onlineUsers = new Set() }) {
                 axios.get(`${BACKEND_URL}/api/posts/collab-invites/${currentUserId}`)
                     .then(r => { if (Array.isArray(r.data)) setCollabInvites(r.data); })
                     .catch(() => {});
+                // Load profile analytics for own profile
+                axios.get(`${BACKEND_URL}/api/users/${id}/profile-analytics`)
+                    .then(r => setProfileAnalytics(r.data))
+                    .catch(() => {});
+            } else if (currentUserId) {
+                // Track profile visit
+                axios.post(`${BACKEND_URL}/api/users/${id}/visit`, { visitorId: currentUserId }).catch(() => {});
             }
         } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
         finally { setIsRefreshing(false); }
@@ -126,8 +143,29 @@ function Profile({ onlineUsers = new Set() }) {
         return <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-pink-500 hover:underline my-2 bg-zinc-900 w-fit p-2 rounded-full px-4"><Music size={16} /> Play Profile Anthem</a>;
     };
 
-    const handleImageSelect = (e) => { const file = e.target.files[0]; if (file) { setSelectedImage(file); setPreviewUrl(URL.createObjectURL(file)); } };
-    const removeImage = () => { setSelectedImage(null); setPreviewUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
+    const handleImageSelect = (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        if (files.length === 1) {
+            setSelectedImage(files[0]);
+            setPreviewUrl(URL.createObjectURL(files[0]));
+            setSelectedImages([]);
+            setPreviewUrls([]);
+        } else {
+            setSelectedImages(files);
+            setPreviewUrls(files.map(f => URL.createObjectURL(f)));
+            setSelectedImage(null);
+            setPreviewUrl(null);
+        }
+    };
+    const removeImage = () => { setSelectedImage(null); setPreviewUrl(null); setSelectedImages([]); setPreviewUrls([]); if (fileInputRef.current) fileInputRef.current.value = ''; };
+    const removeCarouselImage = (i) => {
+        const newFiles = selectedImages.filter((_, idx) => idx !== i);
+        const newUrls = previewUrls.filter((_, idx) => idx !== i);
+        if (newFiles.length === 0) { removeImage(); return; }
+        if (newFiles.length === 1) { setSelectedImage(newFiles[0]); setPreviewUrl(newUrls[0]); setSelectedImages([]); setPreviewUrls([]); }
+        else { setSelectedImages(newFiles); setPreviewUrls(newUrls); }
+    };
     const loadDrafts = async () => {
         try {
             const res = await axios.get(`${BACKEND_URL}/api/posts/drafts/${currentUserId}`);
@@ -136,7 +174,7 @@ function Profile({ onlineUsers = new Set() }) {
     };
 
     const handlePost = async (e) => {
-        e.preventDefault(); if (!newPost.trim() && !selectedImage) return;
+        e.preventDefault(); if (!newPost.trim() && !selectedImage && selectedImages.length === 0) return;
         try {
             const formData = new FormData();
             formData.append('user_id', currentUserId);
@@ -145,11 +183,16 @@ function Profile({ onlineUsers = new Set() }) {
             if (taggedFriends.length > 0) formData.append('tagged_users', JSON.stringify(taggedFriends.map(f => f.id)));
             if (scheduledAt) formData.append('scheduled_at', new Date(scheduledAt).toISOString());
             if (isDraftRef.current || saveAsDraft) formData.append('is_draft', 'true');
-            if (selectedImage) formData.append('image', selectedImage);
+            // Carousel support
+            if (selectedImages.length > 1) {
+                selectedImages.forEach(img => formData.append('images', img));
+            } else if (selectedImage) {
+                formData.append('images', selectedImage);
+            }
             const res = await axios.post(`${BACKEND_URL}/api/posts`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             // Send collab invite if selected
-            if (collabInviteId && res.data?.id) {
-                await axios.post(`${BACKEND_URL}/api/posts/${res.data.id}/collab-invite`, { coAuthorId: collabInviteId }).catch(()=>{});
+            if (collabInviteId && res.data?.postId) {
+                await axios.post(`${BACKEND_URL}/api/posts/${res.data.postId}/collab-invite`, { coAuthorId: collabInviteId }).catch(()=>{});
             }
             setSaveAsDraft(false); isDraftRef.current = false; setScheduledAt(''); loadDrafts();
             setNewPost(''); removeImage(); setTaggedFriends([]); setCollabInviteId(null); setPostVisibility('public'); loadProfileData(); 
@@ -195,6 +238,20 @@ function Profile({ onlineUsers = new Set() }) {
         <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
             {viewingImage && (
                 <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
+            {/* QR Code Modal */}
+            {showQR && (
+                <div className="fixed inset-0 z-[150] bg-black/90 flex items-center justify-center animate-fade-in" onClick={() => setShowQR(false)}>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-white font-bold text-xl">My Profile QR Code</h3>
+                        <p className="text-zinc-500 text-sm text-center">Scan to visit <span className="text-white font-bold">@{profileData?.username}</span>'s profile</p>
+                        <div className="bg-white p-4 rounded-2xl shadow-lg">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + '/profile/' + id)}`} alt="Profile QR Code" className="w-48 h-48 rounded-xl" />
+                        </div>
+                        <p className="text-zinc-600 text-xs">{window.location.origin}/profile/{id}</p>
+                        <button onClick={() => setShowQR(false)} className="text-zinc-400 hover:text-white transition text-sm">Close</button>
+                    </div>
+                </div>
+            )}
                     <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>
                     <img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} />
                 </div>
@@ -219,10 +276,13 @@ function Profile({ onlineUsers = new Set() }) {
                         )}
                     </div>
 
-                    <div className="mt-3">
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
                         {isMyProfile ? (
                             isEditing ? <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><Check size={18} /> Save</button>
-                            : <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800"><Edit3 size={18} /> Edit Profile</button>
+                            : <>
+                                <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800"><Edit3 size={18} /> Edit Profile</button>
+                                <button onClick={() => setShowQR(true)} title="Show QR Code" className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-3 rounded-full hover:bg-zinc-800">📱 QR</button>
+                              </>
                         ) : (
                             <>
                                 {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>}
@@ -251,6 +311,14 @@ function Profile({ onlineUsers = new Set() }) {
                         </p>
                     )}
                     {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                    {/* Profile analytics for own profile */}
+                    {isMyProfile && profileAnalytics && (
+                        <div className="flex gap-4 mt-2 mb-1">
+                            <div className="text-center"><p className="text-white font-bold text-sm">{profileAnalytics.profile_visits_30d}</p><p className="text-zinc-500 text-[11px]">Profile visits</p><p className="text-zinc-600 text-[10px]">30 days</p></div>
+                            <div className="text-center"><p className="text-white font-bold text-sm">{profileAnalytics.total_post_views}</p><p className="text-zinc-500 text-[11px]">Post views</p></div>
+                            <div className="text-center"><p className="text-white font-bold text-sm">{profileAnalytics.post_count}</p><p className="text-zinc-500 text-[11px]">Posts</p></div>
+                        </div>
+                    )}
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
                     )}
@@ -340,6 +408,18 @@ function Profile({ onlineUsers = new Set() }) {
                         )}
 
                         {previewUrl && <div className="relative mt-2 mb-2 w-fit"><img src={previewUrl} className="max-h-64 rounded-2xl object-cover border border-zinc-700" /><button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full hover:bg-black transition"><X size={18} className="text-white" /></button></div>}
+                        {previewUrls.length > 1 && (
+                            <div className="flex gap-2 mt-2 mb-2 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
+                                {previewUrls.map((url, i) => (
+                                    <div key={i} className="relative flex-shrink-0">
+                                        <img src={url} className="h-24 w-24 rounded-xl object-cover border border-zinc-700" />
+                                        <button type="button" onClick={() => removeCarouselImage(i)} className="absolute top-1 right-1 bg-black/70 p-1 rounded-full hover:bg-black transition"><X size={12} className="text-white" /></button>
+                                        {i === 0 && <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1.5 rounded-full">Cover</span>}
+                                    </div>
+                                ))}
+                                <div className="text-zinc-500 text-xs self-center flex-shrink-0 ml-1">{previewUrls.length} photos</div>
+                            </div>
+                        )}
 
                         {/* Visibility picker dropdown */}
                         {showVisibilityPicker && (
@@ -399,7 +479,7 @@ function Profile({ onlineUsers = new Set() }) {
                         )}
                         <div className="flex justify-between items-center mt-2 border-t border-zinc-800 pt-3">
                             <div className="flex gap-1 text-blue-500 flex-wrap">
-                                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
+                                <input type="file" accept="image/*" multiple ref={fileInputRef} onChange={handleImageSelect} className="hidden" />
                                 <button type="button" onClick={() => fileInputRef.current.click()} className="hover:bg-zinc-800 p-2 rounded-full transition" title="Add image"><ImageIcon size={18} /></button>
                                 <button type="button" onClick={() => { loadDrafts(); setShowDrafts(p => !p); }}
                                     className={"hover:bg-zinc-800 p-2 rounded-full transition relative " + (drafts.length > 0 ? "text-yellow-400" : "text-zinc-500")} title="View Drafts">
@@ -552,7 +632,44 @@ function Profile({ onlineUsers = new Set() }) {
                                     <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{post.content}</p>
                                 )}
 
-                                {post.image_url && <img onClick={() => setViewingImage(`${post.image_url}`)} src={`${post.image_url}`} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>}
+                                {(() => {
+                                    const imgs = (() => { try { return post.images ? JSON.parse(post.images) : null; } catch(e) { return null; } })();
+                                    const allImgs = imgs && imgs.length > 1 ? imgs : (post.image_url ? [post.image_url] : null);
+                                    if (!allImgs) return null;
+                                    if (allImgs.length === 1) return <img onClick={() => setViewingImage(allImgs[0])} src={allImgs[0]} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>;
+                                    return (
+                                        <div className="relative mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden">
+                                            {(() => {
+                                                const [ci, setCi] = useState(0);
+                                                return <>
+                                                    <img src={allImgs[ci]} onClick={() => setViewingImage(allImgs[ci])} className="max-h-96 w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl"/>
+                                                    {ci > 0 && <button onClick={e=>{e.stopPropagation();setCi(i=>i-1)}} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full">‹</button>}
+                                                    {ci < allImgs.length-1 && <button onClick={e=>{e.stopPropagation();setCi(i=>i+1)}} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full">›</button>}
+                                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">{allImgs.map((_,i)=><div key={i} className={`w-1.5 h-1.5 rounded-full ${i===ci?'bg-white':'bg-white/40'}`}/>)}</div>
+                                                    <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">{ci+1}/{allImgs.length}</div>
+                                                </>;
+                                            })()}
+                                        </div>
+                                    );
+                                })()}
+                                {/* Analytics button for own posts */}
+                                {isMyProfile && (
+                                    <button onClick={async () => {
+                                        if (showAnalyticsPostId === post.id) { setShowAnalyticsPostId(null); return; }
+                                        const r = await axios.get(`${BACKEND_URL}/api/posts/${post.id}/analytics`).catch(()=>({data:{}}));
+                                        setPostAnalytics(prev => ({...prev, [post.id]: r.data}));
+                                        setShowAnalyticsPostId(post.id);
+                                    }} className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-xs font-medium transition mb-2">
+                                        📊 Analytics {showAnalyticsPostId === post.id ? '▲' : '▼'}
+                                    </button>
+                                )}
+                                {showAnalyticsPostId === post.id && postAnalytics[post.id] && (
+                                    <div className="flex gap-4 bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-3 text-sm">
+                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].view_count || 0}</p><p className="text-zinc-500 text-xs">Views</p></div>
+                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].like_count || 0}</p><p className="text-zinc-500 text-xs">Likes</p></div>
+                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].comment_count || 0}</p><p className="text-zinc-500 text-xs">Comments</p></div>
+                                    </div>
+                                )}
                                     </div>
                                 </div>
                             ))

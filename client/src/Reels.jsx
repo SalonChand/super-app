@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 let globalMuteState = true; 
 
-const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
+const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const[isMuted, setIsMuted] = useState(globalMuteState); 
@@ -78,6 +78,19 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
         if (navigator.share) {
             navigator.share({ title: 'Check out this Reel!', url: window.location.href }).catch(console.error);
         } else { alert("Link copied!"); }
+    };
+
+    const handleSave = async (e) => {
+        e.stopPropagation();
+        try {
+            const a = document.createElement('a');
+            a.href = streamUrl;
+            a.download = `reel_${reel.id}.mp4`;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch(err) { alert('Could not save video. Try long-pressing the video instead.'); }
     };
 
     const handleOpenComments = async (e) => {
@@ -175,12 +188,20 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike }) => {
                         <span className="text-white text-sm font-semibold drop-shadow-md">Share</span>
                     </div>
 
-                    <div className="flex flex-col items-center gap-1 cursor-pointer group mt-2">
-                        <button className="text-white hover:text-zinc-300 transition drop-shadow-lg">
-                            <MoreHorizontal size={30} />
-                        </button>
+                    {/* Save to device */}
+                    <div className="flex flex-col items-center gap-1 cursor-pointer group" onClick={handleSave}>
+                        <button className="text-white hover:text-zinc-300 transition drop-shadow-lg text-2xl">⬇️</button>
+                        <span className="text-white text-sm font-semibold drop-shadow-md">Save</span>
                     </div>
-                </div>
+
+                    {/* Duet */}
+                    {reel.user_id != userId && (
+                        <div className="flex flex-col items-center gap-1 cursor-pointer group" onClick={(e) => { e.stopPropagation(); onDuet && onDuet(reel); }}>
+                            <button className="text-white hover:text-zinc-300 transition drop-shadow-lg text-2xl">🎭</button>
+                            <span className="text-white text-sm font-semibold drop-shadow-md">Duet</span>
+                        </div>
+                    )}
+                </div>                </div>
             </div>
 
             {/* 🔥 SLIDE-UP COMMENT PANEL 🔥 */}
@@ -230,7 +251,13 @@ function Reels() {
     const [caption, setCaption] = useState('');
     const userId = localStorage.getItem('userId');
     const fileInputRef = useRef(null);
+    const duetFileRef = useRef(null);
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
+    // Duet state
+    const [duetTarget, setDuetTarget] = useState(null); // reel being dueted
+    const [duetFile, setDuetFile] = useState(null);
+    const [duetCaption, setDuetCaption] = useState('');
+    const [showDuetModal, setShowDuetModal] = useState(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const loadReels = async () => {
@@ -274,6 +301,27 @@ function Reels() {
         } catch (error) { console.error(error); setUploading(false); alert("Upload failed."); }
     };
 
+    const handleDuet = (reel) => {
+        if (!userId) return alert("Please log in to create duets!");
+        setDuetTarget(reel);
+        setShowDuetModal(true);
+        setDuetCaption(`Duet with @${reel.username}`);
+    };
+
+    const uploadDuet = async () => {
+        if (!duetFile || !duetTarget) return;
+        const formData = new FormData();
+        formData.append('user_id', userId);
+        formData.append('video', duetFile);
+        formData.append('caption', duetCaption);
+        try {
+            setUploading(true);
+            await axios.post(`${BACKEND_URL}/api/reels/${duetTarget.id}/duet`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setUploading(false); setShowDuetModal(false); setDuetFile(null); setDuetTarget(null); loadReels();
+            alert('🎭 Duet posted!');
+        } catch(e) { console.error(e); setUploading(false); alert("Duet upload failed."); }
+    };
+
     return (
         <div className="w-full relative bg-black h-[calc(100dvh-60px)] sm:h-screen overflow-hidden">
             
@@ -310,10 +358,43 @@ function Reels() {
                     </div>
                 ) : (
                     reels.map(reel => (
-                        <ReelVideo key={reel.id} reel={reel} userId={userId} currentUserInfo={currentUserInfo} onLike={handleLike} />
+                        <ReelVideo key={reel.id} reel={reel} userId={userId} currentUserInfo={currentUserInfo} onLike={handleLike} onDuet={handleDuet} />
                     ))
                 )}
             </div>
+
+            {/* Duet Modal */}
+            {showDuetModal && duetTarget && (
+                <div className="fixed inset-0 z-[120] bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in">
+                    <button onClick={() => { setShowDuetModal(false); setDuetFile(null); setDuetTarget(null); }} className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2"><X size={24}/></button>
+                    <h2 className="text-2xl font-bold text-white mb-2">🎭 Create Duet</h2>
+                    <p className="text-zinc-400 text-sm mb-6">Recording alongside <span className="text-white font-bold">@{duetTarget.username}</span></p>
+                    <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl">
+                        {/* Original video preview */}
+                        <div className="aspect-video bg-black rounded-xl mb-4 overflow-hidden border border-zinc-700">
+                            <video src={`${BACKEND_URL}/api/stream/${duetTarget.video_url.split('/').pop()}`} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                        </div>
+                        <input type="file" ref={duetFileRef} accept="video/*" className="hidden" onChange={e => { if (e.target.files[0]) setDuetFile(e.target.files[0]); }} />
+                        {duetFile ? (
+                            <div className="mb-4">
+                                <div className="aspect-video bg-black rounded-xl overflow-hidden border border-zinc-700 mb-2">
+                                    <video src={URL.createObjectURL(duetFile)} className="w-full h-full object-cover" muted autoPlay loop playsInline />
+                                </div>
+                                <p className="text-zinc-400 text-sm text-center">Your video ✓</p>
+                            </div>
+                        ) : (
+                            <button onClick={() => duetFileRef.current.click()} className="w-full border-2 border-dashed border-zinc-600 rounded-xl p-6 text-zinc-400 hover:border-zinc-400 hover:text-zinc-200 transition mb-4 text-center">
+                                <span className="text-3xl block mb-2">🎬</span>
+                                <span className="text-sm font-medium">Tap to record your side</span>
+                            </button>
+                        )}
+                        <input value={duetCaption} onChange={e => setDuetCaption(e.target.value)} placeholder="Caption..." className="w-full bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-white placeholder-zinc-500 mb-4 outline-none focus:border-blue-500 transition text-sm" />
+                        <button onClick={uploadDuet} disabled={!duetFile || uploading} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 transition disabled:opacity-50">
+                            {uploading ? "Uploading..." : "🎭 Post Duet"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

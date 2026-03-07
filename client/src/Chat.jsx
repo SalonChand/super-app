@@ -76,6 +76,15 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const waveAnimRef = useRef(null);
     const audioContextRef = useRef(null);
     const audioRefs = useRef({}); // stable map: msgId -> audio element
+    // Chat folders
+    const [chatFolders, setChatFolders] = useState([]);
+    const [activeFolder, setActiveFolder] = useState('all'); // 'all' or folder name
+    const [showFolderManager, setShowFolderManager] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [folderAssigning, setFolderAssigning] = useState(null); // userId being assigned
+    // Screen recording detection
+    const [screenRecordAlert, setScreenRecordAlert] = useState(false);
+    const [filterRequests, setFilterRequests] = useState(true);
 
     const formatLastSeen = (friend) => {
         if (!friend) return '';
@@ -113,6 +122,10 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         socket.emit('join_private_room', userId);
         axios.get(`${BACKEND_URL}/api/users/${userId}`).then(res => setCurrentUserInfo(res.data)).catch(err => console.error(err));
         loadInbox();
+        // Load chat folders
+        axios.get(`${BACKEND_URL}/api/users/${userId}/chat-folders`).then(res => { if (Array.isArray(res.data)) setChatFolders(res.data); }).catch(() => {});
+        // Load message filter setting
+        axios.get(`${BACKEND_URL}/api/users/${userId}/settings`).then(res => { if (res.data.filter_message_requests !== undefined) setFilterRequests(!!res.data.filter_message_requests); }).catch(() => {});
         // Fetch initial online users
         axios.get(`${BACKEND_URL}/api/online`).then(res => {
             setOnlineUsersLocal(new Set(res.data.map(u => String(u.userId))));
@@ -177,17 +190,25 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         const handleTypingStop = ({ userId: uid }) => {
             setTypingUsers(prev => { const n = new Set(prev); n.delete(String(uid)); return n; });
         };
+        const handleScreenRecord = ({ by }) => {
+            if (selectedUser && String(by) === String(selectedUser.id)) {
+                setScreenRecordAlert(true);
+                setTimeout(() => setScreenRecordAlert(false), 5000);
+            }
+        };
         socket.on('message_updated', handleMessageUpdate);
         socket.on('online_status', handleOnlineStatus);
         socket.on('messages_seen', handleMessagesSeen);
         socket.on('typing_start', handleTypingStart);
         socket.on('typing_stop', handleTypingStop);
+        socket.on('screen_record_detected', handleScreenRecord);
         return () => {
             socket.off('message_updated', handleMessageUpdate);
             socket.off('online_status', handleOnlineStatus);
             socket.off('messages_seen', handleMessagesSeen);
             socket.off('typing_start', handleTypingStart);
             socket.off('typing_stop', handleTypingStop);
+            socket.off('screen_record_detected', handleScreenRecord);
         };
     }, [selectedUser]);
 
@@ -224,6 +245,51 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const filteredMessages = searchQuery.trim()
         ? messages.filter(m => m.content && m.content.toLowerCase().includes(searchQuery.toLowerCase()))
         : messages;
+
+    // Chat folders helpers
+    const saveFolders = async (newFolders) => {
+        setChatFolders(newFolders);
+        try { await axios.put(`${BACKEND_URL}/api/users/${userId}/chat-folders`, { folders: newFolders }); } catch(e) {}
+    };
+    const addFolder = async () => {
+        if (!newFolderName.trim()) return;
+        const newFolders = [...chatFolders, { name: newFolderName.trim(), userIds: [] }];
+        await saveFolders(newFolders);
+        setNewFolderName('');
+    };
+    const removeFolder = async (name) => {
+        const newFolders = chatFolders.filter(f => f.name !== name);
+        await saveFolders(newFolders);
+        if (activeFolder === name) setActiveFolder('all');
+    };
+    const assignToFolder = async (folderName, targetUserId) => {
+        const newFolders = chatFolders.map(f => {
+            if (f.name === folderName) {
+                const ids = f.userIds.includes(targetUserId) ? f.userIds.filter(id => id !== targetUserId) : [...f.userIds, targetUserId];
+                return { ...f, userIds: ids };
+            }
+            return f;
+        });
+        await saveFolders(newFolders);
+    };
+    const getFolderForUser = (uid) => chatFolders.find(f => f.userIds.includes(uid))?.name || null;
+    const friendsInActiveFolder = activeFolder === 'all' ? friends : friends.filter(f => {
+        const folder = chatFolders.find(fo => fo.name === activeFolder);
+        return folder?.userIds.includes(f.id);
+    });
+
+    // Screen recording detection - report to other user
+    const reportScreenRecording = async () => {
+        if (!selectedUser) return;
+        try { await axios.post(`${BACKEND_URL}/api/chat/screen-record-alert`, { user1: userId, user2: selectedUser.id }); } catch(e) {}
+    };
+
+    // Toggle message request filtering  
+    const toggleFilterRequests = async () => {
+        const newVal = !filterRequests;
+        setFilterRequests(newVal);
+        try { await axios.put(`${BACKEND_URL}/api/users/${userId}/message-filter`, { enabled: newVal }); } catch(e) {}
+    };
 
     const sendMessage = async (e) => {
         e.preventDefault();
@@ -514,6 +580,13 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     <ChevronRight size={18} className="text-zinc-600 ml-auto" />
                                 </button>
 
+                                {/* Screen Recording */}
+                                <button onClick={() => { reportScreenRecording(); setShowChatSettings(false); alert('Screen recording reported. They have been notified.'); }}
+                                    className="w-full flex items-center gap-4 px-6 py-4 hover:bg-zinc-900 transition text-left">
+                                    <div className="w-9 h-9 rounded-full bg-red-500/20 flex items-center justify-center"><Shield size={18} className="text-red-400" /></div>
+                                    <div className="flex-1"><span className="text-white font-medium block">Report Screen Recording</span><span className="text-zinc-500 text-xs">Notify them their recording was detected</span></div>
+                                </button>
+
                                 {/* Chat Theme */}
                                 <div className="px-6 py-4">
                                     <div className="flex items-center gap-4 mb-3">
@@ -549,6 +622,13 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 )}
 
                 {pinnedMessage ? (<div className="bg-zinc-900 border-b border-zinc-800 p-2 px-4 flex items-center gap-3 shadow-md z-10"><Pin size={16} style={{ color: activeColor }} className="flex-shrink-0" /><div className="flex-1 overflow-hidden"><p className="text-xs font-bold" style={{ color: activeColor }}>Pinned Message</p><p className="text-zinc-300 text-sm truncate">{pinnedMessage.content || "Media Attachment"}</p></div></div>) : null}
+                {/* Screen recording alert */}
+                {screenRecordAlert && (
+                    <div className="bg-red-500/10 border-b border-red-500/30 px-4 py-2 flex items-center gap-2 animate-fade-in">
+                        <span className="text-red-400 text-sm font-bold">⚠️ {selectedUser.username} may be recording this screen</span>
+                        <button onClick={() => setScreenRecordAlert(false)} className="ml-auto text-red-400/70 hover:text-red-400"><X size={14}/></button>
+                    </div>
+                )}
                 
                 <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6 pb-4" ref={null}>
                     {!isCurrentlyFriend && (<div className="bg-zinc-900 border border-zinc-700 p-3 rounded-xl text-center mb-4"><p className="text-sm text-zinc-300">You are not friends with this user.</p><p className="text-xs text-zinc-500">Go to the Friends tab to add them to call them.</p></div>)}
@@ -753,23 +833,116 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
 
     return (
         <div className="flex flex-col w-full bg-black" style={{height: 'calc(100dvh - 70px)', minHeight: 0}}>
-            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex-shrink-0"><h2 className="text-2xl font-bold text-white">Messages</h2></div>
+            {/* Header */}
+            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex-shrink-0 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Messages</h2>
+                <button onClick={() => setShowFolderManager(!showFolderManager)} className="p-1.5 px-3 rounded-full hover:bg-zinc-800 transition text-zinc-400 hover:text-white text-xs font-bold border border-zinc-700">📁 Folders</button>
+            </div>
+
+            {/* Folder Manager */}
+            {showFolderManager && (
+                <div className="bg-zinc-950 border-b border-zinc-800 p-4 flex-shrink-0 animate-fade-in">
+                    <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-3">Chat Folders</p>
+                    <div className="flex gap-2 flex-wrap mb-3">
+                        {chatFolders.map(f => (
+                            <div key={f.name} className="flex items-center gap-1 bg-zinc-800 rounded-full px-3 py-1 text-sm text-white">
+                                <span>📁 {f.name}</span>
+                                <span className="text-zinc-500 text-xs ml-1">({f.userIds.length})</span>
+                                <button onClick={() => removeFolder(f.name)} className="text-zinc-500 hover:text-red-400 ml-1 transition"><X size={12}/></button>
+                            </div>
+                        ))}
+                        {chatFolders.length === 0 && <p className="text-zinc-600 text-sm">No folders yet</p>}
+                    </div>
+                    <div className="flex gap-2">
+                        <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addFolder()} placeholder="New folder name..." className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none placeholder-zinc-600 focus:border-zinc-500 transition"/>
+                        <button onClick={addFolder} className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition">Add</button>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
+                        <div>
+                            <p className="text-white text-sm font-medium">Filter message requests</p>
+                            <p className="text-zinc-500 text-xs">Auto-hide requests from strangers</p>
+                        </div>
+                        <button onClick={toggleFilterRequests} className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${filterRequests ? 'bg-blue-600' : 'bg-zinc-700'}`}>
+                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${filterRequests ? 'translate-x-4' : 'translate-x-0'}`}/>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Folder Tabs */}
+            {chatFolders.length > 0 && (
+                <div className="flex gap-2 px-4 py-2 overflow-x-auto flex-shrink-0 border-b border-zinc-800" style={{scrollbarWidth:'none'}}>
+                    <button onClick={() => setActiveFolder('all')} className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition ${activeFolder === 'all' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`} style={activeFolder === 'all' ? {backgroundColor: themeColor} : {}}>All</button>
+                    {chatFolders.map(f => (
+                        <button key={f.name} onClick={() => setActiveFolder(f.name)} className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition ${activeFolder === f.name ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`} style={activeFolder === f.name ? {backgroundColor: themeColor} : {}}>
+                            📁 {f.name}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-4">
-                {requests.length > 0 && (
+                {/* Message requests */}
+                {requests.length > 0 && !filterRequests && (
                     <div><h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2"><BellRing size={16} className="text-pink-500" /> Message Requests ({requests.length})</h3><div className="space-y-2">{requests.map((req, index) => (<div key={index} onClick={() => handleSelectUser({ id: req.sender_id, username: req.username, profile_pic_url: req.profile_pic_url })} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition"><div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">{req.profile_pic_url ? <img src={`${req.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-xl">{req.username.charAt(0).toUpperCase()}</span>}</div><div><h4 className="font-bold text-white">{req.username}</h4><p className="text-sm text-zinc-400 truncate max-w-[200px]">{req.content}</p></div><div className="ml-auto w-3 h-3 bg-blue-500 rounded-full"></div></div>))}</div></div>
                 )}
+                {requests.length > 0 && filterRequests && (
+                    <button onClick={() => { setFilterRequests(false); setShowFolderManager(true); }} className="w-full text-left p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-sm hover:bg-zinc-900 transition">
+                        <span className="text-pink-400 font-bold">🔔 {requests.length} filtered request{requests.length > 1 ? 's' : ''}</span><span className="text-zinc-500"> — open Folders to review</span>
+                    </button>
+                )}
                 <div>
-                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>
-                    {friends.length === 0 ? (<p className="text-zinc-500 p-4 border border-zinc-800 rounded-xl bg-zinc-900/50">You don't have any friends yet! Head over to the <span className="font-bold text-white">Friends tab</span> to connect with people.</p>) : (
-                        <div className="space-y-2">{friends.map((friend) => (<div key={friend.id} onClick={() => handleSelectUser(friend)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-zinc-900 transition cursor-pointer">{(() => { const fs = friendStories[friend.id]; return (
-                                <div onClick={fs?.hasStory ? (e) => { e.stopPropagation(); setViewingStory(fs.story); setFriendStories(prev => ({...prev, [friend.id]: {...prev[friend.id], viewed: true}})); axios.post(`${BACKEND_URL}/api/stories/${fs.story.id}/view`, { userId }).catch(()=>{}); } : undefined}
-                                    className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center " + (fs?.hasStory ? ("p-0.5 cursor-pointer " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
-                                    <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-zinc-800 " + (fs?.hasStory ? "border-2 border-black" : "")}>
-                                        {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{friend.username.charAt(0).toUpperCase()}</span>}
+                    {activeFolder !== 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">📁 {activeFolder}</h3>}
+                    {activeFolder === 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>}
+                    {friendsInActiveFolder.length === 0 ? (
+                        <p className="text-zinc-500 p-4 border border-zinc-800 rounded-xl bg-zinc-900/50">
+                            {activeFolder === 'all' ? <span>No friends yet. Head to the <span className="font-bold text-white">Friends tab</span>.</span> : 'No chats in this folder. Right-click a chat to assign it.'}
+                        </p>
+                    ) : (
+                        <div className="space-y-1">
+                            {friendsInActiveFolder.map((friend) => (
+                                <div key={friend.id} className="relative">
+                                    <div onClick={() => handleSelectUser(friend)} onContextMenu={e => { e.preventDefault(); setFolderAssigning(folderAssigning === friend.id ? null : friend.id); }} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-900 transition cursor-pointer select-none">
+                                        {(() => { const fs = friendStories[friend.id]; return (
+                                            <div onClick={fs?.hasStory ? (e) => { e.stopPropagation(); setViewingStory(fs.story); setFriendStories(prev => ({...prev, [friend.id]: {...prev[friend.id], viewed: true}})); axios.post(`${BACKEND_URL}/api/stories/${fs.story.id}/view`, { userId }).catch(()=>{}); } : undefined}
+                                                className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center " + (fs?.hasStory ? ("p-0.5 cursor-pointer " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+                                                <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-zinc-800 " + (fs?.hasStory ? "border-2 border-black" : "")}>
+                                                    {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{friend.username.charAt(0).toUpperCase()}</span>}
+                                                </div>
+                                            </div>
+                                        ); })()}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <h4 className="font-bold text-white truncate">{friend.username}</h4>
+                                                {getFolderForUser(friend.id) && <span className="text-[10px] text-zinc-600">📁</span>}
+                                            </div>
+                                            <p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-semibold' : 'text-zinc-500'}`}>
+                                                {friend.last_sender === userId ? '✓✓ ' : ''}{friend.last_message || 'Tap to chat'}
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                            {friend.unread_count > 0 ? (
+                                                <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{friend.unread_count}</div>
+                                            ) : onlineUsers.has(String(friend.id)) && friend.show_active_status ? (
+                                                <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]"></div>
+                                            ) : null}
+                                        </div>
                                     </div>
+                                    {/* Folder assignment context menu */}
+                                    {folderAssigning === friend.id && chatFolders.length > 0 && (
+                                        <div className="absolute left-16 top-0 z-50 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl p-3 min-w-[180px] animate-fade-in">
+                                            <p className="text-zinc-400 text-xs font-bold uppercase mb-2">Move to folder</p>
+                                            {chatFolders.map(f => (
+                                                <button key={f.name} onClick={() => { assignToFolder(f.name, friend.id); setFolderAssigning(null); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-zinc-800 transition ${f.userIds.includes(friend.id) ? 'text-blue-400 font-bold' : 'text-white'}`}>
+                                                    {f.userIds.includes(friend.id) ? '✓ ' : ''}📁 {f.name}
+                                                </button>
+                                            ))}
+                                            <button onClick={() => setFolderAssigning(null)} className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-500 hover:bg-zinc-800 transition mt-1">Cancel</button>
+                                        </div>
+                                    )}
                                 </div>
-                            ); })()}<div className="flex-1 min-w-0"><h4 className="font-bold text-white">{friend.username}</h4><p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-bold' : 'text-zinc-500'}`}>{friend.last_sender === userId ? 'You: ' : ''}{friend.last_message || 'Sent an attachment'}</p></div>{friend.unread_count > 0 && (<div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">{friend.unread_count}</div>)}
-                                    {onlineUsers.has(String(friend.id)) && friend.show_active_status && friend.unread_count === 0 && (<div className="w-2.5 h-2.5 rounded-full bg-green-400 ml-auto shadow-[0_0_6px_rgba(74,222,128,0.6)]"></div>)}</div>))}</div>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>
