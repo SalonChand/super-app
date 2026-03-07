@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff, Volume2, VolumeX, SwitchCamera } from 'lucide-react';
+import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import Register from './Register'; 
 import Login from './Login';
@@ -145,8 +145,6 @@ function CallManager({ currentUserId, startCallRef }) {
     const [callStatus, setCallStatus] = React.useState('');
     const [micOn, setMicOn] = React.useState(true);
     const [camOn, setCamOn] = React.useState(true);
-    const [speakerOn, setSpeakerOn] = React.useState(true);
-    const facingModeRef = React.useRef('user'); // 'user' = front, 'environment' = back
 
     const stopAllMedia = () => {
         if (myStreamRef.current) { myStreamRef.current.getTracks().forEach(t => t.stop()); myStreamRef.current = null; }
@@ -171,20 +169,16 @@ function CallManager({ currentUserId, startCallRef }) {
             if (e.candidate) globalSocket.emit('ice_candidate', { to: callTargetRef.current, candidate: e.candidate });
         };
         pc.ontrack = (e) => {
-            // Strategy 1: use e.streams[0] directly (most reliable)
-            if (e.streams && e.streams[0]) {
-                remoteStreamRef.current = e.streams[0];
-            } else {
-                // Strategy 2: manually add track to our stream
-                if (!remoteStreamRef.current.getTrackById(e.track.id)) {
-                    remoteStreamRef.current.addTrack(e.track);
-                }
+            // Add track to our persistent remoteStream
+            if (!remoteStreamRef.current.getTrackById(e.track.id)) {
+                remoteStreamRef.current.addTrack(e.track);
             }
             playRemoteAudio();
             if (remoteVideoRef.current && e.track.kind === 'video') {
                 remoteVideoRef.current.srcObject = remoteStreamRef.current;
                 remoteVideoRef.current.play().catch(()=>{});
             }
+            // Also retry when track becomes active
             e.track.onunmute = () => { playRemoteAudio(); };
         };
         pc.oniceconnectionstatechange = () => {
@@ -201,8 +195,6 @@ function CallManager({ currentUserId, startCallRef }) {
         if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current });
         stopAllMedia();
         setActiveCall(null); setCallStatus(''); setIncomingCall(null);
-        setMicOn(true); setSpeakerOn(true); setCamOn(true);
-        facingModeRef.current = 'user';
         callTargetRef.current = null; pendingIce.current = [];
     }, []);
 
@@ -287,42 +279,8 @@ function CallManager({ currentUserId, startCallRef }) {
         };
     }, [currentUserId]);
 
-    const toggleMic = () => {
-        const t = myStreamRef.current?.getAudioTracks()[0];
-        if (t) { t.enabled = !t.enabled; setMicOn(t.enabled); }
-    };
-    const toggleCam = () => {
-        const t = myStreamRef.current?.getVideoTracks()[0];
-        if (t) { t.enabled = !t.enabled; setCamOn(t.enabled); }
-    };
-    const toggleSpeaker = () => {
-        if (remoteAudioRef.current) {
-            remoteAudioRef.current.muted = speakerOn; // toggle
-            setSpeakerOn(p => !p);
-        }
-    };
-    const flipCamera = async () => {
-        if (!peerConnectionRef.current || !myStreamRef.current) return;
-        const newFacing = facingModeRef.current === 'user' ? 'environment' : 'user';
-        facingModeRef.current = newFacing;
-        try {
-            // Stop old video track
-            myStreamRef.current.getVideoTracks().forEach(t => t.stop());
-            // Get new stream with flipped camera
-            const newStream = await navigator.mediaDevices.getUserMedia({
-                audio: false,
-                video: { facingMode: newFacing }
-            });
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            // Replace track in peer connection
-            const sender = peerConnectionRef.current.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) await sender.replaceTrack(newVideoTrack);
-            // Replace in our local stream + preview
-            myStreamRef.current.getVideoTracks().forEach(t => myStreamRef.current.removeTrack(t));
-            myStreamRef.current.addTrack(newVideoTrack);
-            if (myVideoRef.current) myVideoRef.current.srcObject = myStreamRef.current;
-        } catch(e) { console.warn('Flip camera failed:', e); }
-    };
+    const toggleMic = () => { const t = myStreamRef.current?.getAudioTracks()[0]; if (t) { t.enabled = !t.enabled; setMicOn(t.enabled); } };
+    const toggleCam = () => { const t = myStreamRef.current?.getVideoTracks()[0]; if (t) { t.enabled = !t.enabled; setCamOn(t.enabled); } };
 
     return (
         <>
@@ -356,105 +314,45 @@ function CallManager({ currentUserId, startCallRef }) {
             )}
 
             {activeCall && (
-                <div className="fixed inset-0 z-[300] flex flex-col" style={{background: activeCall.isVideo ? '#000' : 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)'}}>
-
-                    {/* ── VIDEO CALL: full screen remote video ── */}
-                    {activeCall.isVideo && (
-                        <div className="flex-1 relative overflow-hidden">
-                            {/* Remote video - full screen */}
-                            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
-                            {/* Overlay when ringing */}
-                            {callStatus === 'ringing' && (
-                                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10">
-                                    <div className="w-28 h-28 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border-4 border-blue-500 animate-pulse">
-                                        <User size={48} className="text-zinc-300" />
-                                    </div>
-                                    <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
-                                    <p className="text-blue-300 animate-pulse mt-2 text-sm tracking-widest uppercase">Calling...</p>
+                <div className="fixed inset-0 z-[300] bg-zinc-950 flex flex-col">
+                    <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+                        {activeCall.isVideo && <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />}
+                        {callStatus === 'ringing' && (
+                            <div className="flex flex-col items-center z-10">
+                                <div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border-4 border-blue-500 animate-pulse shadow-[0_0_40px_rgba(59,130,246,0.4)]">
+                                    <User size={50} className="text-zinc-300" />
                                 </div>
-                            )}
-                            {/* My camera preview - top right */}
-                            <div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-20">
-                                <video ref={myVideoRef} autoPlay playsInline muted className={"w-full h-full object-cover " + (facingModeRef.current === 'user' ? 'scale-x-[-1]' : '')} />
-                                {!camOn && <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center"><CameraOff size={24} className="text-zinc-500" /></div>}
+                                <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
+                                <p className="text-zinc-400 animate-pulse mt-2">Calling...</p>
                             </div>
-                            {/* Name tag top left */}
-                            <div className="absolute top-6 left-4 z-20">
-                                <p className="text-white font-bold text-lg drop-shadow-lg">{activeCall.targetName}</p>
-                                {callStatus === 'connected' && <p className="text-green-400 text-xs animate-pulse">● Connected</p>}
+                        )}
+                        {callStatus === 'connected' && !activeCall.isVideo && (
+                            <div className="flex flex-col items-center z-10">
+                                <div className="w-32 h-32 bg-zinc-800 rounded-full flex items-center justify-center mb-4 border-2 border-green-500">
+                                    <User size={50} className="text-zinc-300" />
+                                </div>
+                                <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
+                                <p className="text-green-400 animate-pulse mt-2">Connected</p>
                             </div>
-                        </div>
-                    )}
-
-                    {/* ── VOICE CALL: centered avatar UI ── */}
-                    {!activeCall.isVideo && (
-                        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
-                            <div className={"w-32 h-32 rounded-full flex items-center justify-center border-4 shadow-2xl " + (callStatus === 'connected' ? "border-green-500 shadow-green-500/30" : "border-blue-500 shadow-blue-500/30 animate-pulse")}>
-                                <User size={56} className="text-zinc-300" />
+                        )}
+                        {activeCall.isVideo && (
+                            <div className="absolute top-6 right-4 w-28 h-40 bg-zinc-900 rounded-xl overflow-hidden border-2 border-zinc-700 shadow-2xl z-20">
+                                <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                             </div>
-                            <h2 className="text-white text-3xl font-bold mt-2">{activeCall.targetName}</h2>
-                            <p className={"text-sm tracking-widest uppercase font-medium " + (callStatus === 'connected' ? "text-green-400" : "text-blue-300 animate-pulse")}>
-                                {callStatus === 'connected' ? '● Connected' : 'Calling...'}
-                            </p>
-                            {/* Speaker indicator */}
-                            {callStatus === 'connected' && (
-                                <p className="text-zinc-500 text-xs mt-1">{speakerOn ? '🔊 Speaker on' : '🔇 Muted speaker'}</p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ── CONTROLS BAR ── */}
-                    <div className="pb-12 pt-6 px-8 flex items-center justify-center gap-6" style={{background:'rgba(0,0,0,0.5)'}}>
-
-                        {/* VOICE CALL controls: Speaker · Mute · End */}
-                        {!activeCall.isVideo && (<>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <button onClick={toggleSpeaker}
-                                    className={"w-14 h-14 rounded-full flex items-center justify-center transition-all " + (speakerOn ? "bg-zinc-700 text-white" : "bg-white text-black")}>
-                                    {speakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}
-                                </button>
-                                <span className="text-zinc-400 text-xs">{speakerOn ? 'Speaker' : 'Earpiece'}</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <button onClick={() => hangUp(true)}
-                                    className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-xl shadow-red-500/40 hover:scale-105 transition-all">
-                                    <PhoneOff size={26} />
-                                </button>
-                                <span className="text-zinc-400 text-xs">End</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <button onClick={toggleMic}
-                                    className={"w-14 h-14 rounded-full flex items-center justify-center transition-all " + (micOn ? "bg-zinc-700 text-white" : "bg-white text-black")}>
-                                    {micOn ? <Mic size={22} /> : <MicOff size={22} />}
-                                </button>
-                                <span className="text-zinc-400 text-xs">{micOn ? 'Mute' : 'Unmute'}</span>
-                            </div>
-                        </>)}
-
-                        {/* VIDEO CALL controls: Mute · End · Flip */}
-                        {activeCall.isVideo && (<>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <button onClick={toggleMic}
-                                    className={"w-14 h-14 rounded-full flex items-center justify-center transition-all " + (micOn ? "bg-zinc-700/80 text-white" : "bg-white text-black")}>
-                                    {micOn ? <Mic size={22} /> : <MicOff size={22} />}
-                                </button>
-                                <span className="text-zinc-400 text-xs">{micOn ? 'Mute' : 'Unmute'}</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <button onClick={() => hangUp(true)}
-                                    className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-xl shadow-red-500/40 hover:scale-105 transition-all">
-                                    <PhoneOff size={26} />
-                                </button>
-                                <span className="text-zinc-400 text-xs">End</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-1.5">
-                                <button onClick={flipCamera}
-                                    className="w-14 h-14 rounded-full bg-zinc-700/80 text-white flex items-center justify-center transition-all hover:bg-zinc-600">
-                                    <SwitchCamera size={22} />
-                                </button>
-                                <span className="text-zinc-400 text-xs">Flip</span>
-                            </div>
-                        </>)}
+                        )}
+                    </div>
+                    <div className="h-28 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center gap-6">
+                        <button onClick={toggleMic} className={"w-14 h-14 rounded-full flex items-center justify-center transition " + (micOn ? "bg-zinc-800 text-white" : "bg-white text-black")}>
+                            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+                        </button>
+                        <button onClick={() => hangUp(true)} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/30 hover:scale-105 transition">
+                            <PhoneOff size={28} />
+                        </button>
+                        {activeCall.isVideo && (
+                            <button onClick={toggleCam} className={"w-14 h-14 rounded-full flex items-center justify-center transition " + (camOn ? "bg-zinc-800 text-white" : "bg-white text-black")}>
+                                {camOn ? <Camera size={24} /> : <CameraOff size={24} />}
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -626,7 +524,7 @@ function AppContent() {
             <Route path="/chat" element={<ProtectedRoute><Chat themeColor={userThemeColor} onStartCall={(target, isVideo) => startCallRef.current && startCallRef.current(target, isVideo)} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings themeColor={userThemeColor} /></ProtectedRoute>} />
-            <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
           </Routes>
         </main>
 

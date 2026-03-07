@@ -14,7 +14,7 @@ function formatTimeFriendly(dateString) {
     if (isToday) return `Today at ${timeStr}`; if (isYesterday) return `Yesterday at ${timeStr}`; return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
 
-function Profile() {
+function Profile({ onlineUsers = new Set() }) {
     const { id } = useParams(); 
     const currentUserId = localStorage.getItem('userId');
     const isMyProfile = id === currentUserId; 
@@ -173,9 +173,15 @@ function Profile() {
 
             <div className="px-4 relative pb-4 border-b border-zinc-800">
                 <div className="flex justify-between items-start">
-                    <div className="relative -mt-12 sm:-mt-16 w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-black bg-zinc-800 flex items-center justify-center overflow-hidden z-20">
-                        {tempAvatarUrl ? <img src={tempAvatarUrl} className="w-full h-full object-cover" /> : <span className="text-4xl text-zinc-500">{profileData.username.charAt(0).toUpperCase()}</span>}
-                        {isEditing && <div onClick={() => avatarInputRef.current.click()} className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer hover:bg-black/80 transition"><Camera size={28} className="text-white" /><input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => setEditAvatar(e.target.files[0])}/></div>}
+                    <div className="relative -mt-12 sm:-mt-16 z-20 w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0">
+                        <div className="w-full h-full rounded-full border-4 border-black bg-zinc-800 flex items-center justify-center overflow-hidden">
+                            {tempAvatarUrl ? <img src={tempAvatarUrl} className="w-full h-full object-cover" /> : <span className="text-4xl text-zinc-500">{profileData.username.charAt(0).toUpperCase()}</span>}
+                            {isEditing && <div onClick={() => avatarInputRef.current.click()} className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer hover:bg-black/80 transition rounded-full"><Camera size={28} className="text-white" /><input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => setEditAvatar(e.target.files[0])}/></div>}
+                        </div>
+                        {/* Online dot — only show if user has active status ON and is actually online */}
+                        {profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
+                            <span style={{position:'absolute',bottom:'4px',right:'4px',width:'16px',height:'16px',background:'#4ade80',borderRadius:'50%',border:'3px solid #000',boxShadow:'0 0 8px rgba(74,222,128,0.8)',display:'block',zIndex:30}}></span>
+                        )}
                     </div>
 
                     <div className="mt-3">
@@ -203,6 +209,12 @@ function Profile() {
                 <div className="mt-3">
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">{profileData.username} {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}</h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
+                    {/* Active status badge */}
+                    {profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
+                        <p className="text-green-400 text-xs font-medium mt-1 flex items-center gap-1">
+                            <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
+                        </p>
+                    )}
                     {canSeeDetails && <p className="text-white font-bold mt-2 mb-2">{profileData.friend_count || 0} <span className="text-zinc-500 font-normal">Friends</span></p>}
                     
                     {isEditing ? (
