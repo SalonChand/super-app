@@ -182,6 +182,29 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE posts ADD COLUMN co_author_status VARCHAR(20) DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN birthday DATE DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS close_friends (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, friend_id INT NOT NULL, UNIQUE(user_id, friend_id), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE)");
+    // === NEW FEATURES BATCH 3 ===
+    // Carousel posts (multiple images stored as JSON array)
+    await patch("ALTER TABLE posts ADD COLUMN images JSON DEFAULT NULL");
+    // Post analytics: view count, profile_visit source
+    await patch("ALTER TABLE posts ADD COLUMN view_count INT DEFAULT 0");
+    await patch("CREATE TABLE IF NOT EXISTS post_views (id INT AUTO_INCREMENT PRIMARY KEY, post_id INT NOT NULL, user_id INT NOT NULL, viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(post_id, user_id), FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
+    // Profile visits
+    await patch("CREATE TABLE IF NOT EXISTS profile_visits (id INT AUTO_INCREMENT PRIMARY KEY, profile_id INT NOT NULL, visitor_id INT NOT NULL, visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (profile_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (visitor_id) REFERENCES users(id) ON DELETE CASCADE)");
+    // 2FA
+    await patch("ALTER TABLE users ADD COLUMN two_factor_secret VARCHAR(100) DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN two_factor_enabled BOOLEAN DEFAULT FALSE");
+    // Chat folders (stored as JSON in users table)
+    await patch("ALTER TABLE users ADD COLUMN chat_folders JSON DEFAULT NULL");
+    // Community channels
+    await patch("CREATE TABLE IF NOT EXISTS community_channels (id INT AUTO_INCREMENT PRIMARY KEY, community_id INT NOT NULL, name VARCHAR(100) NOT NULL, description VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE)");
+    await patch("ALTER TABLE community_posts ADD COLUMN channel_id INT DEFAULT NULL");
+    // Duet reels
+    await patch("ALTER TABLE reels ADD COLUMN duet_of_id INT DEFAULT NULL");
+    await patch("ALTER TABLE reels ADD COLUMN duet_video_url VARCHAR(255) DEFAULT NULL");
+    // Message request filter setting
+    await patch("ALTER TABLE users ADD COLUMN filter_message_requests BOOLEAN DEFAULT TRUE");
+    // Screen recording detection log (lightweight)
+    await patch("CREATE TABLE IF NOT EXISTS screen_record_alerts (id INT AUTO_INCREMENT PRIMARY KEY, chat_user1 INT NOT NULL, chat_user2 INT NOT NULL, detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -213,7 +236,6 @@ app.get('/api/vapidPublicKey', (req, res) => { res.send(vapidKeys.publicKey); })
 app.post('/api/subscribe', async (req, res) => { try { const { userId, subscription } = req.body; await pool.query('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]); await pool.query('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)',[userId, JSON.stringify(subscription)]); res.status(201).json({}); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" }); const token = jwt.sign({ id: users[0].id }, process.env.JWT_SECRET, { expiresIn: '7d' }); res.json({ message: "Logged in!", token, user: { id: users[0].id, username: users[0].username, email: users[0].email } }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.get('/api/users/:id/settings', async (req, res) => { try { const[users] = await pool.query('SELECT is_private, notifications, theme_color, anthem_url, show_active_status, birthday FROM users WHERE id = ?',[req.params.id]); res.json(users[0] || { is_private: false, notifications: true, theme_color: '#3b82f6', anthem_url: null, show_active_status: true, birthday: null }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/password', async (req, res) => { try { const[users] = await pool.query('SELECT password_hash FROM users WHERE id = ?',[req.params.id]); if (!(await bcrypt.compare(req.body.oldPassword, users[0].password_hash))) return res.status(401).json({ error: "Incorrect password" }); const hash = await bcrypt.hash(req.body.newPassword, 10); await pool.query('UPDATE users SET password_hash = ? WHERE id = ?',[hash, req.params.id]); res.json({ message: "Password updated!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.delete('/api/users/:id', async (req, res) => { try { await pool.query('DELETE FROM users WHERE id = ?',[req.params.id]); res.json({ message: "Deleted." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
@@ -294,16 +316,21 @@ app.get('/api/notifications/:userId', async (req, res) => {
 app.get('/api/activity/:userId', async (req, res) => { try { const uid = req.params.userId; const [msgs] = await pool.query(`SELECT m.id, m.content, u.username, u.profile_pic_url, m.created_at, 'message' as type FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.receiver_id = ? AND m.is_read = FALSE ORDER BY m.created_at DESC`, [uid]); const [reqs] = await pool.query(`SELECT c.id, 'Sent you a friend request' as content, u.username, u.profile_pic_url, c.created_at, 'request' as type FROM connections c JOIN users u ON c.requester_id = u.id WHERE c.receiver_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC`,[uid]); let activity =[...msgs, ...reqs]; activity.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); res.json({ feed: activity, unread_messages: msgs.length, pending_requests: reqs.length, total_notifications: msgs.length + reqs.length }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 
 // POSTS
-app.post('/api/posts', upload.single('image'), async (req, res) => {
+app.post('/api/posts', upload.array('images', 10), async (req, res) => {
     try {
-        const image_url = req.file ? req.file.path : null;
+        // Support both single 'image' (legacy) and multiple 'images' (carousel)
+        let image_url = null;
+        let images_json = null;
+        if (req.files && req.files.length > 0) {
+            const urls = req.files.map(f => f.path);
+            image_url = urls[0];
+            if (urls.length > 1) images_json = JSON.stringify(urls);
+        }
         const { user_id, content, scheduled_at, is_draft, visibility, tagged_users } = req.body;
-        // Extract hashtags and mentions
         const hashtags = (content.match(/#[\w]+/g) || []).map(h => h.toLowerCase());
         const mentions = (content.match(/@([\w]+)/g) || []).map(m => m.slice(1).toLowerCase());
-        const [result] = await pool.query('INSERT INTO posts (user_id, content, image_url, scheduled_at, is_draft, hashtags, visibility, tagged_users) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [user_id, content, image_url, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags), visibility || 'public', tagged_users || null]);
-        // Push notification to mentioned users
+        const [result] = await pool.query('INSERT INTO posts (user_id, content, image_url, images, scheduled_at, is_draft, hashtags, visibility, tagged_users) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [user_id, content, image_url, images_json, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags), visibility || 'public', tagged_users || null]);
         if (mentions.length > 0) {
             try {
                 const [poster] = await pool.query('SELECT username FROM users WHERE id = ?', [user_id]);
@@ -322,7 +349,7 @@ app.post('/api/posts', upload.single('image'), async (req, res) => {
                 }
             } catch(e) {}
         }
-        res.status(201).json({ message: "Post created!" });
+        res.status(201).json({ message: "Post created!", postId: result.insertId });
     } catch (err) { res.status(500).json({ error: "Server error." }); }
 });
 app.get('/api/posts/drafts/:userId', async (req, res) => {
@@ -489,12 +516,46 @@ app.post('/api/communities', async (req, res) => { try { const { name, descripti
 app.get('/api/communities', async (req, res) => { try { const currentUserId = req.query.userId || 0; const[communities] = await pool.query(`SELECT c.*, u.username as creator_name, (SELECT COUNT(*) FROM community_posts WHERE community_id = c.id) AS post_count, (SELECT COUNT(*) FROM community_members WHERE community_id = c.id) AS member_count, (SELECT COUNT(*) FROM community_members WHERE community_id = c.id AND user_id = ?) AS is_member FROM communities c JOIN users u ON c.creator_id = u.id ORDER BY member_count DESC`, [currentUserId]); res.json(communities); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/communities/:id/join', async (req, res) => { try { await pool.query('INSERT IGNORE INTO community_members (community_id, user_id) VALUES (?, ?)',[req.params.id, req.body.userId]); res.json({ message: "Joined!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/communities/:id/leave', async (req, res) => { try { await pool.query('DELETE FROM community_members WHERE community_id = ? AND user_id = ?',[req.params.id, req.body.userId]); res.json({ message: "Left." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.get('/api/communities/:id/posts', async (req, res) => { try { const currentUserId = req.query.userId || 0; const[posts] = await pool.query(`SELECT cp.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id) AS like_count, (SELECT COUNT(*) FROM community_post_comments WHERE post_id = cp.id) AS comment_count, (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id AND user_id = ?) AS user_liked FROM community_posts cp JOIN users u ON cp.user_id = u.id WHERE cp.community_id = ? ORDER BY cp.created_at DESC`, [currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/communities/:id/posts', upload.single('image'), async (req, res) => { try { const image_url = req.file ? req.file.path : null; await pool.query('INSERT INTO community_posts (community_id, user_id, content, image_url) VALUES (?, ?, ?, ?)',[req.params.id, req.body.user_id, req.body.content, image_url]); res.status(201).json({ message: "Posted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/community_posts/:id/like', async (req, res) => { try { const postId = req.params.id; const { userId } = req.body; const[existing] = await pool.query('SELECT * FROM community_post_likes WHERE post_id = ? AND user_id = ?',[postId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM community_post_likes WHERE post_id = ? AND user_id = ?',[postId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO community_post_likes (post_id, user_id) VALUES (?, ?)',[postId, userId]); res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/community_posts/:id/comments', async (req, res) => { try { const[comments] = await pool.query(`SELECT c.*, u.username, u.profile_pic_url FROM community_post_comments c JOIN users u ON c.user_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC`,[req.params.id]); res.json(comments); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/community_posts/:id/comment', async (req, res) => { try { await pool.query('INSERT INTO community_post_comments (post_id, user_id, content) VALUES (?, ?, ?)',[req.params.id, req.body.userId, req.body.content]); res.json({ message: "Comment added!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/communities/:id/invite', async (req, res) => { try { const { senderId, receiverId, commName } = req.body; const content = `👋 I just invited you to join /${commName}!`; await pool.query('INSERT INTO messages (sender_id, receiver_id, content, is_request) VALUES (?, ?, ?, false)', [senderId, receiverId, content]); io.to(receiverId.toString()).emit('activity_updated'); res.json({success: true}); } catch(e) { res.status(500).json({error: "Failed to invite."}) } });
+
+// ===== POST ANALYTICS =====
+app.post('/api/posts/:id/view', async (req, res) => { try { const { userId } = req.body; if (!userId) return res.json({ ok: true }); await pool.query('INSERT IGNORE INTO post_views (post_id, user_id) VALUES (?, ?)', [req.params.id, userId]); await pool.query('UPDATE posts SET view_count = (SELECT COUNT(*) FROM post_views WHERE post_id = ?) WHERE id = ?', [req.params.id, req.params.id]); res.json({ ok: true }); } catch(e) { res.json({ ok: true }); } });
+app.get('/api/posts/:id/analytics', async (req, res) => { try { const [post] = await pool.query('SELECT view_count, (SELECT COUNT(*) FROM likes WHERE post_id = ?) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = ?) AS comment_count FROM posts WHERE id = ?', [req.params.id, req.params.id, req.params.id]); res.json(post[0] || { view_count: 0, like_count: 0, comment_count: 0 }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+
+// ===== PROFILE VISITS =====
+app.post('/api/users/:id/visit', async (req, res) => { try { const { visitorId } = req.body; if (!visitorId || visitorId == req.params.id) return res.json({ ok: true }); await pool.query('INSERT INTO profile_visits (profile_id, visitor_id) VALUES (?, ?)', [req.params.id, visitorId]); res.json({ ok: true }); } catch(e) { res.json({ ok: true }); } });
+app.get('/api/users/:id/profile-analytics', async (req, res) => { try { const [visitCount] = await pool.query('SELECT COUNT(*) as total FROM profile_visits WHERE profile_id = ? AND visited_at > DATE_SUB(NOW(), INTERVAL 30 DAY)', [req.params.id]); const [postStats] = await pool.query('SELECT COALESCE(SUM(view_count),0) as total_views, COUNT(*) as post_count FROM posts WHERE user_id = ?', [req.params.id]); res.json({ profile_visits_30d: visitCount[0].total, total_post_views: postStats[0].total_views, post_count: postStats[0].post_count }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+
+// ===== 2FA =====
+app.post('/api/users/:id/2fa/setup', async (req, res) => { try { const secret = Math.random().toString(36).substring(2, 18).toUpperCase(); await pool.query('UPDATE users SET two_factor_secret = ?, two_factor_enabled = FALSE WHERE id = ?', [secret, req.params.id]); res.json({ secret, qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/SuperApp:${req.params.id}?secret=${secret}%26issuer=SuperApp` }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+app.post('/api/users/:id/2fa/verify', async (req, res) => { try { const { code } = req.body; const [users] = await pool.query('SELECT two_factor_secret FROM users WHERE id = ?', [req.params.id]); if (!users[0]?.two_factor_secret) return res.status(400).json({ error: 'No secret set.' }); const secret = users[0].two_factor_secret; const t = Math.floor(Date.now() / 30000); const validCodes = [t-1, t, t+1].map(ts => (parseInt(secret.charCodeAt(0) * 7 + ts * 31337) % 1000000).toString().padStart(6, '0')); if (validCodes.includes(code.toString())) { await pool.query('UPDATE users SET two_factor_enabled = TRUE WHERE id = ?', [req.params.id]); res.json({ success: true }); } else { res.status(400).json({ error: 'Invalid code.' }); } } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+app.post('/api/users/:id/2fa/disable', async (req, res) => { try { await pool.query('UPDATE users SET two_factor_enabled = FALSE, two_factor_secret = NULL WHERE id = ?', [req.params.id]); res.json({ success: true }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+app.get('/api/users/:id/2fa/status', async (req, res) => { try { const [u] = await pool.query('SELECT two_factor_enabled FROM users WHERE id = ?', [req.params.id]); res.json({ enabled: !!u[0]?.two_factor_enabled }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+
+// ===== COMMUNITY CHANNELS =====
+app.get('/api/communities/:id/channels', async (req, res) => { try { const [channels] = await pool.query('SELECT * FROM community_channels WHERE community_id = ? ORDER BY created_at ASC', [req.params.id]); res.json(channels); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+app.post('/api/communities/:id/channels', async (req, res) => { try { const { name, description } = req.body; const [r] = await pool.query('INSERT INTO community_channels (community_id, name, description) VALUES (?, ?, ?)', [req.params.id, name, description || '']); res.status(201).json({ id: r.insertId, name, description }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+app.get('/api/communities/:id/posts', async (req, res) => { try { const currentUserId = req.query.userId || 0; const channelId = req.query.channel_id || null; let query = `SELECT cp.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id) AS like_count, (SELECT COUNT(*) FROM community_post_comments WHERE post_id = cp.id) AS comment_count, (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id AND user_id = ?) AS user_liked FROM community_posts cp JOIN users u ON cp.user_id = u.id WHERE cp.community_id = ?`; const params = [currentUserId, req.params.id]; if (channelId) { query += ' AND cp.channel_id = ?'; params.push(channelId); } query += ' ORDER BY cp.created_at DESC'; const [posts] = await pool.query(query, params); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/communities/:id/posts', upload.single('image'), async (req, res) => { try { const image_url = req.file ? req.file.path : null; const channel_id = req.body.channel_id || null; await pool.query('INSERT INTO community_posts (community_id, user_id, content, image_url, channel_id) VALUES (?, ?, ?, ?, ?)',[req.params.id, req.body.user_id, req.body.content, image_url, channel_id]); res.status(201).json({ message: "Posted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+
+// ===== DUET REELS =====
+app.post('/api/reels/:id/duet', upload.single('video'), async (req, res) => { try { if (!req.file) return res.status(400).json({ error: 'No video provided' }); const duet_video_url = req.file.path; const [original] = await pool.query('SELECT * FROM reels WHERE id = ?', [req.params.id]); if (!original[0]) return res.status(404).json({ error: 'Original reel not found' }); await pool.query('INSERT INTO reels (user_id, video_url, caption, duet_of_id, duet_video_url) VALUES (?, ?, ?, ?, ?)', [req.body.user_id, original[0].video_url, req.body.caption || `Duet with @${original[0].username || 'someone'}`, req.params.id, duet_video_url]); res.status(201).json({ message: 'Duet posted!' }); } catch(e) { console.error(e); res.status(500).json({ error: 'Server error.' }); } });
+
+// ===== MESSAGE REQUEST FILTER =====
+app.put('/api/users/:id/message-filter', async (req, res) => { try { await pool.query('UPDATE users SET filter_message_requests = ? WHERE id = ?', [req.body.enabled ? 1 : 0, req.params.id]); res.json({ success: true }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+
+// ===== SCREEN RECORDING ALERT =====
+app.post('/api/chat/screen-record-alert', async (req, res) => { try { const { user1, user2 } = req.body; await pool.query('INSERT INTO screen_record_alerts (chat_user1, chat_user2) VALUES (?, ?)', [user1, user2]); io.to(user2.toString()).emit('screen_record_detected', { by: user1 }); res.json({ ok: true }); } catch(e) { res.json({ ok: true }); } });
+
+// ===== CHAT FOLDERS =====
+app.get('/api/users/:id/chat-folders', async (req, res) => { try { const [u] = await pool.query('SELECT chat_folders FROM users WHERE id = ?', [req.params.id]); res.json(u[0]?.chat_folders ? JSON.parse(u[0].chat_folders) : []); } catch(e) { res.json([]); } });
+app.put('/api/users/:id/chat-folders', async (req, res) => { try { await pool.query('UPDATE users SET chat_folders = ? WHERE id = ?', [JSON.stringify(req.body.folders), req.params.id]); res.json({ success: true }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+
+// ===== UPDATE SETTINGS with filter_message_requests & 2FA status =====
+app.get('/api/users/:id/settings', async (req, res) => { try { const[users] = await pool.query('SELECT is_private, notifications, theme_color, anthem_url, show_active_status, birthday, COALESCE(filter_message_requests, 1) as filter_message_requests, COALESCE(two_factor_enabled, 0) as two_factor_enabled FROM users WHERE id = ?',[req.params.id]); res.json(users[0] || { is_private: false, notifications: true, theme_color: '#3b82f6', anthem_url: null, show_active_status: true, birthday: null, filter_message_requests: true, two_factor_enabled: false }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
