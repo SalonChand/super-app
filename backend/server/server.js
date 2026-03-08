@@ -591,8 +591,9 @@ app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = 
 // PROFILE & FRIENDS
 app.get('/api/users/:id', async (req, res) => {
     try {
+        // Base query — always works even if new columns don't exist yet
         const [users] = await pool.query(
-            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, verify_type, COALESCE(role,'user') as role FROM users WHERE id = ?`,
+            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason FROM users WHERE id = ?`,
             [req.params.id]
         );
         if (users.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -600,13 +601,16 @@ app.get('/api/users/:id', async (req, res) => {
             `SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,
             [req.params.id, req.params.id]
         );
-        // Safely get role — column may not exist yet
-        let role = 'user';
+        // Safely fetch columns that may not exist yet
+        let role = 'user'; let verify_type = null;
         try {
-            const [roleRow] = await pool.query('SELECT role FROM users WHERE id = ?', [req.params.id]);
-            role = roleRow[0]?.role || 'user';
-        } catch(e) { /* role column not yet created, default to user */ }
-        res.json({ ...users[0], friend_count: friends[0].count, role });
+            const [extra] = await pool.query('SELECT COALESCE(role,"user") as role, verify_type FROM users WHERE id = ?', [req.params.id]);
+            role = extra[0]?.role || 'user';
+            verify_type = extra[0]?.verify_type || null;
+        } catch(e) { /* columns not created yet */ }
+        const u = users[0];
+        const visibleUsername = u.display_name || u.username;
+        res.json({ ...u, username: visibleUsername, friend_count: friends[0].count, role, verify_type });
     } catch (err) {
         console.error('GET /api/users/:id error:', err.message);
         res.status(500).json({ error: 'Server error: ' + err.message });
