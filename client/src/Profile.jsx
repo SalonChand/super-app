@@ -75,41 +75,54 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [mutualFriends, setMutualFriends] = useState([]);
     const loadProfileData = async () => {
-        if (!id || id === 'undefined') { setErrorMessage("Invalid User ID"); return; }
+        if (!id || id === 'undefined') { setErrorMessage('Invalid User ID'); return; }
         setIsRefreshing(true);
+        setErrorMessage('');
+
+        // ── Core: user profile (must succeed) ──
         try {
-            const requests = [
-                axios.get(`${BACKEND_URL}/api/users/${id}`),
-                axios.get(`${BACKEND_URL}/api/users/${id}/posts`),
-            ];
-            if (!isMyProfile) requests.push(axios.get(`${BACKEND_URL}/api/friends/status/${currentUserId}/${id}`));
-            const [userRes, postsRes, friendRes] = await Promise.all(requests);
-            setProfileData(userRes.data); setEditBio(userRes.data.bio || ''); setEditAnthem(userRes.data.anthem_url || ''); try { setEditLinks(JSON.parse(userRes.data.profile_links || '[]')); } catch(e) { setEditLinks([]); }
-            if (Array.isArray(postsRes.data)) setUserPosts(postsRes.data);
-            if (friendRes) setFriendStatus(friendRes.data.status);
-            if (!isMyProfile && currentUserId) {
-                axios.get(`${BACKEND_URL}/api/friends/mutual/${currentUserId}/${id}`)
-                    .then(r => { if (Array.isArray(r.data)) setMutualFriends(r.data); })
-                    .catch(() => {});
-            }
-            // Load reels for this profile
-            axios.get(`${BACKEND_URL}/api/reels/user/${id}?currentUserId=${currentUserId || 0}`)
-                .then(r => { if (Array.isArray(r.data)) setUserReels(r.data); })
+            const userRes = await axios.get(`${BACKEND_URL}/api/users/${id}`);
+            if (!userRes.data || userRes.data.error) { setErrorMessage('User not found.'); setIsRefreshing(false); return; }
+            setProfileData(userRes.data);
+            setEditBio(userRes.data.bio || '');
+            setEditAnthem(userRes.data.anthem_url || '');
+            try { setEditLinks(JSON.parse(userRes.data.profile_links || '[]')); } catch(e) { setEditLinks([]); }
+        } catch(err) {
+            console.error('User fetch failed:', err);
+            setErrorMessage('Could not load profile. Please try again.');
+            setIsRefreshing(false);
+            return;
+        }
+
+        // ── Secondary: all other data fetched independently ──
+        axios.get(`${BACKEND_URL}/api/users/${id}/posts?currentUserId=${currentUserId || 0}`)
+            .then(r => { if (Array.isArray(r.data)) setUserPosts(r.data); })
+            .catch(() => {});
+
+        if (!isMyProfile && currentUserId) {
+            axios.get(`${BACKEND_URL}/api/friends/status/${currentUserId}/${id}`)
+                .then(r => { if (r.data?.status) setFriendStatus(r.data.status); })
                 .catch(() => {});
-            // Load friends list (for tag picker + collab)
-            if (isMyProfile && currentUserId) {
-                axios.get(`${BACKEND_URL}/api/friends/list/${currentUserId}`)
-                    .then(r => { if (Array.isArray(r.data)) setFriendsList(r.data); })
-                    .catch(() => {});
-                axios.get(`${BACKEND_URL}/api/posts/collab-invites/${currentUserId}`)
-                    .then(r => { if (Array.isArray(r.data)) setCollabInvites(r.data); })
-                    .catch(() => {});
-            } else if (currentUserId) {
-                // Track profile visit
-                axios.post(`${BACKEND_URL}/api/users/${id}/visit`, { visitorId: currentUserId }).catch(() => {});
-            }
-        } catch (err) { console.error(err); setErrorMessage("Backend failed to send user data."); }
-        finally { setIsRefreshing(false); }
+            axios.get(`${BACKEND_URL}/api/friends/mutual/${currentUserId}/${id}`)
+                .then(r => { if (Array.isArray(r.data)) setMutualFriends(r.data); })
+                .catch(() => {});
+            axios.post(`${BACKEND_URL}/api/users/${id}/visit`, { visitorId: currentUserId }).catch(() => {});
+        }
+
+        axios.get(`${BACKEND_URL}/api/reels/user/${id}?currentUserId=${currentUserId || 0}`)
+            .then(r => { if (Array.isArray(r.data)) setUserReels(r.data); })
+            .catch(() => {});
+
+        if (isMyProfile && currentUserId) {
+            axios.get(`${BACKEND_URL}/api/friends/list/${currentUserId}`)
+                .then(r => { if (Array.isArray(r.data)) setFriendsList(r.data); })
+                .catch(() => {});
+            axios.get(`${BACKEND_URL}/api/posts/collab-invites/${currentUserId}`)
+                .then(r => { if (Array.isArray(r.data)) setCollabInvites(r.data); })
+                .catch(() => {});
+        }
+
+        setIsRefreshing(false);
     };
 
     useEffect(() => { loadProfileData(); }, [id]);
