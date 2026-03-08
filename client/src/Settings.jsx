@@ -39,6 +39,9 @@ function Settings() {
     const[verificationStatus, setVerificationStatus] = useState(null); // null | { is_verified, request }
     const[verifyReason, setVerifyReason] = useState('');
     const[verifyMsg, setVerifyMsg] = useState('');
+    const[claimMsg, setClaimMsg] = useState('');
+    const[ownerSecret, setOwnerSecret] = useState('');
+    const[showClaimForm, setShowClaimForm] = useState(false);
     const[showVerifyForm, setShowVerifyForm] = useState(false);
 
     useEffect(() => {
@@ -138,23 +141,34 @@ function Settings() {
         } catch(e) { setTwoFAMsg('❌ Setup failed'); }
     };
 
-    const requestVerification = async () => {
-        if (!verifyReason.trim()) { setVerifyMsg('Please explain why you should be verified.'); return; }
-        setVerifyMsg('Submitting...');
+    const claimSuperadmin = async () => {
+        if (!ownerSecret.trim()) { setClaimMsg('Enter your OWNER_SECRET.'); return; }
+        setClaimMsg('Claiming...');
         try {
-            const res = await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason });
+            const res = await axios.post(`${BACKEND_URL}/api/claim-superadmin`, {
+                userId: currentUserId,
+                ownerSecret,
+            });
             if (res.data?.success) {
-                setVerifyMsg('✅ Request submitted! We will review it shortly.');
-                setVerifyReason('');
-                const statusRes = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
-                setVerificationStatus(statusRes.data);
+                localStorage.setItem('username', 'superadmin');
+                setClaimMsg('✅ You are now superadmin! Refresh the page.');
             } else {
-                setVerifyMsg('❌ Server error: ' + (res.data?.error || 'Unknown error'));
+                setClaimMsg('❌ ' + (res.data?.error || 'Failed'));
             }
         } catch(e) {
-            const msg = e?.response?.data?.error || e?.message || 'Network error';
-            setVerifyMsg('❌ Failed: ' + msg);
+            setClaimMsg('❌ ' + (e?.response?.data?.error || e.message));
         }
+    };
+
+    const requestVerification = async () => {
+        if (!verifyReason.trim()) { setVerifyMsg('Please explain why you should be verified.'); return; }
+        try {
+            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason });
+            setVerifyMsg('✅ Request submitted! We will review it shortly.');
+            setVerifyReason('');
+            const res = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
+            setVerificationStatus(res.data);
+        } catch(e) { setVerifyMsg('Something went wrong. Try again.'); }
     };
 
     const verify2FA = async () => {
@@ -193,6 +207,41 @@ function Settings() {
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Settings</h2></div>
             <div className="p-4 space-y-6">
                 <div>
+                    {localStorage.getItem('username') !== 'superadmin' && (
+                        <div className="mb-6">
+                            <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">🔑 Owner Setup</h3>
+                            <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
+                                <div onClick={() => setShowClaimForm(!showClaimForm)}
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-2xl">👑</span>
+                                        <div>
+                                            <h3 className="text-white font-medium">Claim Owner Account</h3>
+                                            <p className="text-zinc-500 text-xs">Enter your OWNER_SECRET from Render env vars</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className={`text-zinc-600 transition-transform ${showClaimForm ? 'rotate-90' : ''}`} size={20}/>
+                                </div>
+                                {showClaimForm && (
+                                    <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
+                                        <p className="text-zinc-500 text-xs">Go to your <strong className="text-zinc-300">Render dashboard → Environment</strong> and copy the value of <code className="text-yellow-400 bg-zinc-800 px-1 rounded">OWNER_SECRET</code>. If it doesn't exist, add it yourself with any value you choose.</p>
+                                        <input
+                                            type="password"
+                                            value={ownerSecret}
+                                            onChange={e => setOwnerSecret(e.target.value)}
+                                            placeholder="Paste your OWNER_SECRET here"
+                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-yellow-500 transition"
+                                        />
+                                        <button onClick={claimSuperadmin}
+                                            className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-2.5 rounded-xl text-sm transition">
+                                            👑 Claim Superadmin
+                                        </button>
+                                        {claimMsg && <p className={`text-xs font-medium ${claimMsg.startsWith('✅') ? 'text-green-400' : claimMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{claimMsg}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Account</h3>
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                         <div onClick={() => navigate(`/profile/${currentUserId}`)} className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50"><div className="flex items-center gap-4"><User className="text-blue-500" size={22} /><div><h3 className="text-white font-medium">Edit Profile</h3></div></div><ChevronRight className="text-zinc-600" size={20} /></div>
@@ -281,24 +330,6 @@ function Settings() {
                         </div>
                     </div>
                 </div>
-                {localStorage.getItem('username') === 'superadmin' && (
-                    <div className="mb-6">
-                        <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Admin</h3>
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                            <div onClick={() => navigate('/admin/verification')}
-                                className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
-                                <div className="flex items-center gap-4">
-                                    <BadgeCheck className="text-yellow-400" size={22}/>
-                                    <div>
-                                        <h3 className="text-white font-medium">Verification Requests</h3>
-                                        <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
-                                    </div>
-                                </div>
-                                <ChevronRight className="text-zinc-600" size={20}/>
-                            </div>
-                        </div>
-                    </div>
-                )}
                 <div>
                     <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Verification</h3>
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden mb-6">

@@ -243,26 +243,21 @@ app.get('/api/setup-cloud-db', async (req, res) => {
 // PUSH & AUTH
 app.get('/api/vapidPublicKey', (req, res) => { res.send(vapidKeys.publicKey); });
 app.post('/api/subscribe', async (req, res) => { try { const { userId, subscription } = req.body; await pool.query('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]); await pool.query('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)',[userId, JSON.stringify(subscription)]); res.status(201).json({}); } catch (err) { res.status(500).json({ error: "Server error" }); } });
-app.post('/api/register', async (req, res) => {
+// ONE-TIME superadmin claim — only works ONCE, self-destructs after first use
+app.post('/api/claim-superadmin', async (req, res) => {
     try {
-        const { username, email, password } = req.body;
-        if (!username || !email || !password) return res.status(400).json({ error: 'Username, email and password are required.' });
-        if (username.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters.' });
-        // Check duplicates with a clear message
-        const [existing] = await pool.query('SELECT id, username, email FROM users WHERE username = ? OR email = ?', [username, email]);
-        if (existing.length > 0) {
-            if (existing[0].username === username) return res.status(409).json({ error: 'Username already taken.' });
-            return res.status(409).json({ error: 'Email already registered.' });
-        }
-        const hash = await bcrypt.hash(password, 10);
-        await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)', [username, email, hash]);
-        res.status(201).json({ message: 'Registered!' });
-    } catch (err) {
-        console.error('Register error:', err.message);
-        if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Username or email already taken.' });
-        res.status(500).json({ error: 'Server error: ' + err.message });
-    }
+        const { userId, ownerSecret } = req.body;
+        if (ownerSecret !== process.env.OWNER_SECRET) return res.status(403).json({ error: 'Wrong secret.' });
+        // Check nobody is already superadmin
+        const [existing] = await pool.query("SELECT id FROM users WHERE username = 'superadmin'");
+        if (existing.length > 0) return res.status(409).json({ error: 'Superadmin already claimed.' });
+        await pool.query("UPDATE users SET username = 'superadmin' WHERE id = ?", [userId]);
+        const [user] = await pool.query("SELECT id, username, email FROM users WHERE id = ?", [userId]);
+        res.json({ success: true, message: 'You are now superadmin!', username: user[0]?.username });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" }); const token = jwt.sign({ id: users[0].id }, process.env.JWT_SECRET, { expiresIn: '7d' }); res.json({ message: "Logged in!", token, user: { id: users[0].id, username: users[0].username, email: users[0].email } }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/password', async (req, res) => { try { const[users] = await pool.query('SELECT password_hash FROM users WHERE id = ?',[req.params.id]); if (!(await bcrypt.compare(req.body.oldPassword, users[0].password_hash))) return res.status(401).json({ error: "Incorrect password" }); const hash = await bcrypt.hash(req.body.newPassword, 10); await pool.query('UPDATE users SET password_hash = ? WHERE id = ?',[hash, req.params.id]); res.json({ message: "Password updated!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
