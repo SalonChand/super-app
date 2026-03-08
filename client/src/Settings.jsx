@@ -151,7 +151,8 @@ function Settings() {
             });
             if (res.data?.success) {
                 localStorage.setItem('username', 'superadmin');
-                setClaimMsg('✅ You are now superadmin! Refresh the page.');
+                setClaimMsg('✅ You are now superadmin! Reloading...');
+                setTimeout(() => window.location.reload(), 1500);
             } else {
                 setClaimMsg('❌ ' + (res.data?.error || 'Failed'));
             }
@@ -239,6 +240,24 @@ function Settings() {
                                         {claimMsg && <p className={`text-xs font-medium ${claimMsg.startsWith('✅') ? 'text-green-400' : claimMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{claimMsg}</p>}
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+                    {localStorage.getItem('username') === 'superadmin' && (
+                        <div className="mb-6">
+                            <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
+                            <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
+                                <div onClick={() => navigate('/admin/verification')}
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    <div className="flex items-center gap-4">
+                                        <BadgeCheck className="text-yellow-400" size={22}/>
+                                        <div>
+                                            <h3 className="text-white font-medium">Verification Requests</h3>
+                                            <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="text-zinc-600" size={20}/>
+                                </div>
                             </div>
                         </div>
                     )}
