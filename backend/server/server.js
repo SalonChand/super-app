@@ -271,7 +271,20 @@ app.post('/api/users/:id/display-name', async (req, res) => {
 });
 
 app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" }); const token = jwt.sign({ id: users[0].id }, process.env.JWT_SECRET, { expiresIn: '7d' }); res.json({ message: "Logged in!", token, user: { id: users[0].id, username: users[0].username, email: users[0].email } }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/login', async (req, res) => {
+    try {
+        const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [req.body.email]);
+        if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash)))
+            return res.status(401).json({ error: 'Invalid credentials' });
+        const u = users[0];
+        // Safely get role (column may not exist yet)
+        let role = 'user';
+        try { role = u.role || 'user'; } catch(e) {}
+        const token = jwt.sign({ id: u.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const displayName = u.display_name || u.username;
+        res.json({ message: 'Logged in!', token, user: { id: u.id, username: displayName, email: u.email, role, is_verified: u.is_verified || 0, verify_type: u.verify_type || null } });
+    } catch (err) { res.status(500).json({ error: 'Server error.' }); }
+});
 app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/password', async (req, res) => { try { const[users] = await pool.query('SELECT password_hash FROM users WHERE id = ?',[req.params.id]); if (!(await bcrypt.compare(req.body.oldPassword, users[0].password_hash))) return res.status(401).json({ error: "Incorrect password" }); const hash = await bcrypt.hash(req.body.newPassword, 10); await pool.query('UPDATE users SET password_hash = ? WHERE id = ?',[hash, req.params.id]); res.json({ message: "Password updated!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.delete('/api/users/:id', async (req, res) => { try { await pool.query('DELETE FROM users WHERE id = ?',[req.params.id]); res.json({ message: "Deleted." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });

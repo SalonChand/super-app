@@ -16,6 +16,8 @@ function Login() {
             const response = await axios.post('/api/login', { email, password });
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('userId', response.data.user.id);
+            localStorage.setItem('username', response.data.user.username);
+            localStorage.setItem('userRole', response.data.user.role || 'user');
             window.location.href = '/';
         } catch (error) {
             setMessage(error.response?.data?.error || "Server error");

@@ -64,18 +64,18 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/admin/is-claimed`)
             .then(res => setAdminClaimed(!!res.data?.claimed))
             .catch(() => setAdminClaimed(true));
-        // Fetch role and set isAdmin state
+        // Fetch role — check both role column and username fallback
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
             .then(res => {
                 const role = res.data?.role;
+                const uname = res.data?.username;
                 if (role) localStorage.setItem('userRole', role);
-                const isSuperAdmin = role === 'superadmin' || res.data?.username === 'superadmin' || localStorage.getItem('username') === 'superadmin';
+                if (uname) localStorage.setItem('username', uname);
+                const isSuperAdmin = role === 'superadmin';
                 setIsAdmin(isSuperAdmin);
             })
             .catch(() => {
-                // Fallback to localStorage
-                const isSuperAdmin = localStorage.getItem('userRole') === 'superadmin' || localStorage.getItem('username') === 'superadmin';
-                setIsAdmin(isSuperAdmin);
+                setIsAdmin(localStorage.getItem('userRole') === 'superadmin');
             });
     }, []);
 
