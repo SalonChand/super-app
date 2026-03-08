@@ -42,7 +42,8 @@ function Settings() {
     const[claimMsg, setClaimMsg] = useState('');
     const[ownerSecret, setOwnerSecret] = useState('');
     const[showClaimForm, setShowClaimForm] = useState(false);
-    const[adminClaimed, setAdminClaimed] = useState(true); // default true = hide button safely
+    const[adminClaimed, setAdminClaimed] = useState(true);
+    const[isAdmin, setIsAdmin] = useState(false); // default true = hide button safely
     const[showVerifyForm, setShowVerifyForm] = useState(false);
 
     useEffect(() => {
@@ -59,14 +60,23 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`)
             .then(res => setVerificationStatus(res.data))
             .catch(() => {});
-        // Check if superadmin is already claimed — hide claim button for all users
+        // Check if superadmin is already claimed
         axios.get(`${BACKEND_URL}/api/admin/is-claimed`)
             .then(res => setAdminClaimed(!!res.data?.claimed))
             .catch(() => setAdminClaimed(true));
-        // Cache role
+        // Fetch role and set isAdmin state
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
-            .then(res => { if (res.data?.role) localStorage.setItem('userRole', res.data.role); })
-            .catch(() => {});
+            .then(res => {
+                const role = res.data?.role;
+                if (role) localStorage.setItem('userRole', role);
+                const isSuperAdmin = role === 'superadmin' || res.data?.username === 'superadmin' || localStorage.getItem('username') === 'superadmin';
+                setIsAdmin(isSuperAdmin);
+            })
+            .catch(() => {
+                // Fallback to localStorage
+                const isSuperAdmin = localStorage.getItem('userRole') === 'superadmin' || localStorage.getItem('username') === 'superadmin';
+                setIsAdmin(isSuperAdmin);
+            });
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -251,7 +261,7 @@ function Settings() {
                             </div>
                         </div>
                     )}
-                    {localStorage.getItem('userRole') === 'superadmin' && (
+                    {isAdmin && (
                         <div className="mb-6">
                             <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
                             <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
@@ -268,7 +278,7 @@ function Settings() {
                                 </div>
                                 <div className="border-t border-zinc-800 p-4 space-y-2">
                                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Your Display Name</p>
-                                    <p className="text-xs text-zinc-600">Change what others see — login username stays the same.</p>
+                                    <p className="text-xs text-zinc-600">Change what others see — login stays the same.</p>
                                     <div className="flex gap-2">
                                         <input value={displayName} onChange={e => setDisplayName(e.target.value)}
                                             placeholder={localStorage.getItem('username') || 'Your name...'}
