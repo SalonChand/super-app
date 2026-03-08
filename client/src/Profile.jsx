@@ -62,7 +62,6 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const[postAnalytics, setPostAnalytics] = useState({});
     const[showAnalyticsPostId, setShowAnalyticsPostId] = useState(null);
     // Profile-level analytics (for own profile)
-    const[profileAnalytics, setProfileAnalytics] = useState(null);
 
     // 🔥 POST EDITING STATES 🔥
     const [menuOpenPostId, setMenuOpenPostId] = useState(null);
@@ -104,10 +103,6 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     .catch(() => {});
                 axios.get(`${BACKEND_URL}/api/posts/collab-invites/${currentUserId}`)
                     .then(r => { if (Array.isArray(r.data)) setCollabInvites(r.data); })
-                    .catch(() => {});
-                // Load profile analytics for own profile
-                axios.get(`${BACKEND_URL}/api/users/${id}/profile-analytics`)
-                    .then(r => setProfileAnalytics(r.data))
                     .catch(() => {});
             } else if (currentUserId) {
                 // Track profile visit
@@ -313,14 +308,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         </p>
                     )}
                     {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
-                    {/* Profile analytics for own profile */}
-                    {isMyProfile && profileAnalytics && (
-                        <div className="flex gap-4 mt-2 mb-1">
-                            <div className="text-center"><p className="text-white font-bold text-sm">{profileAnalytics.profile_visits_30d}</p><p className="text-zinc-500 text-[11px]">Profile visits</p><p className="text-zinc-600 text-[10px]">30 days</p></div>
-                            <div className="text-center"><p className="text-white font-bold text-sm">{profileAnalytics.total_post_views}</p><p className="text-zinc-500 text-[11px]">Post views</p></div>
-                            <div className="text-center"><p className="text-white font-bold text-sm">{profileAnalytics.post_count}</p><p className="text-zinc-500 text-[11px]">Posts</p></div>
-                        </div>
-                    )}
+
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
                     )}
