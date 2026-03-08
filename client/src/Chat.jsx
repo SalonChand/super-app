@@ -923,7 +923,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                         ); })()}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-1.5">
-                                                <h4 className="font-bold text-white truncate">{friend.username}</h4>
+                                                <h4 className="font-bold text-white truncate flex items-center gap-1">{friend.username}<VerifiedBadge isVerified={!!friend.is_verified} verifyType={friend.verify_type} size={12}/></h4>
                                                 {getFolderForUser(friend.id) && <span className="text-[10px] text-zinc-600">📁</span>}
                                             </div>
                                             <p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-semibold' : 'text-zinc-500'}`}>
