@@ -40,6 +40,7 @@ function Settings() {
     const[verifyReason, setVerifyReason] = useState('');
     const[verifyMsg, setVerifyMsg] = useState('');
     const[claimMsg, setClaimMsg] = useState('');
+    const[adminClaimed, setAdminClaimed] = useState(true); // default true = hide button
     const[displayName, setDisplayName] = useState('');
     const[displayNameMsg, setDisplayNameMsg] = useState('');
     const[ownerSecret, setOwnerSecret] = useState('');
@@ -64,6 +65,10 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
             .then(res => { if (res.data?.role) localStorage.setItem('userRole', res.data.role); })
             .catch(() => {});
+        // Check if superadmin is already claimed — hide button if so
+        axios.get(`${BACKEND_URL}/api/admin/is-claimed`)
+            .then(res => setAdminClaimed(res.data?.claimed === true))
+            .catch(() => setAdminClaimed(true));
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -225,7 +230,7 @@ function Settings() {
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Settings</h2></div>
             <div className="p-4 space-y-6">
                 <div>
-                    {localStorage.getItem('userRole') !== 'superadmin' && (
+                    {!adminClaimed && localStorage.getItem('userRole') !== 'superadmin' && (
                         <div className="mb-6">
                             <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">🔑 Owner Setup</h3>
                             <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">

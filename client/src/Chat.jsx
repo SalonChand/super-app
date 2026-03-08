@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
-import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban, Palette, BadgeCheck } from 'lucide-react';
+import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban, Palette , BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Use a singleton socket so Chat and App share the same connection
@@ -466,7 +466,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         return (
             <div className="flex flex-col w-full relative bg-black" style={{height: 'calc(100dvh - 70px)'}}>
                 {viewingImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
-                {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><span className="text-white font-bold">{friend.username}</span><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
+                {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><div className="flex items-center gap-1"><span className="text-white font-bold">{friend.username}</span>{friend.is_verified ? <BadgeCheck size={13} className="text-blue-400"/> : null}</div><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
 
                 <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -481,10 +481,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     </div>
 ); })()}
                             <div>
-                                <h2 className="text-lg font-bold text-white leading-tight flex items-center gap-1">
-                                    {selectedUser.username}
-                                    {selectedUser.is_verified ? <BadgeCheck size={16} className="text-blue-400 fill-blue-400 flex-shrink-0" /> : null}
-                                </h2>
+                                <div className="flex items-center gap-1"><h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>{selectedUser.is_verified ? <BadgeCheck size={16} className="text-blue-400 flex-shrink-0"/> : null}</div>
                                 <p className={"text-xs font-medium " + (typingUsers.has(String(selectedUser.id)) || (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status) ? "text-green-400" : "text-zinc-500")}>
                                     {typingUsers.has(String(selectedUser.id))
                                         ? <span className="animate-pulse">typing...</span>
@@ -527,7 +524,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                         ? <img src={selectedUser.profile_pic_url} className="w-full h-full object-cover" />
                                         : <span className="flex items-center justify-center w-full h-full text-2xl font-bold text-zinc-400">{selectedUser.username.charAt(0).toUpperCase()}</span>}
                                 </div>
-                                <h3 className="text-white font-bold text-lg">{selectedUser.username}</h3>
+                                <div className="flex items-center gap-1 justify-center"><h3 className="text-white font-bold text-lg">{selectedUser.username}</h3>{selectedUser.is_verified ? <BadgeCheck size={16} className="text-blue-400"/> : null}</div>
                                 <p className="text-zinc-500 text-sm">@{selectedUser.username.toLowerCase()}</p>
                             </div>
 
@@ -748,16 +745,6 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                     : <a href={`${msg.media_url}`} target="_blank" className="flex items-center gap-2 underline text-zinc-300 px-3"><FileText size={16} /> Document</a>}
                                                 </div> 
                                             ) : null}
-                                            {msg.story_preview_url && (
-                                                <div className="mb-2 mx-1 mt-1 rounded-xl overflow-hidden border border-white/20 relative max-w-[180px]">
-                                                    {msg.story_preview_url.match(/\.(mp4|webm|mov)/i)
-                                                        ? <video src={msg.story_preview_url} className="w-full h-24 object-cover" muted playsInline />
-                                                        : <img src={msg.story_preview_url} className="w-full h-24 object-cover" />}
-                                                    <div className="absolute inset-0 bg-black/40 flex items-end p-1.5">
-                                                        <span className="text-white text-[10px] font-medium opacity-80">Replied to story</span>
-                                                    </div>
-                                                </div>
-                                            )}
                                             {msg.content ? <span className="leading-relaxed px-1 block">{msg.content}</span> : null}
                                         </div>
                                     )}
