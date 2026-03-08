@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2 } from 'lucide-react';
+import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, Sparkles, BadgeCheck, Flame } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
 
@@ -83,6 +83,9 @@ function Feed({ onlineUsers = new Set() }) {
     const isDrawing = useRef(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [suggestedPosts, setSuggestedPosts] = useState([]);
+    const [feedTab, setFeedTab] = useState('for-you'); // 'for-you' | 'suggested'
+    const [closeFriendIds, setCloseFriendIds] = useState(new Set());
     const [feedPage, setFeedPage] = useState(0);
     const [hasMorePosts, setHasMorePosts] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -145,6 +148,18 @@ function Feed({ onlineUsers = new Set() }) {
                 if (Array.isArray(friendsRes.data)) setFriendsList(friendsRes.data);
             }
         } catch (err) { console.error('Friends error:', err); }
+        try {
+            if (userId) {
+                const sugRes = await axios.get(`${BACKEND_URL}/api/posts/suggested/${userId}`);
+                if (Array.isArray(sugRes.data)) setSuggestedPosts(sugRes.data);
+            }
+        } catch(e) {}
+        try {
+            if (userId) {
+                const cfRes = await axios.get(`${BACKEND_URL}/api/close-friends/${userId}`);
+                if (Array.isArray(cfRes.data)) setCloseFriendIds(new Set(cfRes.data.map(u => String(u.id))));
+            }
+        } catch(e) {}
         setIsRefreshing(false);
     };
     const loadMorePosts = async () => {
@@ -348,7 +363,26 @@ function Feed({ onlineUsers = new Set() }) {
     };
     const handleStoryReply = async (e, storyOwnerId) => {
         e.preventDefault(); if (!storyReply.trim() || !userId) return;
-        try { await axios.post(`${BACKEND_URL}/api/messages/send`, { senderId: userId, receiverId: storyOwnerId, content: `Replying to your story: "${storyReply}"` }); setStoryReply(''); alert("Reply sent to their Messages!"); } catch (error) { console.error(error); }
+        try {
+            const socket = window._superAppSocket;
+            const storyPreviewUrl = viewingStory?.media_url || null;
+            const storyId = viewingStory?.id || null;
+            if (socket) {
+                socket.emit('send_private_message', {
+                    senderId: userId,
+                    receiverId: storyOwnerId,
+                    content: storyReply,
+                    story_id: storyId,
+                    story_preview_url: storyPreviewUrl,
+                });
+            } else {
+                await axios.post(`${BACKEND_URL}/api/messages/send`, {
+                    senderId: userId, receiverId: storyOwnerId, content: storyReply,
+                    story_id: storyId, story_preview_url: storyPreviewUrl
+                });
+            }
+            setStoryReply('');
+        } catch (error) { console.error(error); }
     };
 
     const uniqueStories = new Array(); const seenUsers = new Set();
@@ -564,14 +598,22 @@ function Feed({ onlineUsers = new Set() }) {
                 {uniqueStories.map(story => (
                     <div key={story.user_id} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => openStoryViewer(story.user_id)}>
                         <div className="relative">
-                            <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${story.user_has_viewed ? 'border-zinc-600' : 'border-blue-500'} p-0.5`}>
+                            <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${
+                                story.user_has_viewed ? 'border-zinc-600'
+                                : story.is_close_friend ? 'border-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]'
+                                : 'border-blue-500'
+                            } p-0.5`}>
                                 <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800">
                                     {story.profile_pic_url ? <img src={story.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">{story.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
                             </div>
-                            {onlineUsers.has(String(story.user_id)) && story.show_active_status && (
+                            {story.is_close_friend ? (
+                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-400 rounded-full border-2 border-black flex items-center justify-center shadow-md">
+                                    <Star size={8} className="text-black fill-black" />
+                                </div>
+                            ) : onlineUsers.has(String(story.user_id)) && story.show_active_status ? (
                                 <div className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-black shadow-[0_0_6px_rgba(74,222,128,0.7)]"></div>
-                            )}
+                            ) : null}
                         </div>
                         <span className="text-xs text-zinc-400 truncate w-14 text-center">{story.username}</span>
                     </div>
@@ -580,6 +622,55 @@ function Feed({ onlineUsers = new Set() }) {
 
             {/* ===== POSTS ===== */}
             <div>
+                {/* Feed tabs */}
+                <div className="flex border-b border-zinc-800 sticky top-0 z-30 bg-black">
+                    <button onClick={() => setFeedTab('for-you')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold transition border-b-2 ${feedTab === 'for-you' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>
+                        <Flame size={14}/> For You
+                    </button>
+                    <button onClick={() => setFeedTab('suggested')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold transition border-b-2 ${feedTab === 'suggested' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>
+                        <Sparkles size={14}/> Suggested
+                    </button>
+                </div>
+                {/* Suggested posts tab */}
+                {feedTab === 'suggested' && (
+                    <div className="max-w-xl mx-auto">
+                        {suggestedPosts.length === 0 ? (
+                            <div className="text-center py-16 text-zinc-600">
+                                <Sparkles size={40} className="mx-auto mb-3 opacity-30"/>
+                                <p className="font-medium">Like some posts to see suggestions</p>
+                                <p className="text-xs mt-1">We'll find posts matching your interests</p>
+                            </div>
+                        ) : suggestedPosts.map(post => (
+                            <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Link to={`/profile/${post.user_id}`} className="w-9 h-9 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
+                                        {post.profile_pic_url ? <img src={post.profile_pic_url} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white font-bold">{post.username?.charAt(0).toUpperCase()}</div>}
+                                    </Link>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-1">
+                                            <Link to={`/profile/${post.user_id}`} className="text-white font-bold text-sm hover:underline">{post.username}</Link>
+                                            {post.is_verified ? <BadgeCheck size={14} className="text-blue-400 fill-blue-400" /> : null}
+                                        </div>
+                                        <p className="text-zinc-500 text-xs">Suggested for you</p>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-900 px-2 py-1 rounded-full">
+                                        <Sparkles size={10}/> Suggested
+                                    </div>
+                                </div>
+                                {post.content && <p className="text-zinc-200 text-sm mb-2 leading-relaxed">{renderPostText(post.content)}</p>}
+                                {post.image_url && <img src={post.image_url} className="w-full rounded-2xl mb-2 max-h-96 object-cover"/>}
+                                <div className="flex gap-4 text-zinc-500 text-sm mt-2">
+                                    <span className="flex items-center gap-1"><Heart size={14}/> {post.like_count || 0}</span>
+                                    <span className="flex items-center gap-1"><MessageCircle size={14}/> {post.comment_count || 0}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {/* Regular feed — only show when on for-you tab */}
+                {feedTab !== 'suggested' && <div>
                 {/* ===== SHARE TO STORY MODAL ===== */}
                 {sharingToStory && (
                     <div className="fixed inset-0 z-[200] bg-black/80 flex items-end sm:items-center justify-center animate-fade-in p-4">
@@ -752,6 +843,7 @@ function Feed({ onlineUsers = new Set() }) {
                 {!hasMorePosts && posts.length > 0 && (
                     <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
                 )}
+                </div>}
             </div>
         </div>
     );

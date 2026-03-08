@@ -23,6 +23,7 @@ const TYPE_CONFIG = {
     mention:         { color: 'bg-purple-500',  Icon: AtSign,        link: '/' },
     like:            { color: 'bg-rose-500',    Icon: Heart,         link: '/' },
     comment:         { color: 'bg-indigo-500',  Icon: MessageCircle, link: '/' },
+    verified:        { color: 'bg-blue-600',    Icon: Check,         link: '/settings' },
 };
 
 function Notifications() {

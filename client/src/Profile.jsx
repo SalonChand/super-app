@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -299,7 +299,11 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 </div>
 
                 <div className="mt-3">
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">{profileData.username} {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}</h1>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        {profileData.username}
+                        {profileData.is_verified ? <BadgeCheck size={20} className="text-blue-400 fill-blue-400" title={profileData.verified_reason || 'Verified'} /> : null}
+                        {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
+                    </h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
                     {/* Active status badge */}
                     {!!profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (

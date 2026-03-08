@@ -92,7 +92,8 @@ io.on('connection', (socket) => {
             const { senderId, receiverId, content, media_url, media_type, replyToId, isForwarded } = data;
             const[connections] = await pool.query(`SELECT * FROM connections WHERE (requester_id = ? AND receiver_id = ? AND status = 'accepted') OR (requester_id = ? AND receiver_id = ? AND status = 'accepted')`,[senderId, receiverId, receiverId, senderId]);
             const isRequest = connections.length === 0;
-            await pool.query('INSERT INTO messages (sender_id, receiver_id, content, is_request, media_url, media_type, reply_to_id, is_forwarded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',[senderId, receiverId, content || '', isRequest, media_url || null, media_type || null, replyToId || null, isForwarded || false]);
+            const { story_id = null, story_preview_url = null } = data;
+            await pool.query('INSERT INTO messages (sender_id, receiver_id, content, is_request, media_url, media_type, reply_to_id, is_forwarded, story_id, story_preview_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',[senderId, receiverId, content || '', isRequest, media_url || null, media_type || null, replyToId || null, isForwarded || false, story_id || null, story_preview_url || null]);
             const[users] = await pool.query('SELECT username FROM users WHERE id = ?',[senderId]);
             // Send rich toast data to receiver, plain update to sender
             const senderName = users[0]?.username || 'Someone';
@@ -205,6 +206,14 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN filter_message_requests BOOLEAN DEFAULT TRUE");
     // Screen recording detection log (lightweight)
     await patch("CREATE TABLE IF NOT EXISTS screen_record_alerts (id INT AUTO_INCREMENT PRIMARY KEY, chat_user1 INT NOT NULL, chat_user2 INT NOT NULL, detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+    // === SOCIAL ENGAGEMENT BATCH ===
+    await patch("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE users ADD COLUMN verified_reason VARCHAR(100) DEFAULT NULL");
+    await patch("ALTER TABLE reels ADD COLUMN song_name VARCHAR(200) DEFAULT NULL");
+    await patch("ALTER TABLE reels ADD COLUMN song_url VARCHAR(500) DEFAULT NULL");
+    await patch("ALTER TABLE messages ADD COLUMN story_id INT DEFAULT NULL");
+    await patch("ALTER TABLE messages ADD COLUMN story_preview_url VARCHAR(500) DEFAULT NULL");
+    await patch("CREATE TABLE IF NOT EXISTS verification_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, reason TEXT, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -415,6 +424,79 @@ app.get('/api/users/:id/birthday-friends', async (req, res) => { try { const [fr
 app.get('/api/close-friends/:userId', async (req, res) => { try { const [rows] = await pool.query(`SELECT u.id, u.username, u.profile_pic_url FROM close_friends cf JOIN users u ON cf.friend_id = u.id WHERE cf.user_id = ?`, [req.params.userId]); res.json(rows); } catch(e) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/close-friends', async (req, res) => { try { const { userId, friendId } = req.body; const [ex] = await pool.query('SELECT id FROM close_friends WHERE user_id = ? AND friend_id = ?', [userId, friendId]); if (ex.length > 0) { await pool.query('DELETE FROM close_friends WHERE user_id = ? AND friend_id = ?', [userId, friendId]); return res.json({ added: false }); } await pool.query('INSERT INTO close_friends (user_id, friend_id) VALUES (?, ?)', [userId, friendId]); res.json({ added: true }); } catch(e) { res.status(500).json({ error: "Server error." }); } });
 
+// ===== VERIFIED BADGE =====
+app.post('/api/users/:id/request-verification', async (req, res) => {
+    try {
+        const { reason } = req.body;
+        await pool.query('INSERT INTO verification_requests (user_id, reason, status) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason), status = \'pending\', created_at = NOW()', [req.params.id, reason || '', 'pending']);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
+app.get('/api/users/:id/verification-status', async (req, res) => {
+    try {
+        const [user] = await pool.query('SELECT is_verified, verified_reason FROM users WHERE id = ?', [req.params.id]);
+        const [req_row] = await pool.query('SELECT status, created_at FROM verification_requests WHERE user_id = ?', [req.params.id]);
+        res.json({ is_verified: !!(user[0]?.is_verified), verified_reason: user[0]?.verified_reason || null, request: req_row[0] || null });
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
+// Admin: approve/deny (superadmin only)
+app.post('/api/admin/verify-user', async (req, res) => {
+    try {
+        const { adminId, userId, approved, reason } = req.body;
+        const [admin] = await pool.query("SELECT username FROM users WHERE id = ? AND username = 'superadmin'", [adminId]);
+        if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
+        await pool.query('UPDATE users SET is_verified = ?, verified_reason = ? WHERE id = ?', [approved ? 1 : 0, reason || null, userId]);
+        await pool.query('UPDATE verification_requests SET status = ? WHERE user_id = ?', [approved ? 'approved' : 'denied', userId]);
+        if (approved) {
+            await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [userId, adminId, 'mention', '✅ Your verification request was approved! You are now verified.']).catch(()=>{});
+            io.to(String(userId)).emit('activity_updated');
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
+
+// ===== SUGGESTED POSTS (hashtag-based) =====
+app.get('/api/posts/suggested/:userId', async (req, res) => {
+    try {
+        const uid = req.params.userId;
+        // Get hashtags from posts the user liked recently
+        const [likedPosts] = await pool.query(
+            'SELECT p.hashtags FROM likes l JOIN posts p ON l.post_id = p.id WHERE l.user_id = ? AND p.hashtags IS NOT NULL ORDER BY l.id DESC LIMIT 20', [uid]);
+        const tagSet = new Set();
+        likedPosts.forEach(row => { try { const tags = JSON.parse(row.hashtags); if (Array.isArray(tags)) tags.forEach(t => tagSet.add(t)); } catch(e) {} });
+        if (tagSet.size === 0) {
+            // Fallback: return popular recent posts
+            const [popular] = await pool.query(
+                `SELECT p.*, u.username, u.profile_pic_url, u.is_verified,
+                 COUNT(DISTINCT l.id) as like_count, COUNT(DISTINCT cm.id) as comment_count,
+                 0 as user_liked
+                 FROM posts p JOIN users u ON p.user_id = u.id
+                 LEFT JOIN likes l ON l.post_id = p.id
+                 LEFT JOIN comments cm ON cm.post_id = p.id
+                 WHERE p.user_id != ? AND (p.is_draft=0 OR p.is_draft IS NULL) AND p.visibility='public'
+                 AND p.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+                 GROUP BY p.id ORDER BY like_count DESC LIMIT 10`, [uid]);
+            return res.json(popular);
+        }
+        const tags = [...tagSet].slice(0, 5);
+        const placeholders = tags.map(() => 'JSON_CONTAINS(p.hashtags, ?)').join(' OR ');
+        const tagParams = tags.map(t => JSON.stringify(t));
+        const [suggested] = await pool.query(
+            `SELECT p.*, u.username, u.profile_pic_url, COALESCE(u.is_verified, 0) as is_verified,
+             COUNT(DISTINCT l.id) as like_count, COUNT(DISTINCT cm.id) as comment_count,
+             MAX(CASE WHEN l2.user_id = ? THEN 1 ELSE 0 END) as user_liked
+             FROM posts p JOIN users u ON p.user_id = u.id
+             LEFT JOIN likes l ON l.post_id = p.id
+             LEFT JOIN comments cm ON cm.post_id = p.id
+             LEFT JOIN likes l2 ON l2.post_id = p.id AND l2.user_id = ?
+             WHERE p.user_id != ? AND (p.is_draft=0 OR p.is_draft IS NULL) AND p.visibility='public'
+             AND (${placeholders})
+             GROUP BY p.id ORDER BY like_count DESC, p.created_at DESC LIMIT 10`,
+            [uid, uid, uid, ...tagParams]);
+        res.json(suggested);
+    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
+});
+
 // Collaborative post invite
 app.post('/api/posts/:id/collab-invite', async (req, res) => { try { const { coAuthorId } = req.body; await pool.query('UPDATE posts SET co_author_id = ?, co_author_status = ? WHERE id = ?', [coAuthorId, 'pending', req.params.id]); const [post] = await pool.query('SELECT p.*, u.username FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?', [req.params.id]); if (post[0]) { await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [coAuthorId, post[0].user_id, 'mention', `${post[0].username} invited you to co-author a post`]).catch(()=>{}); io.to(String(coAuthorId)).emit('activity_updated'); } res.json({ success: true }); } catch(e) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/posts/:id/collab-respond', async (req, res) => { try { const { accept, userId } = req.body; await pool.query('UPDATE posts SET co_author_status = ? WHERE id = ? AND co_author_id = ?', [accept ? 'accepted' : 'rejected', req.params.id, userId]); res.json({ success: true }); } catch(e) { res.status(500).json({ error: "Server error." }); } });
@@ -422,7 +504,7 @@ app.get('/api/posts/collab-invites/:userId', async (req, res) => { try { const [
 app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT messages.*, users.username, users.profile_pic_url FROM messages JOIN users ON messages.sender_id = users.id WHERE messages.receiver_id = ? AND messages.is_request = true AND messages.sender_id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ? AND status = 'accepted' UNION SELECT receiver_id FROM connections WHERE requester_id = ? AND status = 'accepted') GROUP BY messages.sender_id ORDER BY messages.created_at DESC`,[req.params.userId, req.params.userId, req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 // PROFILE & FRIENDS
-app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query('SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at FROM users WHERE id = ?',[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query('SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason FROM users WHERE id = ?',[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const[posts] = await pool.query(`SELECT p.*, u.username, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = ? ORDER BY p.created_at DESC`,[currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url, profile_links } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?, profile_links = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null, profile_links || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
 
@@ -466,7 +548,8 @@ app.get('/api/stories', async (req, res) => {
                 (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id) AS like_count,
                 (SELECT COUNT(*) FROM story_views WHERE story_id = s.id) AS view_count,
                 (SELECT COUNT(*) FROM story_likes WHERE story_id = s.id AND user_id = ?) AS user_liked,
-                (SELECT COUNT(*) FROM story_views WHERE story_id = s.id AND user_id = ?) AS user_has_viewed
+                (SELECT COUNT(*) FROM story_views WHERE story_id = s.id AND user_id = ?) AS user_has_viewed,
+                (SELECT COUNT(*) FROM close_friends WHERE user_id = ? AND friend_id = s.user_id) AS is_close_friend
              FROM stories s JOIN users u ON s.user_id = u.id
              WHERE s.created_at >= NOW() - INTERVAL 1 DAY
              AND (
@@ -478,7 +561,7 @@ app.get('/api/stories', async (req, res) => {
                 OR (s.visibility = 'selected' AND JSON_CONTAINS(s.visible_to, CAST(? AS JSON)))
              )
              ORDER BY s.created_at DESC`,
-            [currentUserId, currentUserId, currentUserId,
+            [currentUserId, currentUserId, currentUserId, currentUserId,
              friendIds.length ? friendIds : [0],
              currentUserId, JSON.stringify(currentUserId)]
         );
@@ -507,7 +590,16 @@ app.put('/api/stories/:id', async (req, res) => {
 
 app.post('/api/stories/:id/like', async (req, res) => { try { const storyId = req.params.id; const { userId } = req.body; const [existing] = await pool.query('SELECT * FROM story_likes WHERE story_id = ? AND user_id = ?',[storyId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM story_likes WHERE story_id = ? AND user_id = ?', [storyId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO story_likes (story_id, user_id) VALUES (?, ?)', [storyId, userId]); res.json({ liked: true }); } } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/stories/:id/view', async (req, res) => { try { await pool.query('INSERT IGNORE INTO story_views (story_id, user_id) VALUES (?, ?)',[req.params.id, req.body.userId]); res.json({ success: true }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/reels', upload.single('video'), async (req, res) => { try { if (!req.file) return res.status(400).json({ error: "No video provided" }); const video_url = req.file.path; await pool.query('INSERT INTO reels (user_id, video_url, caption) VALUES (?, ?, ?)',[req.body.user_id, video_url, req.body.caption || '']); res.status(201).json({ message: "Reel uploaded!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); } });
+app.post('/api/reels', upload.single('video'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "No video provided" });
+        const video_url = req.file.path;
+        const { user_id, caption, song_name, song_url } = req.body;
+        await pool.query('INSERT INTO reels (user_id, video_url, caption, song_name, song_url) VALUES (?, ?, ?, ?, ?)',
+            [user_id, video_url, caption || '', song_name || null, song_url || null]);
+        res.status(201).json({ message: "Reel uploaded!" });
+    } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
 app.get('/api/reels', async (req, res) => { try { const currentUserId = req.query.userId || 0; const[reels] = await pool.query(`SELECT r.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM reel_likes WHERE reel_id = r.id) AS like_count, (SELECT COUNT(*) FROM reel_likes WHERE reel_id = r.id AND user_id = ?) AS user_liked FROM reels r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC`, [currentUserId]); res.json(reels); } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); } });
 app.get('/api/reels/user/:userId', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const [reels] = await pool.query(`SELECT r.*, u.username, u.profile_pic_url, (SELECT COUNT(*) FROM reel_likes WHERE reel_id = r.id) AS like_count, (SELECT COUNT(*) FROM reel_likes WHERE reel_id = r.id AND user_id = ?) AS user_liked FROM reels r JOIN users u ON r.user_id = u.id WHERE r.user_id = ? ORDER BY r.created_at DESC`, [currentUserId, req.params.userId]); res.json(reels); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 app.post('/api/reels/:id/like', async (req, res) => { try { const reelId = req.params.id; const { userId } = req.body; const[existing] = await pool.query('SELECT * FROM reel_likes WHERE reel_id = ? AND user_id = ?',[reelId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM reel_likes WHERE reel_id = ? AND user_id = ?',[reelId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO reel_likes (reel_id, user_id) VALUES (?, ?)', [reelId, userId]); res.json({ liked: true }); } } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); } });

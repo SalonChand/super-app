@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck } from 'lucide-react';
+import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck, BadgeCheck, Send } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Helper to convert VAPID keys
@@ -36,6 +36,10 @@ function Settings() {
     const[twoFAQR, setTwoFAQR] = useState('');
     const[twoFACode, setTwoFACode] = useState('');
     const[twoFAMsg, setTwoFAMsg] = useState('');
+    const[verificationStatus, setVerificationStatus] = useState(null); // null | { is_verified, request }
+    const[verifyReason, setVerifyReason] = useState('');
+    const[verifyMsg, setVerifyMsg] = useState('');
+    const[showVerifyForm, setShowVerifyForm] = useState(false);
 
     useEffect(() => {
         if (!currentUserId) return;
@@ -48,6 +52,9 @@ function Settings() {
             if (res.data.theme_color) setAccentColor(res.data.theme_color);
             setTwoFactorEnabled(!!res.data.two_factor_enabled);
         }).catch(err => console.error(err));
+        axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`)
+            .then(res => setVerificationStatus(res.data))
+            .catch(() => {});
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -129,6 +136,17 @@ function Settings() {
             setShow2FASetup(true);
             setTwoFAMsg('');
         } catch(e) { setTwoFAMsg('❌ Setup failed'); }
+    };
+
+    const requestVerification = async () => {
+        if (!verifyReason.trim()) { setVerifyMsg('Please explain why you should be verified.'); return; }
+        try {
+            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason });
+            setVerifyMsg('✅ Request submitted! We will review it shortly.');
+            setVerifyReason('');
+            const res = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
+            setVerificationStatus(res.data);
+        } catch(e) { setVerifyMsg('Something went wrong. Try again.'); }
     };
 
     const verify2FA = async () => {
@@ -253,6 +271,55 @@ function Settings() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Verification</h3>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden mb-6">
+                        {verificationStatus?.is_verified ? (
+                            <div className="flex items-center gap-4 p-4">
+                                <BadgeCheck className="text-blue-400 flex-shrink-0" size={26} />
+                                <div>
+                                    <h3 className="text-white font-bold">Verified Account ✓</h3>
+                                    <p className="text-zinc-500 text-xs">{verificationStatus.verified_reason || 'Your account is verified.'}</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div onClick={() => setShowVerifyForm(!showVerifyForm)}
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    <div className="flex items-center gap-4">
+                                        <BadgeCheck className="text-zinc-400" size={22} />
+                                        <div>
+                                            <h3 className="text-white font-medium">Request Verification</h3>
+                                            {verificationStatus?.request ? (
+                                                <p className="text-xs text-yellow-400">Request {verificationStatus.request.status}</p>
+                                            ) : (
+                                                <p className="text-zinc-500 text-xs">Get a blue checkmark on your profile</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ChevronRight className={`text-zinc-600 transition-transform ${showVerifyForm ? 'rotate-90' : ''}`} size={20} />
+                                </div>
+                                {showVerifyForm && (
+                                    <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
+                                        <p className="text-zinc-500 text-xs">Tell us why your account should be verified (e.g. public figure, creator, business).</p>
+                                        <textarea
+                                            value={verifyReason}
+                                            onChange={e => setVerifyReason(e.target.value)}
+                                            placeholder="I am a verified creator/public figure because..."
+                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500 transition resize-none"
+                                            rows={3}
+                                        />
+                                        <button onClick={requestVerification}
+                                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2 rounded-xl text-sm transition">
+                                            <Send size={14}/> Submit Request
+                                        </button>
+                                        {verifyMsg && <p className="text-xs text-green-400">{verifyMsg}</p>}
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                 </div>
                 <div>

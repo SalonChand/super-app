@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
-import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban, Palette } from 'lucide-react';
+import { Send, ArrowLeft, User, BellRing, Phone, Video, PhoneOff, Mic, MicOff, Camera, CameraOff, Image as ImageIcon, Paperclip, FileText, Reply, Pin, Forward, X, PinOff, Trash2, Gamepad2, Search, UserX, Bell, BellOff, ChevronRight, Shield, Flag, Ban, Palette, BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Use a singleton socket so Chat and App share the same connection
@@ -481,7 +481,10 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     </div>
 ); })()}
                             <div>
-                                <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
+                                <h2 className="text-lg font-bold text-white leading-tight flex items-center gap-1">
+                                    {selectedUser.username}
+                                    {selectedUser.is_verified ? <BadgeCheck size={16} className="text-blue-400 fill-blue-400 flex-shrink-0" /> : null}
+                                </h2>
                                 <p className={"text-xs font-medium " + (typingUsers.has(String(selectedUser.id)) || (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status) ? "text-green-400" : "text-zinc-500")}>
                                     {typingUsers.has(String(selectedUser.id))
                                         ? <span className="animate-pulse">typing...</span>
@@ -745,6 +748,16 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                     : <a href={`${msg.media_url}`} target="_blank" className="flex items-center gap-2 underline text-zinc-300 px-3"><FileText size={16} /> Document</a>}
                                                 </div> 
                                             ) : null}
+                                            {msg.story_preview_url && (
+                                                <div className="mb-2 mx-1 mt-1 rounded-xl overflow-hidden border border-white/20 relative max-w-[180px]">
+                                                    {msg.story_preview_url.match(/\.(mp4|webm|mov)/i)
+                                                        ? <video src={msg.story_preview_url} className="w-full h-24 object-cover" muted playsInline />
+                                                        : <img src={msg.story_preview_url} className="w-full h-24 object-cover" />}
+                                                    <div className="absolute inset-0 bg-black/40 flex items-end p-1.5">
+                                                        <span className="text-white text-[10px] font-medium opacity-80">Replied to story</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                             {msg.content ? <span className="leading-relaxed px-1 block">{msg.content}</span> : null}
                                         </div>
                                     )}

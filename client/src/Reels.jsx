@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 // 🔥 BUG FIX: EVERY SINGLE ICON IS NOW IMPORTED PERFECTLY! 🔥
-import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, VolumeX, Play, MoreHorizontal, Plus, Send, User } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, VolumeX, Play, MoreHorizontal, Plus, Send, User, Music, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -162,6 +162,12 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
                         )}
                     </div>
                     {reel.caption && <p className="text-white text-[15px] drop-shadow-md leading-snug line-clamp-2 mt-1">{reel.caption}</p>}
+                    {reel.song_name && (
+                        <div className="flex items-center gap-1.5 mt-1.5 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 w-fit">
+                            <Music size={11} className="text-white animate-spin" style={{animationDuration:'3s'}}/>
+                            <span className="text-white text-xs font-medium truncate max-w-[140px]">{reel.song_name}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* ➡️ BOTTOM RIGHT: Action Buttons Stack */}
@@ -258,6 +264,16 @@ function Reels() {
     const [duetFile, setDuetFile] = useState(null);
     const [duetCaption, setDuetCaption] = useState('');
     const [showDuetModal, setShowDuetModal] = useState(false);
+    const [songName, setSongName] = useState('');
+    const [showMusicPicker, setShowMusicPicker] = useState(false);
+    const PRESET_SONGS = [
+        { name: 'No Music', url: null },
+        { name: '🎵 Trending Beat', url: null },
+        { name: '🔥 Viral Sound', url: null },
+        { name: '✨ Chill Vibes', url: null },
+        { name: '💃 Dance Mode', url: null },
+        { name: '🌙 Night Drive', url: null },
+    ];
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const loadReels = async () => {
@@ -294,10 +310,11 @@ function Reels() {
         formData.append('user_id', userId);
         formData.append('video', videoFile);
         formData.append('caption', caption);
+        if (songName && songName !== 'No Music') formData.append('song_name', songName);
         try {
             setUploading(true);
             await axios.post(`${BACKEND_URL}/api/reels`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            setUploading(false); setShowUploadModal(false); setVideoFile(null); setCaption(''); loadReels(); 
+            setUploading(false); setShowUploadModal(false); setVideoFile(null); setCaption(''); setSongName(''); loadReels(); 
         } catch (error) { console.error(error); setUploading(false); alert("Upload failed."); }
     };
 
@@ -342,6 +359,28 @@ function Reels() {
                             <video src={URL.createObjectURL(videoFile)} className="absolute inset-0 w-full h-full object-cover" autoPlay muted loop playsInline />
                         </div>
                         <input type="text" value={caption} onChange={(e)=>setCaption(e.target.value)} placeholder="Write a catchy caption..." className="w-full bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-white placeholder-zinc-500 mb-4 outline-none focus:border-blue-500 transition" />
+                        {/* Music picker */}
+                        <div className="mb-4">
+                            <button onClick={() => setShowMusicPicker(!showMusicPicker)}
+                                className="w-full flex items-center justify-between bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-white hover:border-zinc-500 transition">
+                                <div className="flex items-center gap-2">
+                                    <Music size={16} className="text-purple-400"/>
+                                    <span className="text-sm">{songName || 'Add Music'}</span>
+                                </div>
+                                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${showMusicPicker ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showMusicPicker && (
+                                <div className="mt-1 bg-zinc-950 border border-zinc-700 rounded-xl overflow-hidden shadow-xl">
+                                    {PRESET_SONGS.map(song => (
+                                        <button key={song.name} onClick={() => { setSongName(song.name === 'No Music' ? '' : song.name); setShowMusicPicker(false); }}
+                                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-zinc-800 transition flex items-center gap-2 ${songName === song.name ? 'text-purple-400 font-bold' : 'text-zinc-300'}`}>
+                                            {songName === (song.name === 'No Music' ? '' : song.name) && <span className="text-purple-400">✓</span>}
+                                            {song.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                         <button onClick={uploadReel} disabled={uploading} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 transition disabled:opacity-50">
                             {uploading ? "Uploading..." : "Share Video"}
                         </button>
