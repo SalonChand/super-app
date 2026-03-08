@@ -251,6 +251,35 @@ function Settings() {
                             </div>
                         </div>
                     )}
+                    {localStorage.getItem('userRole') === 'superadmin' && (
+                        <div className="mb-6">
+                            <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
+                            <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
+                                <div onClick={() => navigate('/admin/verification')}
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    <div className="flex items-center gap-4">
+                                        <BadgeCheck className="text-yellow-400" size={22}/>
+                                        <div>
+                                            <h3 className="text-white font-medium">Verification Requests</h3>
+                                            <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="text-zinc-600" size={20}/>
+                                </div>
+                                <div className="border-t border-zinc-800 p-4 space-y-2">
+                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Your Display Name</p>
+                                    <p className="text-xs text-zinc-600">Change what others see — login username stays the same.</p>
+                                    <div className="flex gap-2">
+                                        <input value={displayName} onChange={e => setDisplayName(e.target.value)}
+                                            placeholder={localStorage.getItem('username') || 'Your name...'}
+                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-yellow-500 transition"/>
+                                        <button onClick={saveDisplayName} className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition">Save</button>
+                                    </div>
+                                    {displayNameMsg && <p className={`text-xs ${displayNameMsg.startsWith('✅') ? 'text-green-400' : displayNameMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{displayNameMsg}</p>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Account</h3>
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                         <div onClick={() => navigate(`/profile/${currentUserId}`)} className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50"><div className="flex items-center gap-4"><User className="text-blue-500" size={22} /><div><h3 className="text-white font-medium">Edit Profile</h3></div></div><ChevronRight className="text-zinc-600" size={20} /></div>
