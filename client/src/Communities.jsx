@@ -438,6 +438,9 @@ function Communities({ themeColor }) {
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={() => setShowChannelManager(!showChannelManager)} className="text-zinc-300 hover:text-white p-2 rounded-full bg-zinc-800 hover:bg-zinc-700 transition" title="Channels"># </button>
+                        {activeCommunity.creator_id == userId && (
+                            <button onClick={openOwnerPanel} className="flex items-center gap-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs font-bold px-3 py-2 rounded-full transition"><Crown size={13}/> Manage</button>
+                        )}
                         <button onClick={() => setShowInviteModal(true)} className="text-zinc-300 hover:text-white p-2 rounded-full bg-zinc-800 hover:bg-zinc-700 transition" title="Invite Friends"><UserPlus size={20}/></button>
                         <button onClick={() => {setActiveCommunity(null); loadCommunities();}} className="text-zinc-400 hover:text-white p-2 rounded-full bg-zinc-900 transition"><X size={20}/></button>
                     </div>
