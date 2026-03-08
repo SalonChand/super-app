@@ -40,6 +40,8 @@ function Settings() {
     const[verifyReason, setVerifyReason] = useState('');
     const[verifyMsg, setVerifyMsg] = useState('');
     const[claimMsg, setClaimMsg] = useState('');
+    const[displayName, setDisplayName] = useState('');
+    const[displayNameMsg, setDisplayNameMsg] = useState('');
     const[ownerSecret, setOwnerSecret] = useState('');
     const[showClaimForm, setShowClaimForm] = useState(false);
     const[showVerifyForm, setShowVerifyForm] = useState(false);
@@ -143,6 +145,18 @@ function Settings() {
             setShow2FASetup(true);
             setTwoFAMsg('');
         } catch(e) { setTwoFAMsg('❌ Setup failed'); }
+    };
+
+    const saveDisplayName = async () => {
+        if (!displayName.trim()) { setDisplayNameMsg('Enter a name.'); return; }
+        setDisplayNameMsg('Saving...');
+        try {
+            const res = await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/display-name`, { displayName, requesterId: currentUserId });
+            if (res.data?.success) {
+                localStorage.setItem('username', displayName.trim());
+                setDisplayNameMsg('✅ Name updated! Refresh to see changes.');
+            } else setDisplayNameMsg('❌ ' + (res.data?.error || 'Failed'));
+        } catch(e) { setDisplayNameMsg('❌ ' + (e?.response?.data?.error || e.message)); }
     };
 
     const claimSuperadmin = async () => {
@@ -260,6 +274,19 @@ function Settings() {
                                         </div>
                                     </div>
                                     <ChevronRight className="text-zinc-600" size={20}/>
+                                </div>
+                            </div>
+                            <div onClick={() => {}} className="border-t border-zinc-800">
+                                <div className="p-4 space-y-2">
+                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Your Display Name</p>
+                                    <p className="text-xs text-zinc-600">Change what name others see — your login username stays the same.</p>
+                                    <div className="flex gap-2">
+                                        <input value={displayName} onChange={e => setDisplayName(e.target.value)}
+                                            placeholder={localStorage.getItem('username') || 'Your name...'}
+                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-yellow-500 transition"/>
+                                        <button onClick={saveDisplayName} className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition">Save</button>
+                                    </div>
+                                    {displayNameMsg && <p className={`text-xs ${displayNameMsg.startsWith('✅') ? 'text-green-400' : displayNameMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{displayNameMsg}</p>}
                                 </div>
                             </div>
                         </div>

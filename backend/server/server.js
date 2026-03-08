@@ -216,6 +216,9 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE reels ADD COLUMN song_url VARCHAR(500) DEFAULT NULL");
     await patch("ALTER TABLE messages ADD COLUMN story_id INT DEFAULT NULL");
     await patch("ALTER TABLE messages ADD COLUMN story_preview_url VARCHAR(500) DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL");
+    // Fix: ensure superadmin user also has role = superadmin
+    await patch("UPDATE users SET role = 'superadmin' WHERE username = 'superadmin'");
     await patch("CREATE TABLE IF NOT EXISTS verification_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, reason TEXT, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
@@ -246,6 +249,17 @@ app.get('/api/setup-cloud-db', async (req, res) => {
 // PUSH & AUTH
 app.get('/api/vapidPublicKey', (req, res) => { res.send(vapidKeys.publicKey); });
 app.post('/api/subscribe', async (req, res) => { try { const { userId, subscription } = req.body; await pool.query('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]); await pool.query('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)',[userId, JSON.stringify(subscription)]); res.status(201).json({}); } catch (err) { res.status(500).json({ error: "Server error" }); } });
+// Set display name — lets superadmin show a real name instead of 'superadmin'
+app.post('/api/users/:id/display-name', async (req, res) => {
+    try {
+        const { displayName, requesterId } = req.body;
+        if (String(requesterId) !== String(req.params.id)) return res.status(403).json({ error: 'Not authorized.' });
+        if (!displayName?.trim()) return res.status(400).json({ error: 'Display name required.' });
+        await pool.query('UPDATE users SET display_name = ? WHERE id = ?', [displayName.trim(), req.params.id]);
+        res.json({ success: true, displayName: displayName.trim() });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" }); const token = jwt.sign({ id: users[0].id }, process.env.JWT_SECRET, { expiresIn: '7d' }); res.json({ message: "Logged in!", token, user: { id: users[0].id, username: users[0].username, email: users[0].email } }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
@@ -527,7 +541,7 @@ app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = 
 app.get('/api/users/:id', async (req, res) => {
     try {
         const [users] = await pool.query(
-            `SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason FROM users WHERE id = ?`,
+            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, COALESCE(role, 'user') as role FROM users WHERE id = ?`,
             [req.params.id]
         );
         if (users.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -535,13 +549,10 @@ app.get('/api/users/:id', async (req, res) => {
             `SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,
             [req.params.id, req.params.id]
         );
-        // Safely get role — column may not exist yet
-        let role = 'user';
-        try {
-            const [roleRow] = await pool.query('SELECT role FROM users WHERE id = ?', [req.params.id]);
-            role = roleRow[0]?.role || 'user';
-        } catch(e) { /* role column not yet created, default to user */ }
-        res.json({ ...users[0], friend_count: friends[0].count, role });
+        const u = users[0];
+        // Use display_name as the visible username if set
+        const visibleUsername = u.display_name || u.username;
+        res.json({ ...u, username: visibleUsername, friend_count: friends[0].count });
     } catch (err) {
         console.error('GET /api/users/:id error:', err.message);
         res.status(500).json({ error: 'Server error: ' + err.message });
