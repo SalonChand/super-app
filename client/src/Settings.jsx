@@ -140,13 +140,21 @@ function Settings() {
 
     const requestVerification = async () => {
         if (!verifyReason.trim()) { setVerifyMsg('Please explain why you should be verified.'); return; }
+        setVerifyMsg('Submitting...');
         try {
-            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason });
-            setVerifyMsg('✅ Request submitted! We will review it shortly.');
-            setVerifyReason('');
-            const res = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
-            setVerificationStatus(res.data);
-        } catch(e) { setVerifyMsg('Something went wrong. Try again.'); }
+            const res = await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason });
+            if (res.data?.success) {
+                setVerifyMsg('✅ Request submitted! We will review it shortly.');
+                setVerifyReason('');
+                const statusRes = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
+                setVerificationStatus(statusRes.data);
+            } else {
+                setVerifyMsg('❌ Server error: ' + (res.data?.error || 'Unknown error'));
+            }
+        } catch(e) {
+            const msg = e?.response?.data?.error || e?.message || 'Network error';
+            setVerifyMsg('❌ Failed: ' + msg);
+        }
     };
 
     const verify2FA = async () => {
@@ -273,6 +281,24 @@ function Settings() {
                         </div>
                     </div>
                 </div>
+                {localStorage.getItem('username') === 'superadmin' && (
+                    <div className="mb-6">
+                        <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Admin</h3>
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                            <div onClick={() => navigate('/admin/verification')}
+                                className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                <div className="flex items-center gap-4">
+                                    <BadgeCheck className="text-yellow-400" size={22}/>
+                                    <div>
+                                        <h3 className="text-white font-medium">Verification Requests</h3>
+                                        <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
+                                    </div>
+                                </div>
+                                <ChevronRight className="text-zinc-600" size={20}/>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <div>
                     <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Verification</h3>
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden mb-6">

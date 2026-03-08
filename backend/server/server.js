@@ -455,6 +455,23 @@ app.post('/api/admin/verify-user', async (req, res) => {
     } catch(e) { res.status(500).json({ error: 'Server error.' }); }
 });
 
+// ===== ADMIN: list all verification requests =====
+app.get('/api/admin/verification-requests', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT username FROM users WHERE id = ? AND username = 'superadmin'", [adminId]);
+        if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
+        const [requests] = await pool.query(`
+            SELECT vr.*, u.username, u.profile_pic_url, u.id as user_id,
+                   u.is_verified, vr.created_at
+            FROM verification_requests vr
+            JOIN users u ON vr.user_id = u.id
+            ORDER BY FIELD(vr.status,'pending','approved','denied'), vr.created_at DESC
+        `);
+        res.json(requests);
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
+
 // ===== SUGGESTED POSTS (hashtag-based) =====
 app.get('/api/posts/suggested/:userId', async (req, res) => {
     try {

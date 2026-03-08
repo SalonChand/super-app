@@ -16,6 +16,7 @@ import Communities from './Communities';
 import Notifications from './Notifications'; 
 import CreatePost from './CreatePost';
 import UserDashboard from './UserDashboard';
+import AdminVerification from './AdminVerification';
 
 
 class ErrorBoundary extends React.Component {
@@ -537,6 +538,7 @@ function AppContent() {
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/create-post" element={<ProtectedRoute><CreatePost themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><UserDashboard themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/admin/verification" element={<ProtectedRoute><AdminVerification /></ProtectedRoute>} />
           </Routes>
         </main>
 
