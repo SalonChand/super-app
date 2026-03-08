@@ -207,6 +207,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     // Screen recording detection log (lightweight)
     await patch("CREATE TABLE IF NOT EXISTS screen_record_alerts (id INT AUTO_INCREMENT PRIMARY KEY, chat_user1 INT NOT NULL, chat_user2 INT NOT NULL, detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     // === SOCIAL ENGAGEMENT BATCH ===
+    await patch("ALTER TABLE posts ADD COLUMN is_draft BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE posts ADD COLUMN scheduled_at DATETIME DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE users ADD COLUMN verified_reason VARCHAR(100) DEFAULT NULL");
     await patch("ALTER TABLE reels ADD COLUMN song_name VARCHAR(200) DEFAULT NULL");
@@ -484,13 +486,13 @@ app.get('/api/posts/suggested/:userId', async (req, res) => {
         if (tagSet.size === 0) {
             // Fallback: return popular recent posts
             const [popular] = await pool.query(
-                `SELECT p.*, u.username, u.profile_pic_url, u.is_verified,
+                `SELECT p.*, u.username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified,
                  COUNT(DISTINCT l.id) as like_count, COUNT(DISTINCT cm.id) as comment_count,
                  0 as user_liked
                  FROM posts p JOIN users u ON p.user_id = u.id
                  LEFT JOIN likes l ON l.post_id = p.id
                  LEFT JOIN comments cm ON cm.post_id = p.id
-                 WHERE p.user_id != ? AND (p.is_draft=0 OR p.is_draft IS NULL) AND p.visibility='public'
+                 WHERE p.user_id != ? AND p.visibility='public'
                  AND p.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
                  GROUP BY p.id ORDER BY like_count DESC LIMIT 10`, [uid]);
             return res.json(popular);
@@ -506,7 +508,7 @@ app.get('/api/posts/suggested/:userId', async (req, res) => {
              LEFT JOIN likes l ON l.post_id = p.id
              LEFT JOIN comments cm ON cm.post_id = p.id
              LEFT JOIN likes l2 ON l2.post_id = p.id AND l2.user_id = ?
-             WHERE p.user_id != ? AND (p.is_draft=0 OR p.is_draft IS NULL) AND p.visibility='public'
+             WHERE p.user_id != ? AND p.visibility='public'
              AND (${placeholders})
              GROUP BY p.id ORDER BY like_count DESC, p.created_at DESC LIMIT 10`,
             [uid, uid, uid, ...tagParams]);
@@ -521,8 +523,8 @@ app.get('/api/posts/collab-invites/:userId', async (req, res) => { try { const [
 app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT messages.*, users.username, users.profile_pic_url FROM messages JOIN users ON messages.sender_id = users.id WHERE messages.receiver_id = ? AND messages.is_request = true AND messages.sender_id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ? AND status = 'accepted' UNION SELECT receiver_id FROM connections WHERE requester_id = ? AND status = 'accepted') GROUP BY messages.sender_id ORDER BY messages.created_at DESC`,[req.params.userId, req.params.userId, req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 // PROFILE & FRIENDS
-app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const[posts] = await pool.query(`SELECT p.*, u.username, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = ? ORDER BY p.created_at DESC`,[currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query(`SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, COALESCE(role, 'user') as role FROM users WHERE id = ?`,[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const[posts] = await pool.query(`SELECT p.*, u.username, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = ? ORDER BY p.created_at DESC`,[currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url, profile_links } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?, profile_links = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null, profile_links || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
 
 app.post('/api/friends/request', async (req, res) => { try { const { requester_id, receiver_id } = req.body; if (requester_id === receiver_id) return res.status(400).json({ error: "Cannot friend yourself." }); await pool.query('INSERT IGNORE INTO connections (requester_id, receiver_id, status) VALUES (?, ?, ?)',[requester_id, receiver_id, 'pending']); io.to(receiver_id.toString()).emit('activity_updated'); res.json({ message: "Request sent!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
