@@ -22,6 +22,16 @@ if (!window._superAppSocket) {
 const socket = window._superAppSocket;
 const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 
+// Returns colored BadgeCheck based on verify_type
+function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
+    if (!isVerified) return null;
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const color = colors[verifyType] || colors.blue;
+    const title = titles[verifyType] || titles.blue;
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${color}`} title={title}/>;
+}
+
 function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const userId = parseInt(localStorage.getItem('userId'));
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
@@ -466,7 +476,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         return (
             <div className="flex flex-col w-full relative bg-black" style={{height: 'calc(100dvh - 70px)'}}>
                 {viewingImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
-                {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><div className="flex items-center gap-1"><span className="text-white font-bold">{friend.username}</span>{!!friend.is_verified ? <BadgeCheck size={13} className="text-blue-400"/> : null}</div><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
+                {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><div className="flex items-center gap-1"><span className="text-white font-bold">{friend.username}</span>{<VerifiedBadge isVerified={!!friend.is_verified} verifyType={friend.verify_type} size={13}/>}</div><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
 
                 <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -481,7 +491,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     </div>
 ); })()}
                             <div>
-                                <div className="flex items-center gap-1"><h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>{!!selectedUser.is_verified ? <BadgeCheck size={16} className="text-blue-400 flex-shrink-0"/> : null}</div>
+                                <div className="flex items-center gap-1"><h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>{<VerifiedBadge isVerified={!!selectedUser.is_verified} verifyType={selectedUser.verify_type} size={16}/>}</div>
                                 <p className={"text-xs font-medium " + (typingUsers.has(String(selectedUser.id)) || (onlineUsers.has(String(selectedUser.id)) && selectedUser.show_active_status) ? "text-green-400" : "text-zinc-500")}>
                                     {typingUsers.has(String(selectedUser.id))
                                         ? <span className="animate-pulse">typing...</span>
@@ -524,7 +534,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                         ? <img src={selectedUser.profile_pic_url} className="w-full h-full object-cover" />
                                         : <span className="flex items-center justify-center w-full h-full text-2xl font-bold text-zinc-400">{selectedUser.username.charAt(0).toUpperCase()}</span>}
                                 </div>
-                                <div className="flex items-center gap-1 justify-center"><h3 className="text-white font-bold text-lg">{selectedUser.username}</h3>{!!selectedUser.is_verified ? <BadgeCheck size={16} className="text-blue-400"/> : null}</div>
+                                <div className="flex items-center gap-1 justify-center"><h3 className="text-white font-bold text-lg">{selectedUser.username}</h3>{<VerifiedBadge isVerified={!!selectedUser.is_verified} verifyType={selectedUser.verify_type} size={16}/>}</div>
                                 <p className="text-zinc-500 text-sm">@{selectedUser.username.toLowerCase()}</p>
                             </div>
 

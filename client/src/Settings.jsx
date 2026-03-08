@@ -38,11 +38,10 @@ function Settings() {
     const[twoFAMsg, setTwoFAMsg] = useState('');
     const[verificationStatus, setVerificationStatus] = useState(null); // null | { is_verified, request }
     const[verifyReason, setVerifyReason] = useState('');
+    const[verifyType, setVerifyType] = useState('blue');
+    const[proofUrl, setProofUrl] = useState('');
     const[verifyMsg, setVerifyMsg] = useState('');
     const[claimMsg, setClaimMsg] = useState('');
-    const[adminClaimed, setAdminClaimed] = useState(true); // default true = hide button
-    const[displayName, setDisplayName] = useState('');
-    const[displayNameMsg, setDisplayNameMsg] = useState('');
     const[ownerSecret, setOwnerSecret] = useState('');
     const[showClaimForm, setShowClaimForm] = useState(false);
     const[showVerifyForm, setShowVerifyForm] = useState(false);
@@ -61,14 +60,6 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`)
             .then(res => setVerificationStatus(res.data))
             .catch(() => {});
-        // Fetch and cache user role
-        axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
-            .then(res => { if (res.data?.role) localStorage.setItem('userRole', res.data.role); })
-            .catch(() => {});
-        // Check if superadmin is already claimed — hide button if so
-        axios.get(`${BACKEND_URL}/api/admin/is-claimed`)
-            .then(res => setAdminClaimed(res.data?.claimed === true))
-            .catch(() => setAdminClaimed(true));
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -152,18 +143,6 @@ function Settings() {
         } catch(e) { setTwoFAMsg('❌ Setup failed'); }
     };
 
-    const saveDisplayName = async () => {
-        if (!displayName.trim()) { setDisplayNameMsg('Enter a name.'); return; }
-        setDisplayNameMsg('Saving...');
-        try {
-            const res = await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/display-name`, { displayName, requesterId: currentUserId });
-            if (res.data?.success) {
-                localStorage.setItem('username', displayName.trim());
-                setDisplayNameMsg('✅ Name updated! Refresh to see changes.');
-            } else setDisplayNameMsg('❌ ' + (res.data?.error || 'Failed'));
-        } catch(e) { setDisplayNameMsg('❌ ' + (e?.response?.data?.error || e.message)); }
-    };
-
     const claimSuperadmin = async () => {
         if (!ownerSecret.trim()) { setClaimMsg('Enter your OWNER_SECRET.'); return; }
         setClaimMsg('Claiming...');
@@ -230,7 +209,7 @@ function Settings() {
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Settings</h2></div>
             <div className="p-4 space-y-6">
                 <div>
-                    {!adminClaimed && localStorage.getItem('userRole') !== 'superadmin' && (
+                    {localStorage.getItem('username') !== 'superadmin' && (
                         <div className="mb-6">
                             <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">🔑 Owner Setup</h3>
                             <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
@@ -262,37 +241,6 @@ function Settings() {
                                         {claimMsg && <p className={`text-xs font-medium ${claimMsg.startsWith('✅') ? 'text-green-400' : claimMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{claimMsg}</p>}
                                     </div>
                                 )}
-                            </div>
-                        </div>
-                    )}
-                    {localStorage.getItem('userRole') === 'superadmin' && (
-                        <div className="mb-6">
-                            <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
-                            <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
-                                <div onClick={() => navigate('/admin/verification')}
-                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
-                                    <div className="flex items-center gap-4">
-                                        <BadgeCheck className="text-yellow-400" size={22}/>
-                                        <div>
-                                            <h3 className="text-white font-medium">Verification Requests</h3>
-                                            <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="text-zinc-600" size={20}/>
-                                </div>
-                            </div>
-                            <div onClick={() => {}} className="border-t border-zinc-800">
-                                <div className="p-4 space-y-2">
-                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Your Display Name</p>
-                                    <p className="text-xs text-zinc-600">Change what name others see — your login username stays the same.</p>
-                                    <div className="flex gap-2">
-                                        <input value={displayName} onChange={e => setDisplayName(e.target.value)}
-                                            placeholder={localStorage.getItem('username') || 'Your name...'}
-                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-yellow-500 transition"/>
-                                        <button onClick={saveDisplayName} className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition">Save</button>
-                                    </div>
-                                    {displayNameMsg && <p className={`text-xs ${displayNameMsg.startsWith('✅') ? 'text-green-400' : displayNameMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{displayNameMsg}</p>}
-                                </div>
                             </div>
                         </div>
                     )}
@@ -414,19 +362,41 @@ function Settings() {
                                 </div>
                                 {showVerifyForm && (
                                     <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
-                                        <p className="text-zinc-500 text-xs">Tell us why your account should be verified (e.g. public figure, creator, business).</p>
+                                        <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Choose badge type</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[['blue','Blue','Anyone with valid ID'],['yellow','Yellow','Celebrity / Public figure'],['green','Green','Politician / Government']].map(([type, label, hint]) => (
+                                                <button key={type} onClick={() => setVerifyType(type)}
+                                                    className={`flex items-center gap-2 p-2.5 rounded-xl border text-sm font-semibold transition text-left ${verifyType === type
+                                                        ? type === 'blue' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                                                        : type === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+                                                        : 'bg-green-500/10 border-green-500/30 text-green-400'
+                                                        : 'bg-zinc-950 border-zinc-700 text-zinc-400'}`}>
+                                                    <BadgeCheck size={13} className={verifyType === type ? (type === 'blue' ? 'text-blue-400' : type === 'yellow' ? 'text-yellow-400' : 'text-green-400') : 'text-zinc-600'}/>
+                                                    <div><p className="leading-none">{label}</p><p className="text-xs opacity-60 font-normal">{hint}</p></div>
+                                                </button>
+                                            ))}
+                                        </div>
                                         <textarea
                                             value={verifyReason}
                                             onChange={e => setVerifyReason(e.target.value)}
-                                            placeholder="I am a verified creator/public figure because..."
+                                            placeholder="Tell us why you should be verified..."
                                             className="w-full bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500 transition resize-none"
                                             rows={3}
                                         />
+                                        <input value={proofUrl} onChange={e => setProofUrl(e.target.value)}
+                                            placeholder="Proof link (Google Drive, ID scan URL, news article...)"
+                                            className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-blue-500 transition"/>
+                                        <p className="text-zinc-600 text-xs">Upload your ID/proof to Google Drive, make it public, paste the link above.</p>
+                                        {verifyType === 'blue' && verificationStatus?.blue_slots && (
+                                            <p className={`text-xs font-semibold ${verificationStatus.blue_slots.remaining <= 5 ? 'text-red-400' : 'text-blue-400'}`}>
+                                                🎁 Blue giveaway: {verificationStatus.blue_slots.remaining}/{verificationStatus.blue_slots.total} spots left
+                                            </p>
+                                        )}
                                         <button onClick={requestVerification}
                                             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2 rounded-xl text-sm transition">
                                             <Send size={14}/> Submit Request
                                         </button>
-                                        {verifyMsg && <p className="text-xs text-green-400">{verifyMsg}</p>}
+                                        {verifyMsg && <p className={`text-xs font-medium ${verifyMsg.startsWith('✅') ? 'text-green-400' : verifyMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{verifyMsg}</p>}
                                     </div>
                                 )}
                             </>

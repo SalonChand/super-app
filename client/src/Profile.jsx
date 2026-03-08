@@ -314,7 +314,12 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 <div className="mt-3">
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                         {profileData.username}
-                        {profileData.is_verified ? <BadgeCheck size={20} className="text-blue-400 fill-blue-400" title={profileData.verified_reason || 'Verified'} /> : null}
+                        {!!profileData.is_verified ? (() => {
+                            const colors = { red: 'text-red-500 fill-red-500', green: 'text-green-500 fill-green-500', yellow: 'text-yellow-400 fill-yellow-400', blue: 'text-blue-400 fill-blue-400' };
+                            const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+                            const t = profileData.verify_type || 'blue';
+                            return <BadgeCheck size={20} className={colors[t] || colors.blue} title={titles[t] || titles.blue}/>;
+                        })() : null}
                         {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
                     </h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
