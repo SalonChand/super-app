@@ -38,10 +38,6 @@ function Settings() {
     const[twoFAMsg, setTwoFAMsg] = useState('');
     const[verificationStatus, setVerificationStatus] = useState(null); // null | { is_verified, request }
     const[verifyReason, setVerifyReason] = useState('');
-    const[verifyType, setVerifyType] = useState('blue');
-    const[proofUrl, setProofUrl] = useState('');
-    const[displayName, setDisplayName] = useState('');
-    const[displayNameMsg, setDisplayNameMsg] = useState('');
     const[verifyMsg, setVerifyMsg] = useState('');
     const[claimMsg, setClaimMsg] = useState('');
     const[ownerSecret, setOwnerSecret] = useState('');
@@ -71,19 +67,17 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/admin/is-claimed`)
             .then(res => setAdminClaimed(!!res.data?.claimed))
             .catch(() => setAdminClaimed(true));
-        // Fetch role and set isAdmin state
+        // Fetch role — only SET admin to true, never set it back to false
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
             .then(res => {
                 const role = res.data?.role;
                 if (role) localStorage.setItem('userRole', role);
-                const isSuperAdmin = role === 'superadmin' || res.data?.username === 'superadmin' || localStorage.getItem('username') === 'superadmin';
-                setIsAdmin(isSuperAdmin);
+                if (role === 'superadmin') {
+                    localStorage.setItem('loginUsername', 'superadmin');
+                    setIsAdmin(true);
+                }
             })
-            .catch(() => {
-                // Fallback to localStorage
-                const isSuperAdmin = localStorage.getItem('userRole') === 'superadmin' || localStorage.getItem('username') === 'superadmin';
-                setIsAdmin(isSuperAdmin);
-            });
+            .catch(() => {});
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -189,7 +183,7 @@ function Settings() {
     const requestVerification = async () => {
         if (!verifyReason.trim()) { setVerifyMsg('Please explain why you should be verified.'); return; }
         try {
-            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason, verify_type: verifyType, proof_url: proofUrl });
+            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason });
             setVerifyMsg('✅ Request submitted! We will review it shortly.');
             setVerifyReason('');
             const res = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
@@ -227,16 +221,6 @@ function Settings() {
     const handleLogout = () => { localStorage.removeItem('token'); localStorage.removeItem('userId'); document.body.classList.remove('light-theme'); window.location.href = '/login'; };
 
     if (!currentUserId) return <div className="p-8 text-center text-zinc-500">Please log in.</div>;
-
-    const saveDisplayName = async () => {
-        if (!displayName.trim()) { setDisplayNameMsg('Enter a name.'); return; }
-        setDisplayNameMsg('Saving...');
-        try {
-            const res = await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/display-name`, { displayName, requesterId: currentUserId });
-            if (res.data?.success) { localStorage.setItem('username', displayName.trim()); setDisplayNameMsg('✅ Name updated!'); }
-            else setDisplayNameMsg('❌ ' + (res.data?.error || 'Failed'));
-        } catch(e) { setDisplayNameMsg('❌ ' + (e?.response?.data?.error || e.message)); }
-    };
 
     return (
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
