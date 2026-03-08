@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Globe, Plus, MessageSquare, Image as ImageIcon, Send, X, Users, Heart, User, MessageCircle, UserPlus, Share } from 'lucide-react';
+import { Globe, Plus, MessageSquare, Image as ImageIcon, Send, X, Users, Heart, User, MessageCircle, UserPlus, Share, Shield, Trash2, Settings, Crown, UserX, ChevronRight, Edit3, Check, AlertTriangle, MoreVertical } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -47,6 +47,16 @@ function Communities({ themeColor }) {
     const [commentsData, setCommentsData] = useState({});
     const [newComment, setNewComment] = useState('');
     const [viewingImage, setViewingImage] = useState(null);
+
+    // Owner panel states
+    const [showOwnerPanel, setShowOwnerPanel] = useState(false);
+    const [ownerTab, setOwnerTab] = useState('members'); // members | settings | danger
+    const [members, setMembers] = useState([]);
+    const [loadingMembers, setLoadingMembers] = useState(false);
+    const [editCommName, setEditCommName] = useState('');
+    const [editCommDesc, setEditCommDesc] = useState('');
+    const [editingSaving, setEditingSaving] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const loadCommunities = () => {
         axios.get(`${BACKEND_URL}/api/communities?userId=${userId}`).then(res => setCommunities(res.data)).catch(err => console.error(err));
@@ -122,6 +132,86 @@ function Communities({ themeColor }) {
         } catch (err) { console.error("Failed to invite."); }
     };
 
+    // OWNER CONTROLS
+    const loadMembers = async (commId) => {
+        setLoadingMembers(true);
+        try {
+            const r = await axios.get(`${BACKEND_URL}/api/communities/${commId}/members`);
+            setMembers(r.data);
+        } catch(e) {} finally { setLoadingMembers(false); }
+    };
+
+    const openOwnerPanel = () => {
+        setEditCommName(activeCommunity.name);
+        setEditCommDesc(activeCommunity.description || '');
+        setShowOwnerPanel(true);
+        setOwnerTab('members');
+        loadMembers(activeCommunity.id);
+    };
+
+    const handleRemoveMember = async (memberId) => {
+        if (!window.confirm('Remove this member from the community?')) return;
+        try {
+            await axios.delete(`${BACKEND_URL}/api/communities/${activeCommunity.id}/members/${memberId}`, { data: { requesterId: userId } });
+            setMembers(prev => prev.filter(m => m.id !== memberId));
+            setActiveCommunity(prev => ({ ...prev, member_count: prev.member_count - 1 }));
+        } catch(e) { alert('Failed to remove member.'); }
+    };
+
+    const handleBanMember = async (memberId) => {
+        if (!window.confirm('Ban this member? They cannot rejoin.')) return;
+        try {
+            await axios.post(`${BACKEND_URL}/api/communities/${activeCommunity.id}/ban`, { requesterId: userId, userId: memberId });
+            setMembers(prev => prev.filter(m => m.id !== memberId));
+            setActiveCommunity(prev => ({ ...prev, member_count: prev.member_count - 1 }));
+        } catch(e) { alert('Failed to ban member.'); }
+    };
+
+    const handleToggleMod = async (memberId, currentRole) => {
+        const newRole = currentRole === 'moderator' ? 'member' : 'moderator';
+        try {
+            await axios.post(`${BACKEND_URL}/api/communities/${activeCommunity.id}/members/${memberId}/role`, { requesterId: userId, role: newRole });
+            setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+        } catch(e) { alert('Failed to update role.'); }
+    };
+
+    const handleSaveCommunityEdit = async () => {
+        if (!editCommName.trim()) return;
+        setEditingSaving(true);
+        try {
+            await axios.put(`${BACKEND_URL}/api/communities/${activeCommunity.id}`, { requesterId: userId, name: editCommName.trim(), description: editCommDesc });
+            setActiveCommunity(prev => ({ ...prev, name: editCommName.trim(), description: editCommDesc }));
+            setCommunities(prev => prev.map(c => c.id === activeCommunity.id ? { ...c, name: editCommName.trim(), description: editCommDesc } : c));
+            alert('Community updated!');
+        } catch(e) { alert('Failed to update. Name might be taken.'); }
+        finally { setEditingSaving(false); }
+    };
+
+    const handleDeleteCommunity = async () => {
+        try {
+            await axios.delete(`${BACKEND_URL}/api/communities/${activeCommunity.id}`, { data: { requesterId: userId } });
+            setActiveCommunity(null);
+            setShowOwnerPanel(false);
+            loadCommunities();
+        } catch(e) { alert('Failed to delete community.'); }
+    };
+
+    const handleDeletePost = async (postId) => {
+        try {
+            await axios.delete(`${BACKEND_URL}/api/communities/${activeCommunity.id}/posts/${postId}`, { data: { requesterId: userId } });
+            setPosts(prev => prev.filter(p => p.id !== postId));
+        } catch(e) { alert('Failed to delete post.'); }
+    };
+
+    const handleDeleteChannel = async (channelId) => {
+        if (!window.confirm('Delete this channel and all its posts?')) return;
+        try {
+            await axios.delete(`${BACKEND_URL}/api/communities/${activeCommunity.id}/channels/${channelId}`, { data: { requesterId: userId } });
+            setChannels(prev => prev.filter(ch => ch.id !== channelId));
+            if (activeChannelId === channelId) { setActiveChannelId(null); loadCommunityPosts(activeCommunity.id); }
+        } catch(e) { alert('Failed to delete channel.'); }
+    };
+
     // POST CREATION
     const handleImageSelect = (e) => { const file = e.target.files[0]; if (file) { setSelectedImage(file); setPreviewUrl(URL.createObjectURL(file)); } };
     const removeImage = () => { setSelectedImage(null); setPreviewUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; };
@@ -172,7 +262,135 @@ function Communities({ themeColor }) {
         return (
             <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in relative">
                 
-                {viewingImage && (
+                {/* ── OWNER PANEL MODAL ── */}
+                {showOwnerPanel && (
+                    <div className="fixed inset-0 z-[130] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowOwnerPanel(false)}>
+                        <div className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <Crown size={18} className="text-yellow-400" />
+                                    <div>
+                                        <h3 className="text-white font-bold">Community Manager</h3>
+                                        <p className="text-zinc-500 text-xs">/{activeCommunity.name}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowOwnerPanel(false)} className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition"><X size={15} className="text-zinc-400"/></button>
+                            </div>
+                            {/* Tabs */}
+                            <div className="flex border-b border-zinc-800 flex-shrink-0">
+                                {[{id:'members',label:'Members',icon:<Users size={13}/>},{id:'settings',label:'Settings',icon:<Settings size={13}/>},{id:'danger',label:'Danger Zone',icon:<AlertTriangle size={13}/>}].map(t => (
+                                    <button key={t.id} onClick={() => setOwnerTab(t.id)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold border-b-2 transition ${ownerTab===t.id ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'} ${t.id==='danger' && ownerTab===t.id ? 'text-red-400 border-red-400' : ''}`}>
+                                        {t.icon}{t.label}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Content */}
+                            <div className="flex-1 overflow-y-auto">
+                                {/* MEMBERS TAB */}
+                                {ownerTab === 'members' && (
+                                    <div>
+                                        <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-between">
+                                            <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">{members.length} Members</p>
+                                            <button onClick={() => loadMembers(activeCommunity.id)} className="text-zinc-600 hover:text-zinc-400 transition text-xs">Refresh</button>
+                                        </div>
+                                        {loadingMembers ? (
+                                            <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin"/></div>
+                                        ) : members.map(m => (
+                                            <div key={m.id} className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800/40 last:border-0 hover:bg-zinc-900/40 transition">
+                                                <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border border-zinc-700 flex-shrink-0">
+                                                    {m.profile_pic_url ? <img src={m.profile_pic_url} className="w-full h-full object-cover" alt=""/> : <span className="flex items-center justify-center h-full text-zinc-400 font-bold text-sm">{m.username.charAt(0).toUpperCase()}</span>}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-white font-semibold text-sm truncate">{m.username}</p>
+                                                        {m.id == activeCommunity.creator_id && <span className="text-[10px] font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded-full flex items-center gap-1"><Crown size={9}/>Owner</span>}
+                                                        {m.role === 'moderator' && m.id != activeCommunity.creator_id && <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full flex items-center gap-1"><Shield size={9}/>Mod</span>}
+                                                    </div>
+                                                    {m.joined_at && <p className="text-zinc-600 text-xs">Joined {new Date(m.joined_at).toLocaleDateString([], {month:'short',year:'numeric'})}</p>}
+                                                </div>
+                                                {m.id != userId && m.id != activeCommunity.creator_id && (
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                        <button onClick={() => handleToggleMod(m.id, m.role)} title={m.role==='moderator'?'Remove Mod':'Make Mod'}
+                                                            className={`p-2 rounded-full transition text-xs font-bold ${m.role==='moderator' ? 'text-blue-400 bg-blue-400/10 hover:bg-blue-400/20' : 'text-zinc-500 hover:bg-zinc-800 hover:text-blue-400'}`}>
+                                                            <Shield size={15}/>
+                                                        </button>
+                                                        <button onClick={() => handleRemoveMember(m.id)} title="Remove from community" className="p-2 rounded-full text-zinc-500 hover:bg-orange-400/10 hover:text-orange-400 transition">
+                                                            <UserX size={15}/>
+                                                        </button>
+                                                        <button onClick={() => handleBanMember(m.id)} title="Ban member" className="p-2 rounded-full text-zinc-500 hover:bg-red-500/10 hover:text-red-400 transition">
+                                                            <Trash2 size={15}/>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {/* SETTINGS TAB */}
+                                {ownerTab === 'settings' && (
+                                    <div className="p-4 flex flex-col gap-4">
+                                        <div>
+                                            <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-2">Community Name</label>
+                                            <input value={editCommName} onChange={e => setEditCommName(e.target.value.replace(/\s+/g,''))}
+                                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-zinc-500 transition placeholder-zinc-600"
+                                                placeholder="community_name" />
+                                        </div>
+                                        <div>
+                                            <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-2">Description</label>
+                                            <textarea value={editCommDesc} onChange={e => setEditCommDesc(e.target.value)} rows="4"
+                                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-zinc-500 transition resize-none placeholder-zinc-600"
+                                                placeholder="What is this community about?" />
+                                        </div>
+                                        <div>
+                                            <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-2">Channels</label>
+                                            {channels.length === 0 ? <p className="text-zinc-600 text-sm">No channels yet.</p> : channels.map(ch => (
+                                                <div key={ch.id} className="flex items-center gap-3 py-2.5 border-b border-zinc-800/50 last:border-0">
+                                                    <span className="text-zinc-400 text-sm flex-1 font-mono"># {ch.name}</span>
+                                                    <button onClick={() => handleDeleteChannel(ch.id)} className="text-zinc-600 hover:text-red-400 transition p-1.5 rounded-lg hover:bg-red-400/10"><Trash2 size={14}/></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button onClick={handleSaveCommunityEdit} disabled={editingSaving || !editCommName.trim()}
+                                            className="w-full py-3 rounded-xl text-white font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                                            style={{backgroundColor: themeColor}}>
+                                            {editingSaving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Check size={16}/>}
+                                            Save Changes
+                                        </button>
+                                    </div>
+                                )}
+                                {/* DANGER TAB */}
+                                {ownerTab === 'danger' && (
+                                    <div className="p-4 flex flex-col gap-4">
+                                        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <AlertTriangle size={16} className="text-red-400 flex-shrink-0"/>
+                                                <p className="text-red-400 font-bold text-sm">Delete Community</p>
+                                            </div>
+                                            <p className="text-zinc-500 text-sm mb-4">This will permanently delete <span className="text-white font-semibold">/{activeCommunity.name}</span> and all its posts, channels, and members. This cannot be undone.</p>
+                                            {!confirmDelete ? (
+                                                <button onClick={() => setConfirmDelete(true)} className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-bold rounded-xl transition text-sm">
+                                                    Delete Community
+                                                </button>
+                                            ) : (
+                                                <div className="flex flex-col gap-2">
+                                                    <p className="text-red-300 text-sm font-semibold text-center">Are you absolutely sure?</p>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl transition text-sm">Cancel</button>
+                                                        <button onClick={handleDeleteCommunity} className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition text-sm">Yes, Delete</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                                {viewingImage && (
                     <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
                         <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>
                         <img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} />
@@ -239,7 +457,8 @@ function Communities({ themeColor }) {
                             {channels.length === 0 && <p className="text-zinc-600 text-sm">No channels yet</p>}
                         </div>
                         {activeCommunity.creator_id == userId && (
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
+                                <button onClick={openOwnerPanel} className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition"><Settings size={13}/> Manage</button>
                                 <input value={newChannelName} onChange={e => setNewChannelName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addChannel()} placeholder="New channel name..." className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none placeholder-zinc-600 focus:border-zinc-500 transition"/>
                                 <button onClick={addChannel} className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition">Add</button>
                             </div>
@@ -316,6 +535,9 @@ function Communities({ themeColor }) {
                                         <span className="text-sm font-medium hover:underline hover:text-blue-500">{post.comment_count > 0 ? post.comment_count : ''}</span>
                                     </div>
                                     <button className="flex items-center gap-2 hover:text-blue-500 group transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><Share size={18} /></div></button>
+                                    {activeCommunity.creator_id == userId && (
+                                        <button onClick={() => handleDeletePost(post.id)} className="flex items-center gap-2 hover:text-red-400 group transition ml-auto" title="Delete post"><div className="p-2 rounded-full group-hover:bg-red-500/10"><Trash2 size={16} /></div></button>
+                                    )}
                                 </div>
 
                                 {/* COMMENTS DROP DOWN */}
