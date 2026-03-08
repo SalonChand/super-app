@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 // 🔥 BUG FIX: EVERY SINGLE ICON IS NOW IMPORTED PERFECTLY! 🔥
-import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, VolumeX, Play, MoreHorizontal, Plus, Send, User, Music, ChevronDown } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, VolumeX, Play, MoreHorizontal, Plus, Send, User, Music, ChevronDown, BadgeCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -249,6 +249,17 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
 // ==================================================
 // MAIN PAGE COMPONENT
 // ==================================================
+
+// Colored verified badge based on verify_type
+function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
+    if (!isVerified) return null;
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const t = verifyType || 'blue';
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={titles[t] || titles.blue}/>;
+}
+
+
 function Reels() {
     const[reels, setReels] = useState([]);
     const [uploading, setUploading] = useState(false);

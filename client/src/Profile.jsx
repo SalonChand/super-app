@@ -14,6 +14,17 @@ function formatTimeFriendly(dateString) {
     if (isToday) return `Today at ${timeStr}`; if (isYesterday) return `Yesterday at ${timeStr}`; return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
 
+
+// Colored verified badge based on verify_type
+function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
+    if (!isVerified) return null;
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const t = verifyType || 'blue';
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={titles[t] || titles.blue}/>;
+}
+
+
 function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const { id } = useParams(); 
     const currentUserId = localStorage.getItem('userId');
@@ -314,12 +325,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 <div className="mt-3">
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                         {profileData.username}
-                        {!!profileData.is_verified ? (() => {
-                            const colors = { red: 'text-red-500 fill-red-500', green: 'text-green-500 fill-green-500', yellow: 'text-yellow-400 fill-yellow-400', blue: 'text-blue-400 fill-blue-400' };
-                            const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
-                            const t = profileData.verify_type || 'blue';
-                            return <BadgeCheck size={20} className={colors[t] || colors.blue} title={titles[t] || titles.blue}/>;
-                        })() : null}
+                        {<VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>}
                         {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
                     </h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
@@ -455,7 +461,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
                                         <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-bold text-white">{post.username}</span>
+                                        <span className="font-bold text-white">{post.username}<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={12}/></span>
                                         {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><span className="font-bold text-yellow-300 text-sm">& {post.co_author_username}</span></>}
                                         <span className="text-zinc-500 text-sm">@{post.username.toLowerCase()}</span>
                                         {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'} {post.visibility.replace('_', ' ')}</span>}

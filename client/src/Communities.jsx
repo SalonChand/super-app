@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Globe, Plus, MessageSquare, Image as ImageIcon, Send, X, Users, Heart, User, MessageCircle, UserPlus, Share, Shield, Trash2, Settings, Crown, UserX, ChevronRight, Edit3, Check, AlertTriangle, MoreVertical } from 'lucide-react';
+import { Globe, Plus, MessageSquare, Image as ImageIcon, Send, X, Users, Heart, User, MessageCircle, UserPlus, Share, Shield, Trash2, Settings, Crown, UserX, ChevronRight, Edit3, Check, AlertTriangle, MoreVertical, BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -13,6 +13,17 @@ function formatTimeFriendly(dateString) {
     const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (isToday) return `Today at ${timeStr}`; if (isYesterday) return `Yesterday at ${timeStr}`; return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
 }
+
+
+// Colored verified badge based on verify_type
+function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
+    if (!isVerified) return null;
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const t = verifyType || 'blue';
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={titles[t] || titles.blue}/>;
+}
+
 
 function Communities({ themeColor }) {
     const userId = localStorage.getItem('userId');
@@ -304,7 +315,7 @@ function Communities({ themeColor }) {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2">
-                                                        <p className="text-white font-semibold text-sm truncate">{m.username}</p>
+                                                        <p className="text-white font-semibold text-sm truncate flex items-center gap-1">{m.username}<VerifiedBadge isVerified={!!m.is_verified} verifyType={m.verify_type} size={12}/></p>
                                                         {m.id == activeCommunity.creator_id && <span className="text-[10px] font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded-full flex items-center gap-1"><Crown size={9}/>Owner</span>}
                                                         {m.role === 'moderator' && m.id != activeCommunity.creator_id && <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full flex items-center gap-1"><Shield size={9}/>Mod</span>}
                                                     </div>
@@ -413,7 +424,7 @@ function Communities({ themeColor }) {
                                                 <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">
                                                     {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}
                                                 </div>
-                                                <span className="text-white font-bold text-sm">{friend.username}</span>
+                                                <span className="text-white font-bold text-sm flex items-center gap-1">{friend.username}<VerifiedBadge isVerified={!!friend.is_verified} verifyType={friend.verify_type} size={12}/></span>
                                             </div>
                                             <button 
                                                 onClick={() => handleInviteFriend(friend.id)}
@@ -521,7 +532,7 @@ function Communities({ themeColor }) {
                                     <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800">
                                         {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-zinc-500 text-xs">{post.username.charAt(0).toUpperCase()}</div>}
                                     </div>
-                                    <Link to={`/profile/${post.user_id}`} className="text-sm font-bold text-white hover:underline">{post.username}</Link>
+                                    <Link to={`/profile/${post.user_id}`} className="text-sm font-bold text-white hover:underline">{post.username}<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={12}/></Link>
                                     <span className="text-xs text-zinc-600">• {formatTimeFriendly(post.created_at)}</span>
                                 </div>
                                 <p className="text-zinc-200 text-[15px] mb-3 leading-relaxed break-words whitespace-pre-wrap">{post.content}</p>
@@ -561,7 +572,7 @@ function Communities({ themeColor }) {
                                                         {comment.profile_pic_url ? <img src={`${comment.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}
                                                     </Link>
                                                     <div className="bg-zinc-900/50 p-3 rounded-2xl rounded-tl-sm w-full border border-zinc-800/50">
-                                                        <div className="flex items-center gap-2 mb-1"><Link to={`/profile/${comment.user_id}`} className="font-bold text-white text-sm hover:underline">{comment.username}</Link><span className="text-zinc-600 text-xs">{formatTimeFriendly(comment.created_at)}</span></div>
+                                                        <div className="flex items-center gap-2 mb-1"><Link to={`/profile/${comment.user_id}`} className="font-bold text-white text-sm hover:underline">{comment.username}<VerifiedBadge isVerified={!!comment.is_verified} verifyType={comment.verify_type} size={11}/></Link><span className="text-zinc-600 text-xs">{formatTimeFriendly(comment.created_at)}</span></div>
                                                         <p className="text-zinc-200 text-sm">{comment.content}</p>
                                                     </div>
                                                 </div>
