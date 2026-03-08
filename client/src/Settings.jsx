@@ -43,7 +43,10 @@ function Settings() {
     const[ownerSecret, setOwnerSecret] = useState('');
     const[showClaimForm, setShowClaimForm] = useState(false);
     const[adminClaimed, setAdminClaimed] = useState(true);
-    const[isAdmin, setIsAdmin] = useState(false); // default true = hide button safely
+    const[isAdmin, setIsAdmin] = useState(
+        localStorage.getItem('userRole') === 'superadmin' ||
+        localStorage.getItem('loginUsername') === 'superadmin'
+    );
     const[showVerifyForm, setShowVerifyForm] = useState(false);
 
     useEffect(() => {
@@ -64,18 +67,18 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/admin/is-claimed`)
             .then(res => setAdminClaimed(!!res.data?.claimed))
             .catch(() => setAdminClaimed(true));
-        // Fetch role — check both role column and username fallback
+        // Fetch role and set isAdmin state
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
             .then(res => {
                 const role = res.data?.role;
-                const uname = res.data?.username;
                 if (role) localStorage.setItem('userRole', role);
-                if (uname) localStorage.setItem('username', uname);
-                const isSuperAdmin = role === 'superadmin';
+                const isSuperAdmin = role === 'superadmin' || res.data?.username === 'superadmin' || localStorage.getItem('username') === 'superadmin';
                 setIsAdmin(isSuperAdmin);
             })
             .catch(() => {
-                setIsAdmin(localStorage.getItem('userRole') === 'superadmin');
+                // Fallback to localStorage
+                const isSuperAdmin = localStorage.getItem('userRole') === 'superadmin' || localStorage.getItem('username') === 'superadmin';
+                setIsAdmin(isSuperAdmin);
             });
     }, []);
 

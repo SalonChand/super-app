@@ -17,6 +17,7 @@ function Login() {
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('userId', response.data.user.id);
             localStorage.setItem('username', response.data.user.username);
+            localStorage.setItem('loginUsername', response.data.user.loginUsername || response.data.user.username);
             localStorage.setItem('userRole', response.data.user.role || 'user');
             window.location.href = '/';
         } catch (error) {
