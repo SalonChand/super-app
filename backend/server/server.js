@@ -208,6 +208,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("CREATE TABLE IF NOT EXISTS screen_record_alerts (id INT AUTO_INCREMENT PRIMARY KEY, chat_user1 INT NOT NULL, chat_user2 INT NOT NULL, detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     // === SOCIAL ENGAGEMENT BATCH ===
     await patch("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
     await patch("ALTER TABLE users ADD COLUMN verified_reason VARCHAR(100) DEFAULT NULL");
     await patch("ALTER TABLE reels ADD COLUMN song_name VARCHAR(200) DEFAULT NULL");
     await patch("ALTER TABLE reels ADD COLUMN song_url VARCHAR(500) DEFAULT NULL");
@@ -243,20 +244,6 @@ app.get('/api/setup-cloud-db', async (req, res) => {
 // PUSH & AUTH
 app.get('/api/vapidPublicKey', (req, res) => { res.send(vapidKeys.publicKey); });
 app.post('/api/subscribe', async (req, res) => { try { const { userId, subscription } = req.body; await pool.query('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]); await pool.query('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)',[userId, JSON.stringify(subscription)]); res.status(201).json({}); } catch (err) { res.status(500).json({ error: "Server error" }); } });
-// ONE-TIME superadmin claim — only works ONCE, self-destructs after first use
-app.post('/api/claim-superadmin', async (req, res) => {
-    try {
-        const { userId, ownerSecret } = req.body;
-        if (ownerSecret !== process.env.OWNER_SECRET) return res.status(403).json({ error: 'Wrong secret.' });
-        // Check nobody is already superadmin
-        const [existing] = await pool.query("SELECT id FROM users WHERE username = 'superadmin'");
-        if (existing.length > 0) return res.status(409).json({ error: 'Superadmin already claimed.' });
-        await pool.query("UPDATE users SET username = 'superadmin' WHERE id = ?", [userId]);
-        const [user] = await pool.query("SELECT id, username, email FROM users WHERE id = ?", [userId]);
-        res.json({ success: true, message: 'You are now superadmin!', username: user[0]?.username });
-    } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" }); const token = jwt.sign({ id: users[0].id }, process.env.JWT_SECRET, { expiresIn: '7d' }); res.json({ message: "Logged in!", token, user: { id: users[0].id, username: users[0].username, email: users[0].email } }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
@@ -457,7 +444,7 @@ app.get('/api/users/:id/verification-status', async (req, res) => {
 app.post('/api/admin/verify-user', async (req, res) => {
     try {
         const { adminId, userId, approved, reason } = req.body;
-        const [admin] = await pool.query("SELECT username FROM users WHERE id = ? AND username = 'superadmin'", [adminId]);
+        const [admin] = await pool.query("SELECT id FROM users WHERE id = ? AND role = 'superadmin'", [adminId]);
         if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
         await pool.query('UPDATE users SET is_verified = ?, verified_reason = ? WHERE id = ?', [approved ? 1 : 0, reason || null, userId]);
         await pool.query('UPDATE verification_requests SET status = ? WHERE user_id = ?', [approved ? 'approved' : 'denied', userId]);
@@ -473,7 +460,7 @@ app.post('/api/admin/verify-user', async (req, res) => {
 app.get('/api/admin/verification-requests', async (req, res) => {
     try {
         const { adminId } = req.query;
-        const [admin] = await pool.query("SELECT username FROM users WHERE id = ? AND username = 'superadmin'", [adminId]);
+        const [admin] = await pool.query("SELECT id FROM users WHERE id = ? AND role = 'superadmin'", [adminId]);
         if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
         const [requests] = await pool.query(`
             SELECT vr.*, u.username, u.profile_pic_url, u.id as user_id,
@@ -535,7 +522,7 @@ app.get('/api/posts/collab-invites/:userId', async (req, res) => { try { const [
 app.get('/api/requests/:userId', async (req, res) => { try { const [requests] = await pool.query(`SELECT messages.*, users.username, users.profile_pic_url FROM messages JOIN users ON messages.sender_id = users.id WHERE messages.receiver_id = ? AND messages.is_request = true AND messages.sender_id NOT IN (SELECT requester_id FROM connections WHERE receiver_id = ? AND status = 'accepted' UNION SELECT receiver_id FROM connections WHERE requester_id = ? AND status = 'accepted') GROUP BY messages.sender_id ORDER BY messages.created_at DESC`,[req.params.userId, req.params.userId, req.params.userId]); res.json(requests); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 // PROFILE & FRIENDS
-app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query('SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason FROM users WHERE id = ?',[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.get('/api/users/:id', async (req, res) => { try { const [users] = await pool.query('SELECT id, username, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, COALESCE(role, 'user') as role FROM users WHERE id = ?',[req.params.id]); if (users.length === 0) return res.status(404).json({error: "Not found"}); const [friends] = await pool.query(`SELECT COUNT(*) as count FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`,[req.params.id, req.params.id]); res.json({ ...users[0], friend_count: friends[0].count }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const[posts] = await pool.query(`SELECT p.*, u.username, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = ? ORDER BY p.created_at DESC`,[currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url, profile_links } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?, profile_links = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null, profile_links || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
 

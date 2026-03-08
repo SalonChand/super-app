@@ -58,6 +58,10 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`)
             .then(res => setVerificationStatus(res.data))
             .catch(() => {});
+        // Fetch and cache user role
+        axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
+            .then(res => { if (res.data?.role) localStorage.setItem('userRole', res.data.role); })
+            .catch(() => {});
     }, []);
 
     // 🔥 THE FIX: EXPLICIT BUTTON TO ASK FOR PUSH NOTIFICATIONS 🔥
@@ -151,8 +155,7 @@ function Settings() {
             });
             if (res.data?.success) {
                 localStorage.setItem('username', 'superadmin');
-                setClaimMsg('✅ You are now superadmin! Reloading...');
-                setTimeout(() => window.location.reload(), 1500);
+                setClaimMsg('✅ You are now superadmin! Refresh the page.');
             } else {
                 setClaimMsg('❌ ' + (res.data?.error || 'Failed'));
             }
@@ -208,7 +211,7 @@ function Settings() {
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Settings</h2></div>
             <div className="p-4 space-y-6">
                 <div>
-                    {localStorage.getItem('username') !== 'superadmin' && (
+                    {localStorage.getItem('userRole') !== 'superadmin' && (
                         <div className="mb-6">
                             <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">🔑 Owner Setup</h3>
                             <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
@@ -243,7 +246,7 @@ function Settings() {
                             </div>
                         </div>
                     )}
-                    {localStorage.getItem('username') === 'superadmin' && (
+                    {localStorage.getItem('userRole') === 'superadmin' && (
                         <div className="mb-6">
                             <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
                             <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">

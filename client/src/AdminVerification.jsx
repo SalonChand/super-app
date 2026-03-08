@@ -20,7 +20,7 @@ const STATUS_CONFIG = {
 
 export default function AdminVerification() {
     const adminId = localStorage.getItem('userId');
-    const username = localStorage.getItem('username');
+    const userRole = localStorage.getItem('userRole');
 
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -44,7 +44,7 @@ export default function AdminVerification() {
     };
 
     useEffect(() => {
-        if (username !== 'superadmin') { setError('Access denied. Superadmin only.'); setLoading(false); return; }
+        if (userRole !== 'superadmin') { setError('Access denied. Superadmin only.'); setLoading(false); return; }
         loadRequests();
     }, []);
 
