@@ -83,6 +83,10 @@ function Feed({ onlineUsers = new Set() }) {
     const isDrawing = useRef(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [feedPage, setFeedPage] = useState(0);
+    const [hasMorePosts, setHasMorePosts] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const feedEndRef = useRef(null);
     const [sharingToStory, setSharingToStory] = useState(null); // { post }
     const [storyShareCaption, setStoryShareCaption] = useState('');
     const openHashtag = async (tag) => {
@@ -112,8 +116,12 @@ function Feed({ onlineUsers = new Set() }) {
         setIsRefreshing(true);
         // Fetch each independently so one failure doesn't block the others
         try {
-            const postsRes = await axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}`);
-            if (Array.isArray(postsRes.data)) setPosts(postsRes.data);
+            const postsRes = await axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}&page=0`);
+            const data = postsRes.data;
+            const arr = Array.isArray(data) ? data : (data.posts || []);
+            setPosts(arr);
+            setFeedPage(0);
+            setHasMorePosts(Array.isArray(data) ? arr.length === 20 : (data.hasMore ?? false));
         } catch (err) { console.error('Posts error:', err); }
         try {
             if (userId) {
@@ -139,6 +147,21 @@ function Feed({ onlineUsers = new Set() }) {
         } catch (err) { console.error('Friends error:', err); }
         setIsRefreshing(false);
     };
+    const loadMorePosts = async () => {
+        if (loadingMore || !hasMorePosts) return;
+        setLoadingMore(true);
+        try {
+            const nextPage = feedPage + 1;
+            const res = await axios.get(`${BACKEND_URL}/api/posts?userId=${userId || 0}&page=${nextPage}`);
+            const data = res.data;
+            const newPosts = Array.isArray(data) ? data : (data.posts || []);
+            setPosts(prev => [...prev, ...newPosts]);
+            setFeedPage(nextPage);
+            setHasMorePosts(Array.isArray(data) ? newPosts.length === 20 : (data.hasMore ?? false));
+        } catch(e) {}
+        setLoadingMore(false);
+    };
+
     useEffect(() => { fetchData(); }, []);
 
     // Track post views when feed loads
@@ -716,6 +739,19 @@ function Feed({ onlineUsers = new Set() }) {
                         </div>
                     </div>
                 ))}
+                {/* Load more */}
+                {hasMorePosts && (
+                    <div className="flex justify-center py-6">
+                        <button onClick={loadMorePosts} disabled={loadingMore}
+                            className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-sm font-semibold px-6 py-2.5 rounded-full transition disabled:opacity-50">
+                            {loadingMore ? <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin"/> : null}
+                            {loadingMore ? 'Loading…' : 'Load more posts'}
+                        </button>
+                    </div>
+                )}
+                {!hasMorePosts && posts.length > 0 && (
+                    <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
+                )}
             </div>
         </div>
     );
