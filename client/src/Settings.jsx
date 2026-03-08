@@ -50,6 +50,7 @@ function Settings() {
     const[showVerifyForm, setShowVerifyForm] = useState(false);
     const [displayName, setDisplayName] = useState('');
     const [displayNameMsg, setDisplayNameMsg] = useState('');
+    const [badgeMsg, setBadgeMsg] = useState('');
     const [verifyType, setVerifyType] = useState('blue');
     const [proofUrl, setProofUrl] = useState('');
 
@@ -236,6 +237,21 @@ function Settings() {
         } catch(e) { setDisplayNameMsg('❌ Error saving'); }
     };
 
+    const setMyGoldBadge = async () => {
+        setBadgeMsg('Setting...');
+        try {
+            const res = await axios.post(`${BACKEND_URL}/api/admin/verify-user`, {
+                adminId: currentUserId,
+                userId: currentUserId,
+                approved: true,
+                verify_type: 'red',
+                reason: 'Platform Owner'
+            });
+            if (res.data?.success) setBadgeMsg('✅ Gold badge set! Refresh to see it.');
+            else setBadgeMsg('❌ ' + (res.data?.error || 'Failed'));
+        } catch(e) { setBadgeMsg('❌ Error'); }
+    };
+
     return (
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Settings</h2></div>
@@ -301,6 +317,15 @@ function Settings() {
                                         <button onClick={saveDisplayName} className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition">Save</button>
                                     </div>
                                     {displayNameMsg && <p className={`text-xs ${displayNameMsg.startsWith('✅') ? 'text-green-400' : displayNameMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{displayNameMsg}</p>}
+                                </div>
+                                <div className="border-t border-zinc-800 p-4 space-y-2">
+                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">My Badge</p>
+                                    <p className="text-xs text-zinc-600">Set your exclusive gold owner badge visible everywhere.</p>
+                                    <button onClick={setMyGoldBadge}
+                                        className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold px-4 py-2 rounded-xl text-sm transition shadow-lg shadow-yellow-500/30">
+                                        ✦ Set Gold Owner Badge
+                                    </button>
+                                    {badgeMsg && <p className={`text-xs font-medium ${badgeMsg.startsWith('✅') ? 'text-green-400' : badgeMsg.startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{badgeMsg}</p>}
                                 </div>
                             </div>
                         </div>
