@@ -283,6 +283,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             : <>
                                 <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800"><Edit3 size={18} /> Edit Profile</button>
                                 <button onClick={() => setShowQR(true)} title="Show QR Code" className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-3 rounded-full hover:bg-zinc-800">📱 QR</button>
+                                <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800 transition">📊 Dashboard</button>
                               </>
                         ) : (
                             <>
