@@ -271,7 +271,7 @@ export default function AdminVerification() {
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 <Link to={`/profile/${req.user_id}`} className="text-white font-bold hover:underline text-sm">{req.username}</Link>
                                                 {!!req.is_verified && <BadgeCheck size={13} className={TYPE_CONFIG[req.verify_type || 'blue']?.color || 'text-blue-400'}/>}
-                                                <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${tcfg.bg} ${tcfg.color}`}>{tcfg.label}</span>
+                                                {(() => { const acfg = isActing ? (TYPE_CONFIG[actionType] || TYPE_CONFIG.blue) : tcfg; return <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${acfg.bg} ${acfg.color}`}>{acfg.label}</span>; })()}
                                             </div>
                                             <p className="text-zinc-500 text-xs">{formatTime(req.created_at)}</p>
                                         </div>
@@ -320,7 +320,7 @@ export default function AdminVerification() {
                                                     )}
                                                     <div className="flex gap-2">
                                                         <button onClick={() => handleAction(req.user_id, true, actionType)}
-                                                            className={`flex-1 font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 border ${(TYPE_CONFIG[actionType]||TYPE_CONFIG.blue).bg} ${(TYPE_CONFIG[actionType]||TYPE_CONFIG.blue).color} border-zinc-700`}>
+                                                            className={`flex-1 font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 border ${tcfg.bg} ${tcfg.color} ${tcfg.bg.replace('bg-','border-').replace('/10','/50')}`}>
                                                             <BadgeCheck size={14}/> Approve {actionType}
                                                         </button>
                                                         <button onClick={() => handleAction(req.user_id, false, actionType)}
@@ -331,7 +331,7 @@ export default function AdminVerification() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.verify_type || 'blue'); setActionReason(req.reason || ''); }}
+                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.verify_type || 'blue'); setActionReason(''); }}
                                                     className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-semibold py-2 rounded-xl text-sm">
                                                     Review Request
                                                 </button>
