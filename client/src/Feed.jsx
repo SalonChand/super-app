@@ -655,7 +655,18 @@ function Feed({ onlineUsers = new Set() }) {
 
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
-                    <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
+                    <div key={post.id} className={`p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4 relative ${post.is_verified ? 'border-l-2 ' + (post.verify_type === 'red' ? 'border-l-red-500' : post.verify_type === 'yellow' ? 'border-l-yellow-400' : post.verify_type === 'green' ? 'border-l-green-400' : 'border-l-blue-400') : ''}`}>
+                        {/* Verified post label */}
+                        {post.is_verified && (
+                            <div className={`absolute top-3 right-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold
+                                ${post.verify_type === 'red' ? 'bg-red-500/10 text-red-400' :
+                                  post.verify_type === 'yellow' ? 'bg-yellow-500/10 text-yellow-400' :
+                                  post.verify_type === 'green' ? 'bg-green-500/10 text-green-400' :
+                                  'bg-blue-500/10 text-blue-400'}`}>
+                                <BadgeCheck size={10}/>
+                                {post.verify_type === 'red' ? 'Owner' : post.verify_type === 'yellow' ? 'Celebrity' : post.verify_type === 'green' ? 'Politician' : 'Verified'}
+                            </div>
+                        )}
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <div className="relative flex-shrink-0" style={{width: '48px', height: '48px'}}>
         <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
