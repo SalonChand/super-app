@@ -31,22 +31,6 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const colors = { red: 'text-yellow-400', green: 'text-green-500', yellow: 'text-yellow-300', blue: 'text-blue-400' };
     const style = t === 'red' ? { filter: 'drop-shadow(0 0 4px rgba(234,179,8,0.8))' } : {};
     return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
-}) {
-    if (!isVerified) return null;
-    const titles = { red: 'Platform Owner', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
-    const t = verifyType || 'blue';
-    const title = titles[t] || titles.blue;
-    const colors = { red: 'text-yellow-400', green: 'text-green-500', yellow: 'text-yellow-300', blue: 'text-blue-400' };
-    const style = t === 'red' ? { filter: 'drop-shadow(0 0 4px rgba(234,179,8,0.8))' } : {};
-    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
-}) {
-    if (!isVerified) return null;
-    const titles = { red: 'Platform Owner', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
-    const t = verifyType || 'blue';
-    const title = titles[t] || titles.blue;
-    const colors = { red: 'text-yellow-400', green: 'text-green-500', yellow: 'text-yellow-300', blue: 'text-blue-400' };
-    const style = t === 'red' ? { filter: 'drop-shadow(0 0 4px rgba(234,179,8,0.8))' } : {};
-    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
 }
 
 function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
