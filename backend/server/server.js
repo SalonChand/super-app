@@ -235,8 +235,6 @@ app.put('/api/admin/app-settings', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-});
-
 // ===== ADMIN POWER: BROADCAST ANNOUNCEMENT =====
 app.post('/api/admin/broadcast', async (req, res) => {
     try {
