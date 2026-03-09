@@ -258,7 +258,7 @@ export default function AdminVerification() {
                 ) : (
                     <div className="space-y-3">
                         {filtered.map(req => {
-                            const vtype = req.verify_type || 'blue';
+                            const vtype = req.user_verify_type || req.verify_type || 'blue';
                             const tcfg = TYPE_CONFIG[vtype] || TYPE_CONFIG.blue;
                             const scfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.pending;
                             const { Icon } = scfg;
@@ -333,7 +333,7 @@ export default function AdminVerification() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.user_id, req.verify_type || 'blue'); setActionReason(''); }}
+                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.user_id, req.user_verify_type || req.verify_type || 'blue'); setActionReason(''); }}
                                                     className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-semibold py-2 rounded-xl text-sm">
                                                     Review Request
                                                 </button>

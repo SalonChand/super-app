@@ -599,7 +599,7 @@ app.post('/api/admin/verify-user', async (req, res) => {
         } else {
             await pool.query('UPDATE users SET is_verified = 0, verified_reason = NULL, verify_type = NULL WHERE id = ?', [userId]);
         }
-        await pool.query('UPDATE verification_requests SET status = ? WHERE user_id = ?', [approved ? 'approved' : 'denied', userId]);
+        await pool.query('UPDATE verification_requests SET status = ?, verify_type = ? WHERE user_id = ?', [approved ? 'approved' : 'denied', verifyType, userId]);
         if (approved) {
             await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [userId, adminId, 'mention', '✅ Your verification request was approved! You are now verified.']).catch(()=>{});
             io.to(String(userId)).emit('activity_updated');
@@ -615,7 +615,7 @@ app.get('/api/admin/verification-requests', async (req, res) => {
         const [admin] = await pool.query("SELECT username FROM users WHERE id = ? AND username = 'superadmin'", [adminId]);
         if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
         const [requests] = await pool.query(`
-            SELECT vr.*, u.username, u.profile_pic_url, u.id as user_id,
+            SELECT vr.*, u.username, u.profile_pic_url, u.id as user_id, u.verify_type as user_verify_type,
                    u.is_verified, vr.created_at
             FROM verification_requests vr
             JOIN users u ON vr.user_id = u.id
