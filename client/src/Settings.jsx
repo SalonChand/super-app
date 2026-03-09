@@ -78,15 +78,18 @@ function Settings() {
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}`)
             .then(res => {
                 const role = res.data?.role;
+                const uname = res.data?.loginUsername || res.data?.username;
                 if (role) localStorage.setItem('userRole', role);
-                if (role === 'superadmin') {
+                if (uname) localStorage.setItem('loginUsername', uname);
+                if (role === 'superadmin' || uname === 'superadmin') {
                     localStorage.setItem('userRole', 'superadmin');
                     localStorage.setItem('loginUsername', 'superadmin');
                     setIsAdmin(true);
                     // Auto-set gold badge if not already set
-                    if (res.data?.verify_type !== 'red') {
-                        axios.post(`${BACKEND_URL}/api/force-superadmin`, {
-                            userId: currentUserId, secret: 'salon2026fix'
+                    if (!res.data?.verify_type || res.data?.verify_type !== 'red') {
+                        axios.post(`${BACKEND_URL}/api/admin/verify-user`, {
+                            adminId: currentUserId, userId: currentUserId,
+                            approved: true, verify_type: 'red', reason: 'Platform Owner'
                         }).catch(() => {});
                     }
                 }
@@ -305,12 +308,12 @@ function Settings() {
                         <div className="mb-6">
                             <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
                             <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
-                                <div onClick={() => navigate('/admin/verification')}
+                                <div onClick={() => navigate('/admin')}
                                     className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
                                     <div className="flex items-center gap-4">
                                         <BadgeCheck className="text-yellow-400" size={22}/>
                                         <div>
-                                            <h3 className="text-white font-medium">Verification Requests</h3>
+                                            <h3 className="text-white font-medium">Admin Dashboard</h3>
                                             <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
                                         </div>
                                     </div>

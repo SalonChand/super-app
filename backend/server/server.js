@@ -104,6 +104,135 @@ app.post('/api/admin/users/:userId/unverify', async (req, res) => {
 });
 
 // ===== ADMIN: patch is_active column =====
+
+// ===== ADMIN: Stats for dashboard =====
+app.get('/api/admin/stats', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [[{total_users}]] = await pool.query("SELECT COUNT(*) as total_users FROM users WHERE username != 'superadmin'");
+        const [[{total_posts}]] = await pool.query("SELECT COUNT(*) as total_posts FROM posts");
+        const [[{pending}]] = await pool.query("SELECT COUNT(*) as pending FROM verification_requests WHERE status = 'pending'");
+        const [[{reports}]] = await pool.query("SELECT COUNT(*) as reports FROM reports WHERE status = 'pending'").catch(() => [[{reports: 0}]]);
+        res.json({ users: total_users, posts: total_posts, pending, reports });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Analytics =====
+app.get('/api/admin/analytics', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [[{total_users}]] = await pool.query("SELECT COUNT(*) as total_users FROM users WHERE username != 'superadmin'");
+        const [[{total_posts}]] = await pool.query("SELECT COUNT(*) as total_posts FROM posts");
+        const [[{total_reels}]] = await pool.query("SELECT COUNT(*) as total_reels FROM reels");
+        const [[{total_comments}]] = await pool.query("SELECT COUNT(*) as total_comments FROM comments");
+        const [[{total_likes}]] = await pool.query("SELECT COUNT(*) as total_likes FROM likes");
+        const [[{verified_users}]] = await pool.query("SELECT COUNT(*) as verified_users FROM users WHERE is_verified = 1");
+        const [[{pending_requests}]] = await pool.query("SELECT COUNT(*) as pending_requests FROM verification_requests WHERE status = 'pending'");
+        const [[{new_users_today}]] = await pool.query("SELECT COUNT(*) as new_users_today FROM users WHERE DATE(created_at) = CURDATE()");
+        const [[{new_posts_today}]] = await pool.query("SELECT COUNT(*) as new_posts_today FROM posts WHERE DATE(created_at) = CURDATE()");
+        const [top_users] = await pool.query("SELECT u.id, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COUNT(p.id) as post_count FROM users u LEFT JOIN posts p ON u.id = p.user_id WHERE u.username != 'superadmin' GROUP BY u.id ORDER BY post_count DESC LIMIT 5");
+        res.json({ total_users, total_posts, total_reels, total_comments, total_likes, verified_users, pending_requests, new_users_today, new_posts_today, top_users });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: All posts =====
+app.get('/api/admin/all-posts', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [posts] = await pool.query("SELECT p.*, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, (SELECT COUNT(*) FROM likes WHERE post_id=p.id) as like_count, (SELECT COUNT(*) FROM comments WHERE post_id=p.id) as comment_count FROM posts p JOIN users u ON p.user_id=u.id ORDER BY p.created_at DESC LIMIT 200");
+        res.json(posts);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: All reels =====
+app.get('/api/admin/all-reels', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [reels] = await pool.query("SELECT r.*, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, (SELECT COUNT(*) FROM reel_likes WHERE reel_id=r.id) as like_count FROM reels r JOIN users u ON r.user_id=u.id ORDER BY r.created_at DESC LIMIT 200");
+        res.json(reels);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Delete post =====
+app.delete('/api/admin/posts/:postId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query('DELETE FROM posts WHERE id = ?', [req.params.postId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Delete reel =====
+app.delete('/api/admin/reels/:reelId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query('DELETE FROM reels WHERE id = ?', [req.params.reelId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Reports =====
+app.get('/api/admin/reports', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [reports] = await pool.query("SELECT r.*, COALESCE(u.display_name,u.username) as reporter_username, COALESCE(t.display_name,t.username) as reported_username FROM reports r JOIN users u ON r.reporter_id=u.id LEFT JOIN users t ON r.reported_user_id=t.id WHERE r.status='pending' ORDER BY r.created_at DESC").catch(() => [[],[]]);
+        res.json(reports || []);
+    } catch(e) { res.json([]); }
+});
+
+app.post('/api/admin/reports/:reportId/dismiss', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        await pool.query("UPDATE reports SET status='dismissed' WHERE id=?", [req.params.reportId]).catch(()=>{});
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: App Settings =====
+app.get('/api/admin/app-settings', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [rows] = await pool.query("SELECT * FROM app_settings LIMIT 1").catch(() => [[],[]]);
+        res.json(rows[0] || { allow_registration: true, maintenance_mode: false, max_post_length: 2000, app_name: 'SuperApp' });
+    } catch(e) { res.json({ allow_registration: true, maintenance_mode: false, max_post_length: 2000, app_name: 'SuperApp' }); }
+});
+
+app.put('/api/admin/app-settings', async (req, res) => {
+    try {
+        const { adminId, settings } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("INSERT INTO app_settings (id, allow_registration, maintenance_mode, max_post_length, app_name) VALUES (1,?,?,?,?) ON DUPLICATE KEY UPDATE allow_registration=VALUES(allow_registration), maintenance_mode=VALUES(maintenance_mode), max_post_length=VALUES(max_post_length), app_name=VALUES(app_name)",
+            [settings.allow_registration ? 1:0, settings.maintenance_mode ? 1:0, settings.max_post_length, settings.app_name]).catch(()=>{});
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Emergency superadmin fix endpoint - sets role and gold badge by user ID
 app.post('/api/force-superadmin', async (req, res) => {
     try {

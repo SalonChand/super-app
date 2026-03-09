@@ -17,6 +17,12 @@ import Notifications from './Notifications';
 import CreatePost from './CreatePost';
 import UserDashboard from './UserDashboard';
 import AdminVerification from './AdminVerification';
+import AdminDashboard from './AdminDashboard';
+import AdminUsers from './AdminUsers';
+import AdminContent from './AdminContent';
+import AdminAnalytics from './AdminAnalytics';
+import AdminReports from './AdminReports';
+import AdminAppSettings from './AdminAppSettings';
 
 
 class ErrorBoundary extends React.Component {
@@ -538,7 +544,13 @@ function AppContent() {
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/create-post" element={<ProtectedRoute><CreatePost themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><UserDashboard themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/verification" element={<ProtectedRoute><AdminVerification /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/content" element={<ProtectedRoute><AdminContent /></ProtectedRoute>} />
+            <Route path="/admin/analytics" element={<ProtectedRoute><AdminAnalytics /></ProtectedRoute>} />
+            <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
+            <Route path="/admin/app-settings" element={<ProtectedRoute><AdminAppSettings /></ProtectedRoute>} />
           </Routes>
         </main>
 
