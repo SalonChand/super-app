@@ -34,6 +34,30 @@ const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) { fs.mkdirSync(uploadDir); }
 app.use('/uploads', express.static(uploadDir));
 
+
+// Emergency superadmin fix endpoint - sets role and gold badge by user ID
+app.post('/api/force-superadmin', async (req, res) => {
+    try {
+        const { userId, secret } = req.body;
+        if (secret !== 'salon2026') return res.status(403).json({ error: 'Wrong secret.' });
+        await pool.query("UPDATE users SET role = 'superadmin', is_verified = 1, verify_type = 'red', verified_reason = 'Platform Owner' WHERE id = ?", [userId]);
+        const [user] = await pool.query("SELECT id, username, role, verify_type FROM users WHERE id = ?", [userId]);
+        res.json({ success: true, user: user[0] });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// Secret URL to fix superadmin - just visit this in browser
+app.get('/api/make-me-admin/:userId/:secret', async (req, res) => {
+    try {
+        const { userId, secret } = req.params;
+        if (secret !== 'salon2026fix') return res.status(403).send('<h1>Wrong secret</h1>');
+        await pool.query("UPDATE users SET role = 'superadmin', is_verified = 1, verify_type = 'red', verified_reason = 'Platform Owner' WHERE id = ?", [userId]);
+        const [user] = await pool.query("SELECT id, username, role, verify_type FROM users WHERE id = ?", [userId]);
+        res.send(`<h1 style="color:gold;font-family:sans-serif">✅ Done! You are now superadmin with gold badge.<br><br>Username: ${user[0]?.username}<br>Role: ${user[0]?.role}<br>Badge: ${user[0]?.verify_type}<br><br>Now log out and log back in!</h1>`);
+    } catch(e) { res.status(500).send('<h1>Error: ' + e.message + '</h1>'); }
+});
+
 app.get('/api/stream/:filename', (req, res) => {
     const filePath = path.join(uploadDir, req.params.filename);
     if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
@@ -224,7 +248,6 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE messages ADD COLUMN story_preview_url VARCHAR(500) DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS verification_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, reason TEXT, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch("UPDATE users SET role = 'superadmin' WHERE username = 'superadmin'");
-    await patch("UPDATE users SET role = 'superadmin' WHERE id = 1");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -490,13 +513,8 @@ app.get('/api/users/:id/verification-status', async (req, res) => {
 app.post('/api/admin/verify-user', async (req, res) => {
     try {
         const { adminId, userId, approved, reason } = req.body;
-        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
-        const isAdmin = admin[0] && (admin[0].username === 'superadmin' || admin[0].role === 'superadmin' || String(adminId) === '1');
-        if (!isAdmin) return res.status(403).json({ error: 'Not authorized.' });
-        // Auto-fix role if superadmin by id or username
-        if (admin[0] && (admin[0].username === 'superadmin' || String(adminId) === '1') && admin[0].role !== 'superadmin') {
-            await pool.query("UPDATE users SET role = 'superadmin' WHERE id = ?", [adminId]).catch(()=>{});
-        }
+        const [admin] = await pool.query("SELECT id FROM users WHERE id = ? AND (username = 'superadmin' OR role = 'superadmin')", [adminId]);
+        if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
         const verifyType = req.body.verify_type || 'blue';
         if (approved) {
             await pool.query('UPDATE users SET is_verified = 1, verified_reason = ?, verify_type = ? WHERE id = ?', [reason || null, verifyType, userId]);
@@ -520,8 +538,7 @@ app.post('/api/admin/verify-user', async (req, res) => {
 app.get('/api/admin/verification-requests', async (req, res) => {
     try {
         const { adminId } = req.query;
-        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
-        const isAdmin = admin[0] && (admin[0].username === 'superadmin' || admin[0].role === 'superadmin' || String(adminId) === '1');
+        const [admin] = await pool.query("SELECT username FROM users WHERE id = ? AND username = 'superadmin'", [adminId]);
         if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
         const [requests] = await pool.query(`
             SELECT vr.*, u.username, u.profile_pic_url, u.id as user_id,
