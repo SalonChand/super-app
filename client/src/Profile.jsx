@@ -21,18 +21,27 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const titles = { red: 'Platform Owner', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
     const t = verifyType || 'blue';
     const title = titles[t] || titles.blue;
+    const colors = { red: 'text-yellow-400', green: 'text-green-500', yellow: 'text-yellow-300', blue: 'text-blue-400' };
+    const style = t === 'red' ? { filter: 'drop-shadow(0 0 4px rgba(234,179,8,0.8))' } : {};
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
+}) {
+    if (!isVerified) return null;
+    const titles = { red: 'Platform Owner', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const t = verifyType || 'blue';
+    const title = titles[t] || titles.blue;
     if (t === 'red') {
-        const id = 'gold-' + size;
+        const id = 'gold' + size;
         return (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="flex-shrink-0 inline-block" title={title} style={{filter:'drop-shadow(0 0 3px rgba(234,179,8,0.6))'}}>
+            <svg width={size} height={size} viewBox="0 0 24 24" className="flex-shrink-0 inline-block" title={title} style={{filter:'drop-shadow(0 0 4px rgba(255,200,0,0.7))'}}>
                 <defs>
                     <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFD700"/>
-                        <stop offset="40%" stopColor="#FFA500"/>
+                        <stop offset="0%" stopColor="#FFE066"/>
+                        <stop offset="50%" stopColor="#FFB800"/>
                         <stop offset="100%" stopColor="#B8860B"/>
                     </linearGradient>
                 </defs>
-                <path fill={`url(#${id})`} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                <circle cx="12" cy="12" r="10" fill={`url(#${id})`}/>
+                <path d="M8 12.5l2.5 2.5 5.5-5.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
             </svg>
         );
     }
