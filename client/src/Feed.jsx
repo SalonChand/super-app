@@ -50,7 +50,6 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
 
 function Feed({ onlineUsers = new Set() }) {
     const[posts, setPosts] = useState([]);
-    const [banner, setBanner] = useState(null); // { text, type, enabled }
     const[savedPosts, setSavedPosts] = useState(new Set());
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const[activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -157,10 +156,6 @@ function Feed({ onlineUsers = new Set() }) {
                 if (Array.isArray(friendsRes.data)) setFriendsList(friendsRes.data);
             }
         } catch (err) { console.error('Friends error:', err); }
-        try {
-            const bannerRes = await axios.get(`${BACKEND_URL}/api/platform-banner`);
-            if (bannerRes.data?.enabled) setBanner(bannerRes.data);
-        } catch(err) {}
         setIsRefreshing(false);
     };
     const loadMorePosts = async () => {
@@ -407,7 +402,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                                 <p className="text-zinc-100 text-sm leading-relaxed whitespace-pre-wrap break-words">{renderPostText(post.content)}</p>
                                 {post.image_url && <img src={post.image_url} className="mt-2 rounded-xl w-full max-h-64 object-cover" />}
-                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>❤️ {post.like_count}</span><span>💬 {post.comment_count}</span></div>
+                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>{post.like_count > 0 ? `❤️ ${post.like_count}` : ''}</span><span>{post.comment_count > 0 ? `💬 ${post.comment_count}` : ''}</span></div>
                             </div>
                         ))}
                     </div>
@@ -658,30 +653,9 @@ function Feed({ onlineUsers = new Set() }) {
                     </div>
                 )}
 
-                {/* Platform Banner */}
-                {banner?.enabled && banner?.text && (
-                    <div className={`mx-0 mb-2 px-4 py-3 flex items-start gap-3 border-b
-                        ${banner.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                          banner.type === 'success' ? 'bg-green-500/10 border-green-500/30' :
-                          'bg-blue-500/10 border-blue-500/30'}`}>
-                        <span className="text-lg flex-shrink-0">{banner.type === 'warning' ? '⚠️' : banner.type === 'success' ? '🎉' : '📢'}</span>
-                        <p className={`text-sm font-medium leading-snug flex-1
-                            ${banner.type === 'warning' ? 'text-yellow-300' :
-                              banner.type === 'success' ? 'text-green-300' :
-                              'text-blue-300'}`}>{banner.text}</p>
-                        <button onClick={() => setBanner(null)} className="text-zinc-500 hover:text-white transition flex-shrink-0 mt-0.5">
-                            <X size={14}/>
-                        </button>
-                    </div>
-                )}
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
                     <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
-                        {post.is_pinned_global && (
-                            <div className="absolute left-0 right-0 flex items-center gap-1.5 px-4 pt-2 pb-0 pointer-events-none">
-                                <span className="text-[10px] font-bold text-yellow-400 flex items-center gap-1">📌 Pinned by Admin</span>
-                            </div>
-                        )}
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <div className="relative flex-shrink-0" style={{width: '48px', height: '48px'}}>
         <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
