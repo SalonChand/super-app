@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { UserCheck, UserPlus, User, X, Clock } from 'lucide-react';
+import { UserCheck, UserPlus, User, X, Clock, BadgeCheck } from 'lucide-react';
+
+function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
+    if (!isVerified) return null;
+    const titles = { red: 'Platform Owner', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const t = verifyType || 'blue';
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={titles[t] || titles.blue} style={style}/>;
+}
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function Friends() {
@@ -69,7 +78,7 @@ function Friends() {
                                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-500" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-white">{user.username}</h4>
+                                            <h4 className="font-bold text-white flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></h4>
                                             <p className="text-xs text-zinc-500">Wants to connect</p>
                                         </div>
                                     </Link>
@@ -94,7 +103,7 @@ function Friends() {
                                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-500" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-white">{user.username}</h4>
+                                            <h4 className="font-bold text-white flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></h4>
                                             <p className="text-xs text-zinc-500 flex items-center gap-1"><Clock size={11} /> Request pending</p>
                                         </div>
                                     </Link>
@@ -121,7 +130,7 @@ function Friends() {
                                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-500" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-white">{user.username}</h4>
+                                            <h4 className="font-bold text-white flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></h4>
                                             <p className="text-xs text-zinc-500">New to network</p>
                                         </div>
                                     </Link>
