@@ -35,6 +35,75 @@ if (!fs.existsSync(uploadDir)) { fs.mkdirSync(uploadDir); }
 app.use('/uploads', express.static(uploadDir));
 
 
+
+// ===== ADMIN: Get all users =====
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [users] = await pool.query(`
+            SELECT id, COALESCE(display_name, username) as display_name, username, email, 
+                   profile_pic_url, role, is_verified, verify_type, is_active,
+                   created_at,
+                   (SELECT COUNT(*) FROM posts WHERE user_id = users.id) as post_count,
+                   (SELECT COUNT(*) FROM connections WHERE (requester_id = users.id OR receiver_id = users.id) AND status = 'accepted') as friend_count
+            FROM users WHERE username != 'superadmin' ORDER BY created_at DESC
+        `);
+        res.json(users);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Delete user =====
+app.delete('/api/admin/users/:userId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query('DELETE FROM users WHERE id = ? AND username != ?', [req.params.userId, 'superadmin']);
+        res.json({ success: true, message: 'User deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Deactivate/Reactivate user =====
+app.post('/api/admin/users/:userId/deactivate', async (req, res) => {
+    try {
+        const { adminId, deactivate } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query('UPDATE users SET is_active = ? WHERE id = ? AND username != ?', [deactivate ? 0 : 1, req.params.userId, 'superadmin']);
+        res.json({ success: true, message: deactivate ? 'User deactivated.' : 'User reactivated.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Reset user posts (delete all posts) =====
+app.delete('/api/admin/users/:userId/posts', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query('DELETE FROM posts WHERE user_id = ?', [req.params.userId]);
+        res.json({ success: true, message: 'All posts deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Remove verification from user =====
+app.post('/api/admin/users/:userId/unverify', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query('UPDATE users SET is_verified = 0, verify_type = NULL, verified_reason = NULL WHERE id = ?', [req.params.userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: patch is_active column =====
 // Emergency superadmin fix endpoint - sets role and gold badge by user ID
 app.post('/api/force-superadmin', async (req, res) => {
     try {
@@ -235,6 +304,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE posts ADD COLUMN scheduled_at DATETIME DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE users ADD COLUMN verify_type VARCHAR(20) DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN is_active TINYINT(1) DEFAULT 1");
     await patch("ALTER TABLE verification_requests ADD COLUMN verify_type VARCHAR(20) DEFAULT 'blue'");
     await patch("ALTER TABLE verification_requests ADD COLUMN proof_url VARCHAR(500) DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS verification_slots (id INT AUTO_INCREMENT PRIMARY KEY, type VARCHAR(20) NOT NULL UNIQUE, total_slots INT NOT NULL DEFAULT 50, used_slots INT NOT NULL DEFAULT 0)");
@@ -297,7 +367,9 @@ app.post('/api/users/:id/display-name', async (req, res) => {
 });
 
 app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" }); const u = users[0];
+app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" });
+        const u = users[0];
+        if (u.is_active === 0) return res.status(403).json({ error: "This account has been deactivated by an administrator." });
         let role = 'user'; try { role = u.role || 'user'; } catch(e) {}
         if (u.username === 'superadmin') role = 'superadmin';
         const token = jwt.sign({ id: u.id }, process.env.JWT_SECRET, { expiresIn: '7d' });

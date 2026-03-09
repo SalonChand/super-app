@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, X, ChevronLeft, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw, Settings } from 'lucide-react';
+import { BadgeCheck, X, ChevronLeft, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw, Settings, Users, Trash2, UserX, UserCheck, Shield, ShieldOff } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -42,6 +42,12 @@ export default function AdminVerification() {
     const [showSlotEditor, setShowSlotEditor] = useState(false);
     const [editSlot, setEditSlot] = useState({});
     const [slotMsg, setSlotMsg] = useState('');
+    const [activeTab, setActiveTab] = useState('verification');
+    const [allUsers, setAllUsers] = useState([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [userSearch, setUserSearch] = useState('');
+    const [userActionMsg, setUserActionMsg] = useState({});
+    const [confirmDelete, setConfirmDelete] = useState(null);
 
     const loadData = async () => {
         setLoading(true); setError('');
@@ -116,14 +122,70 @@ export default function AdminVerification() {
         </div>
     );
 
+    const loadUsers = async () => {
+        setUsersLoading(true);
+        try {
+            const res = await axios.get(`${BACKEND_URL}/api/admin/users?adminId=${adminId}`);
+            setAllUsers(res.data || []);
+        } catch(e) { console.error(e); }
+        setUsersLoading(false);
+    };
+
+    const handleDeactivate = async (userId, deactivate) => {
+        setUserActionMsg(prev => ({ ...prev, [userId]: 'Processing...' }));
+        try {
+            const res = await axios.post(`${BACKEND_URL}/api/admin/users/${userId}/deactivate`, { adminId, deactivate });
+            if (res.data?.success) {
+                setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: deactivate ? 0 : 1 } : u));
+                setUserActionMsg(prev => ({ ...prev, [userId]: deactivate ? '⛔ Deactivated' : '✅ Reactivated' }));
+            }
+        } catch(e) { setUserActionMsg(prev => ({ ...prev, [userId]: '❌ Failed' })); }
+        setTimeout(() => setUserActionMsg(prev => { const n={...prev}; delete n[userId]; return n; }), 2000);
+    };
+
+    const handleDeleteUser = async (userId) => {
+        try {
+            await axios.delete(`${BACKEND_URL}/api/admin/users/${userId}`, { data: { adminId } });
+            setAllUsers(prev => prev.filter(u => u.id !== userId));
+            setConfirmDelete(null);
+        } catch(e) { alert('Failed to delete user'); }
+    };
+
+    const handleUnverify = async (userId) => {
+        try {
+            await axios.post(`${BACKEND_URL}/api/admin/users/${userId}/unverify`, { adminId });
+            setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified: 0, verify_type: null } : u));
+        } catch(e) {}
+    };
+
+    const handleDeletePosts = async (userId) => {
+        if (!window.confirm('Delete ALL posts from this user?')) return;
+        try {
+            await axios.delete(`${BACKEND_URL}/api/admin/users/${userId}/posts`, { data: { adminId } });
+            setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, post_count: 0 } : u));
+        } catch(e) {}
+    };
+
     return (
         <div className="min-h-screen bg-black pb-24">
             <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-4 py-3 flex items-center gap-3">
                 <Link to="/settings" className="text-zinc-400 hover:text-white transition"><ChevronLeft size={24}/></Link>
                 <BadgeCheck size={22} className="text-yellow-400"/>
-                <h1 className="text-white font-bold text-lg flex-1">Verification Panel</h1>
-                <button onClick={() => setShowSlotEditor(!showSlotEditor)} className={`p-1 transition ${showSlotEditor ? 'text-yellow-400' : 'text-zinc-400 hover:text-white'}`}><Settings size={18}/></button>
-                <button onClick={loadData} className="text-zinc-400 hover:text-white transition p-1"><RefreshCw size={18} className={loading ? 'animate-spin' : ''}/></button>
+                <h1 className="text-white font-bold text-lg flex-1">Admin Panel</h1>
+                {activeTab === 'verification' && <button onClick={() => setShowSlotEditor(!showSlotEditor)} className={`p-1 transition ${showSlotEditor ? 'text-yellow-400' : 'text-zinc-400 hover:text-white'}`}><Settings size={18}/></button>}
+                <button onClick={activeTab === 'verification' ? loadData : loadUsers} className="text-zinc-400 hover:text-white transition p-1"><RefreshCw size={18} className={(loading || usersLoading) ? 'animate-spin' : ''}/></button>
+            </div>
+
+            {/* Tab Bar */}
+            <div className="flex border-b border-zinc-800 px-4 bg-zinc-950">
+                <button onClick={() => setActiveTab('verification')}
+                    className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'verification' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-zinc-500 hover:text-white'}`}>
+                    <BadgeCheck size={16}/> Verification
+                </button>
+                <button onClick={() => { setActiveTab('users'); if (allUsers.length === 0) loadUsers(); }}
+                    className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'users' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-zinc-500 hover:text-white'}`}>
+                    <Users size={16}/> Users
+                </button>
             </div>
 
             <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4">
@@ -298,6 +360,73 @@ export default function AdminVerification() {
                     </div>
                 )}
             </div>
+
+            {/* Users Management Tab */}
+            {activeTab === 'users' && (
+                <div className="max-w-2xl mx-auto px-4 pt-2 pb-8 space-y-3">
+                    <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                        placeholder="Search users..."
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm placeholder-zinc-500 outline-none focus:border-yellow-500/50"/>
+                    {usersLoading ? (
+                        <div className="text-center py-10 text-zinc-500">Loading users...</div>
+                    ) : (
+                        allUsers.filter(u => u.display_name?.toLowerCase().includes(userSearch.toLowerCase()) || u.username?.toLowerCase().includes(userSearch.toLowerCase())).map(user => (
+                            <div key={user.id} className={`bg-zinc-900 border rounded-2xl p-4 space-y-3 ${!user.is_active ? 'border-red-500/30 opacity-70' : 'border-zinc-800'}`}>
+                                <div className="flex items-center gap-3">
+                                    {user.profile_pic_url
+                                        ? <img src={user.profile_pic_url} className="w-10 h-10 rounded-full object-cover"/>
+                                        : <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-white font-bold">{user.display_name?.[0]?.toUpperCase()}</div>
+                                    }
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white font-bold text-sm truncate">{user.display_name}</p>
+                                        <p className="text-zinc-500 text-xs">@{user.username} · {user.post_count} posts · {user.friend_count} friends</p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {user.is_verified ? <BadgeCheck size={14} className="text-blue-400"/> : null}
+                                        {!user.is_active && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Deactivated</span>}
+                                    </div>
+                                </div>
+                                {userActionMsg[user.id] && <p className="text-xs text-center font-semibold text-yellow-400">{userActionMsg[user.id]}</p>}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={() => handleDeactivate(user.id, user.is_active !== 0)}
+                                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border ${user.is_active !== 0 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20' : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'}`}>
+                                        {user.is_active !== 0 ? <><UserX size={13}/> Deactivate</> : <><UserCheck size={13}/> Reactivate</>}
+                                    </button>
+                                    {user.is_verified ? (
+                                        <button onClick={() => handleUnverify(user.id)}
+                                            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-700">
+                                            <ShieldOff size={13}/> Remove Badge
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleDeletePosts(user.id)}
+                                            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-700">
+                                            <Trash2 size={13}/> Delete Posts
+                                        </button>
+                                    )}
+                                    <button onClick={() => setConfirmDelete(user.id)}
+                                        className="col-span-2 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20">
+                                        <Trash2 size={13}/> Delete Account
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+
+            {/* Confirm Delete Modal */}
+            {confirmDelete && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
+                    <div className="bg-zinc-900 border border-red-500/40 rounded-2xl p-6 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-white font-bold text-lg">Delete Account?</h2>
+                        <p className="text-zinc-400 text-sm">This will permanently delete the user and all their data. This cannot be undone.</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmDelete(null)} className="flex-1 py-2 rounded-xl bg-zinc-800 text-white text-sm font-semibold">Cancel</button>
+                            <button onClick={() => handleDeleteUser(confirmDelete)} className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
