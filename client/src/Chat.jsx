@@ -25,11 +25,26 @@ const EMOJIS =['❤️', '😂', '😮', '😢', '🔥', '🙏'];
 // Returns colored BadgeCheck based on verify_type
 function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     if (!isVerified) return null;
-    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
-    const titles = { red: 'Official Account', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
-    const color = colors[verifyType] || colors.blue;
-    const title = titles[verifyType] || titles.blue;
-    return <BadgeCheck size={size} className={`flex-shrink-0 ${color}`} title={title}/>;
+    const titles = { red: 'Platform Owner', green: 'Verified Politician', yellow: 'Verified Celebrity', blue: 'Verified Account' };
+    const t = verifyType || 'blue';
+    const title = titles[t] || titles.blue;
+    if (t === 'red') {
+        const id = 'gold-' + size;
+        return (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="flex-shrink-0 inline-block" title={title} style={{filter:'drop-shadow(0 0 3px rgba(234,179,8,0.6))'}}>
+                <defs>
+                    <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#FFD700"/>
+                        <stop offset="40%" stopColor="#FFA500"/>
+                        <stop offset="100%" stopColor="#B8860B"/>
+                    </linearGradient>
+                </defs>
+                <path fill={`url(#${id})`} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+        );
+    }
+    const colors = { green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title}/>;
 }
 
 function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
@@ -923,7 +938,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                         ); })()}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-1.5">
-                                                <h4 className="font-bold text-white truncate flex items-center gap-1">{friend.username}<VerifiedBadge isVerified={!!friend.is_verified} verifyType={friend.verify_type} size={12}/></h4>
+                                                <h4 className="font-bold text-white truncate">{friend.username}</h4>
                                                 {getFolderForUser(friend.id) && <span className="text-[10px] text-zinc-600">📁</span>}
                                             </div>
                                             <p className={`text-sm truncate ${friend.unread_count > 0 ? 'text-white font-semibold' : 'text-zinc-500'}`}>
