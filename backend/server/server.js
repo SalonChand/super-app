@@ -46,6 +46,8 @@ app.get('/api/admin/users', async (req, res) => {
         const [users] = await pool.query(`
             SELECT id, COALESCE(display_name, username) as display_name, username, email, 
                    profile_pic_url, role, is_verified, verify_type, is_active,
+                   COALESCE(silenced_until, NULL) as silenced_until,
+                   COALESCE(shadowbanned, 0) as shadowbanned,
                    created_at,
                    (SELECT COUNT(*) FROM posts WHERE user_id = users.id) as post_count,
                    (SELECT COUNT(*) FROM connections WHERE (requester_id = users.id OR receiver_id = users.id) AND status = 'accepted') as friend_count
@@ -233,6 +235,101 @@ app.put('/api/admin/app-settings', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+});
+
+// ===== ADMIN POWER: BROADCAST ANNOUNCEMENT =====
+app.post('/api/admin/broadcast', async (req, res) => {
+    try {
+        const { adminId, title, message, type } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        // Save broadcast
+        const [result] = await pool.query("INSERT INTO admin_broadcasts (admin_id, title, message, type) VALUES (?,?,?,?)", [adminId, title, message, type || 'info']);
+        // Insert notification for every user
+        const [users] = await pool.query("SELECT id FROM users WHERE id != ?", [adminId]);
+        for (const u of users) {
+            await pool.query("INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?,?,?,?)",
+                [u.id, adminId, 'broadcast', `📢 ${title}: ${message}`]).catch(() => {});
+        }
+        // Emit via socket to all connected users
+        if (global.io) global.io.emit('admin_broadcast', { title, message, type: type || 'info' });
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/broadcasts', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [rows] = await pool.query("SELECT b.*, u.username as admin_username FROM admin_broadcasts b JOIN users u ON b.admin_id = u.id ORDER BY b.created_at DESC LIMIT 20");
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/broadcasts/:id', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("DELETE FROM admin_broadcasts WHERE id = ?", [req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN POWER: PIN POST GLOBALLY =====
+app.post('/api/admin/posts/:postId/pin', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        // Unpin all first, then pin this one
+        await pool.query("UPDATE posts SET is_pinned_global = FALSE");
+        await pool.query("UPDATE posts SET is_pinned_global = TRUE WHERE id = ?", [req.params.postId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/posts/:postId/unpin', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("UPDATE posts SET is_pinned_global = FALSE WHERE id = ?", [req.params.postId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN POWER: SILENCE USER =====
+app.post('/api/admin/users/:id/silence', async (req, res) => {
+    try {
+        const { adminId, days } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const until = days > 0 ? new Date(Date.now() + days * 86400000) : null;
+        await pool.query("UPDATE users SET silenced_until = ? WHERE id = ?", [until, req.params.id]);
+        res.json({ success: true, silenced_until: until });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN POWER: SHADOWBAN USER =====
+app.post('/api/admin/users/:id/shadowban', async (req, res) => {
+    try {
+        const { adminId, shadowban } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("UPDATE users SET shadowbanned = ? WHERE id = ?", [shadowban ? 1 : 0, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Emergency superadmin fix endpoint - sets role and gold badge by user ID
 app.post('/api/force-superadmin', async (req, res) => {
     try {
@@ -279,6 +376,7 @@ webpush.setVapidDetails('mailto:admin@superapp.com', vapidKeys.publicKey, vapidK
 
 const server = http.createServer(app); 
 const io = new Server(server, { cors: { origin: "*", methods:["GET", "POST"] } });
+global.io = io;
 
 // Online users: userId -> { socketId, lastSeen }
 const onlineUsers = new Map();
@@ -447,6 +545,11 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE messages ADD COLUMN story_preview_url VARCHAR(500) DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS verification_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, reason TEXT, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch("UPDATE users SET role = 'superadmin' WHERE username = 'superadmin'");
+    // === ADMIN POWER FEATURES ===
+    await patch("CREATE TABLE IF NOT EXISTS admin_broadcasts (id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT NOT NULL, title VARCHAR(255) NOT NULL, message TEXT NOT NULL, type VARCHAR(20) DEFAULT 'info', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE)");
+    await patch("ALTER TABLE posts ADD COLUMN is_pinned_global BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE users ADD COLUMN silenced_until DATETIME DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN shadowbanned BOOLEAN DEFAULT FALSE");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -644,15 +747,22 @@ app.get('/api/posts', async (req, res) => {
         const currentUserId = req.query.userId || 0;
         const [posts] = await pool.query(
             `SELECT p.*, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type, COALESCE(u.show_active_status, 1) as show_active_status,
+             COALESCE(u.shadowbanned, 0) as author_shadowbanned,
+             COALESCE(p.is_pinned_global, 0) as is_pinned_global,
              (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count,
              (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count,
              (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked,
              cu.username as co_author_username, cu.profile_pic_url as co_author_pic
              FROM posts p JOIN users u ON p.user_id = u.id
              LEFT JOIN users cu ON p.co_author_id = cu.id
-             ORDER BY p.created_at DESC`, [currentUserId]);
-        // Filter out drafts and future scheduled posts in JS (safer if columns don't exist yet)
-        const filtered = posts.filter(p => !p.is_draft && (!p.scheduled_at || new Date(p.scheduled_at) <= new Date()) && (p.visibility !== 'only_me' || p.user_id == currentUserId));
+             ORDER BY p.is_pinned_global DESC, p.created_at DESC`, [currentUserId]);
+        // Filter drafts, future scheduled, private, and shadowbanned authors (shadowbanned only visible to themselves)
+        const filtered = posts.filter(p =>
+            !p.is_draft &&
+            (!p.scheduled_at || new Date(p.scheduled_at) <= new Date()) &&
+            (p.visibility !== 'only_me' || p.user_id == currentUserId) &&
+            (!p.author_shadowbanned || p.user_id == currentUserId)
+        );
         res.json(filtered);
     } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }
 });

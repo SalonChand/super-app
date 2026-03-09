@@ -26,6 +26,7 @@ export default function AdminDashboard() {
         { icon: Flag, label: 'Reports', desc: 'Handle reported users & content', route: '/admin/reports', color: 'from-orange-500/20 to-orange-600/5', border: 'border-orange-500/30', iconColor: 'text-orange-400', stat: stats.reports > 0 ? `${stats.reports} new` : 'All clear', statColor: stats.reports > 0 ? 'bg-orange-500/20 text-orange-400' : 'bg-zinc-800 text-zinc-500' },
         { icon: BarChart2, label: 'Platform Analytics', desc: 'Users, posts, activity stats', route: '/admin/analytics', color: 'from-green-500/20 to-green-600/5', border: 'border-green-500/30', iconColor: 'text-green-400', stat: null, statColor: '' },
         { icon: Settings, label: 'App Settings', desc: 'Control platform-wide settings', route: '/admin/app-settings', color: 'from-purple-500/20 to-purple-600/5', border: 'border-purple-500/30', iconColor: 'text-purple-400', stat: null, statColor: '' },
+        { icon: Zap, label: 'Admin Powers', desc: 'Broadcast, pin posts, silence & shadowban', route: '/admin/powers', color: 'from-yellow-500/20 to-red-500/5', border: 'border-yellow-500/30', iconColor: 'text-yellow-400', stat: null, statColor: '' },
     ];
 
     if (!isAdmin) return null;
