@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Bell, MessageCircle, UserPlus, Check, AtSign, Heart, Users, Cake } from 'lucide-react';
+import { Bell, MessageCircle, UserPlus, Check, AtSign, Heart, Users, Cake, BadgeCheck } from 'lucide-react';
 import { BACKEND_URL } from './config';
+
+function VerifiedBadge({ isVerified, verifyType, size = 12 }) {
+    if (!isVerified) return null;
+    const t = verifyType || 'blue';
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} style={style}/>;
+}
 
 function formatTimeFriendly(dateString) {
     if (!dateString) return '';
@@ -132,7 +140,11 @@ function Notifications() {
                                     </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-white text-sm leading-snug">{item.content || `${item.username} interacted with you.`}</p>
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-white font-bold text-sm truncate">{item.username}</span>
+                                        <VerifiedBadge isVerified={!!item.is_verified} verifyType={item.verify_type} size={13}/>
+                                    </div>
+                                    <p className="text-zinc-400 text-sm leading-snug">{item.content || `${item.username} interacted with you.`}</p>
                                     <p className="text-zinc-600 text-[10px] mt-1">{formatTimeFriendly(item.created_at)}</p>
                                 </div>
                                 <div className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition text-white flex-shrink-0">

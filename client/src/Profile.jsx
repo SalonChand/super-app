@@ -307,15 +307,30 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                               </>
                         ) : (
                             <>
-                                {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>}
-                                {friendStatus === 'sent_request' && <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed"><Clock size={18} className="text-zinc-400" /> Request Sent</button>}
+                                {friendStatus === 'none' && (
+                                    profileData.is_verified
+                                        ? <button onClick={sendFriendRequest} className={`flex items-center gap-2 text-white font-bold py-1.5 px-5 rounded-full transition
+                                            ${profileData.verify_type === 'red' ? 'bg-red-600 hover:bg-red-500' :
+                                              profileData.verify_type === 'yellow' ? 'bg-yellow-500 hover:bg-yellow-400 text-black' :
+                                              profileData.verify_type === 'green' ? 'bg-green-600 hover:bg-green-500' :
+                                              'bg-blue-600 hover:bg-blue-500'}`}>
+                                            ＋ Follow
+                                          </button>
+                                        : <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>
+                                )}
+                                {friendStatus === 'sent_request' && (
+                                    <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed">
+                                        <Clock size={18} className="text-zinc-400" />
+                                        {profileData.is_verified ? 'Following' : 'Request Sent'}
+                                    </button>
+                                )}
                                 {friendStatus === 'received_request' && <button onClick={acceptFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserCheck size={18} /> Accept Request</button>}
                                 {friendStatus === 'friends' && (
                                     <button onClick={unfriendUser} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-green-500 font-bold py-1.5 px-4 rounded-full hover:text-red-500 hover:border-red-500 transition group">
                                         <UserCheck size={18} className="group-hover:hidden" />
                                         <UserMinus size={18} className="hidden group-hover:block" />
-                                        <span className="group-hover:hidden">Friends</span>
-                                        <span className="hidden group-hover:block">Unfriend</span>
+                                        <span className="group-hover:hidden">{profileData.is_verified ? 'Following' : 'Friends'}</span>
+                                        <span className="hidden group-hover:block">{profileData.is_verified ? 'Unfollow' : 'Unfriend'}</span>
                                     </button>
                                 )}
                             </>
@@ -336,7 +351,14 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
                         </p>
                     )}
-                    {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                    {canSeeDetails && profileData.friend_count > 0 && (
+                        <p className="text-white font-bold mt-2 mb-1">
+                            {profileData.friend_count}{' '}
+                            <span className="text-zinc-500 font-normal">
+                                {profileData.is_verified ? 'Followers' : 'Friends'}
+                            </span>
+                        </p>
+                    )}
 
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
