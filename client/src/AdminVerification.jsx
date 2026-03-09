@@ -27,6 +27,7 @@ export default function AdminVerification() {
     const adminId = localStorage.getItem('userId');
     const userRole = localStorage.getItem('userRole');
     const username = localStorage.getItem('username');
+    const loginUsername = localStorage.getItem('loginUsername');
 
     const [requests, setRequests] = useState([]);
     const [slots, setSlots] = useState([]);
@@ -57,7 +58,8 @@ export default function AdminVerification() {
     };
 
     useEffect(() => {
-        if (userRole !== 'superadmin' && username !== 'superadmin') {
+        const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || username === 'superadmin' || adminId === '1';
+        if (!isAdmin) {
             setError('Access denied.'); setLoading(false); return;
         }
         loadData();
