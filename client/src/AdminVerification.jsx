@@ -36,7 +36,9 @@ export default function AdminVerification() {
     const [filter, setFilter] = useState('pending');
     const [typeFilter, setTypeFilter] = useState('all');
     const [actionId, setActionId] = useState(null);
-    const [actionType, setActionType] = useState('blue');
+    const [actionTypes, setActionTypes] = useState({});
+    const getActionType = (userId) => actionTypes[userId] || 'blue';
+    const setActionType = (userId, type) => setActionTypes(prev => ({ ...prev, [userId]: type }));
     const [actionReason, setActionReason] = useState('');
     const [actionMsg, setActionMsg] = useState({});
     const [showSlotEditor, setShowSlotEditor] = useState(false);
@@ -72,7 +74,7 @@ export default function AdminVerification() {
     }, []);
 
     const handleAction = async (userId, approved, vt) => {
-        const type = vt || actionType;
+        const type = vt || getActionType(userId);
         setActionMsg(prev => ({ ...prev, [userId]: 'Processing...' }));
         try {
             const res = await axios.post(`${BACKEND_URL}/api/admin/verify-user`, {
@@ -81,7 +83,7 @@ export default function AdminVerification() {
             });
             if (res.data?.success) {
                 setActionMsg(prev => ({ ...prev, [userId]: approved ? '✅ ' + TYPE_CONFIG[type]?.label + ' badge granted!' : '❌ Denied' }));
-                setActionId(null); setActionReason(''); setActionType('blue');
+                setActionId(null); setActionReason(''); setActionTypes(prev => { const n={...prev}; delete n[userId]; return n; });
                 setTimeout(() => { loadData(); setActionMsg(prev => { const n={...prev}; delete n[userId]; return n; }); }, 1800);
             } else setActionMsg(prev => ({ ...prev, [userId]: '❌ ' + (res.data?.error || 'Error') }));
         } catch(e) { setActionMsg(prev => ({ ...prev, [userId]: '❌ ' + (e?.response?.data?.error || 'Network error') })); }
@@ -271,7 +273,7 @@ export default function AdminVerification() {
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 <Link to={`/profile/${req.user_id}`} className="text-white font-bold hover:underline text-sm">{req.username}</Link>
                                                 {!!req.is_verified && <BadgeCheck size={13} className={TYPE_CONFIG[req.verify_type || 'blue']?.color || 'text-blue-400'}/>}
-                                                {(() => { const acfg = isActing ? (TYPE_CONFIG[actionType] || TYPE_CONFIG.blue) : tcfg; return <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${acfg.bg} ${acfg.color}`}>{acfg.label}</span>; })()}
+                                                {(() => { const acfg = isActing ? (TYPE_CONFIG[getActionType(req.user_id)] || TYPE_CONFIG.blue) : tcfg; return <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${acfg.bg} ${acfg.color}`}>{acfg.label}</span>; })()}
                                             </div>
                                             <p className="text-zinc-500 text-xs">{formatTime(req.created_at)}</p>
                                         </div>
@@ -304,26 +306,26 @@ export default function AdminVerification() {
                                                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Badge type</p>
                                                     <div className="grid grid-cols-2 gap-2">
                                                         {Object.entries(TYPE_CONFIG).map(([type, cfg]) => (
-                                                            <button key={type} onClick={() => setActionType(type)}
-                                                                className={`flex items-center gap-2 p-2.5 rounded-xl border text-sm font-semibold transition ${actionType === type ? `${cfg.bg} ${cfg.color}` : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}>
-                                                                <BadgeCheck size={13} className={actionType === type ? cfg.color : 'text-zinc-600'}/>{cfg.label}
+                                                            <button key={type} onClick={() => setActionType(req.user_id, type)}
+                                                                className={`flex items-center gap-2 p-2.5 rounded-xl border text-sm font-semibold transition ${getActionType(req.user_id) === type ? `${cfg.bg} ${cfg.color}` : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}>
+                                                                <BadgeCheck size={13} className={getActionType(req.user_id) === type ? cfg.color : 'text-zinc-600'}/>{cfg.label}
                                                             </button>
                                                         ))}
                                                     </div>
                                                     <input value={actionReason} onChange={e => setActionReason(e.target.value)}
-                                                        placeholder={`Reason (e.g. ${TYPE_CONFIG[actionType]?.desc})`}
+                                                        placeholder={`Reason (e.g. ${TYPE_CONFIG[getActionType(req.user_id)]?.desc})`}
                                                         className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-yellow-500"/>
-                                                    {actionType === 'blue' && blueRemaining <= 10 && (
+                                                    {getActionType(req.user_id) === 'blue' && blueRemaining <= 10 && (
                                                         <p className={`text-xs text-center font-semibold ${blueRemaining === 0 ? 'text-red-400' : 'text-yellow-400'}`}>
                                                             {blueRemaining === 0 ? '⚠️ No blue slots left!' : `⚠️ Only ${blueRemaining} blue slots remaining`}
                                                         </p>
                                                     )}
                                                     <div className="flex gap-2">
-                                                        <button onClick={() => handleAction(req.user_id, true, actionType)}
+                                                        <button onClick={() => handleAction(req.user_id, true, getActionType(req.user_id))}
                                                             className={`flex-1 font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1.5 border ${tcfg.bg} ${tcfg.color} ${tcfg.bg.replace('bg-','border-').replace('/10','/50')}`}>
-                                                            <BadgeCheck size={14}/> Approve {actionType}
+                                                            <BadgeCheck size={14}/> Approve {getActionType(req.user_id)}
                                                         </button>
-                                                        <button onClick={() => handleAction(req.user_id, false, actionType)}
+                                                        <button onClick={() => handleAction(req.user_id, false, getActionType(req.user_id))}
                                                             className="flex-1 bg-red-700/30 hover:bg-red-700/50 border border-red-700/40 text-red-400 font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-1">
                                                             <XCircle size={14}/> Deny
                                                         </button>
@@ -331,7 +333,7 @@ export default function AdminVerification() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.verify_type || 'blue'); setActionReason(''); }}
+                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.user_id, req.verify_type || 'blue'); setActionReason(''); }}
                                                     className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-semibold py-2 rounded-xl text-sm">
                                                     Review Request
                                                 </button>
@@ -341,7 +343,7 @@ export default function AdminVerification() {
                                     {req.status !== 'pending' && !actionMsg[req.user_id] && (
                                         <div className="px-4 pb-4 flex gap-2">
                                             {req.status === 'denied' && (
-                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.verify_type || 'blue'); }}
+                                                <button onClick={() => { setActionId(req.user_id); setActionType(req.user_id, req.verify_type || 'blue'); }}
                                                     className="flex-1 bg-green-700/30 hover:bg-green-700/50 border border-green-700/40 text-green-400 font-semibold py-2 rounded-xl text-sm">
                                                     ↩ Approve Instead
                                                 </button>
