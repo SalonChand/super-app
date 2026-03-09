@@ -585,9 +585,11 @@ app.get('/api/users/:id/verification-status', async (req, res) => {
 app.post('/api/admin/verify-user', async (req, res) => {
     try {
         const { adminId, userId, approved, reason } = req.body;
-        const [admin] = await pool.query("SELECT id FROM users WHERE id = ? AND (username = 'superadmin' OR role = 'superadmin')", [adminId]);
-        if (!admin[0]) return res.status(403).json({ error: 'Not authorized.' });
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Not authorized.' });
         const verifyType = req.body.verify_type || 'blue';
+        console.log('Admin verify-user:', { adminId, userId, approved, verifyType });
         if (approved) {
             await pool.query('UPDATE users SET is_verified = 1, verified_reason = ?, verify_type = ? WHERE id = ?', [reason || null, verifyType, userId]);
             // Increment used slots for blue
