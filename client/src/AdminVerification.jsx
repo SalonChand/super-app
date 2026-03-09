@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, X, ChevronLeft, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw, Settings, Users, Trash2, UserX, UserCheck, Shield, ShieldOff } from 'lucide-react';
+import { BadgeCheck, X, ChevronLeft, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw, Settings, Users, Trash2, UserX, UserCheck, Shield, ShieldOff, Gift, Trophy, Calendar } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -45,7 +45,7 @@ export default function AdminVerification() {
     const [editSlot, setEditSlot] = useState({});
     const [slotMsg, setSlotMsg] = useState('');
     const [activeTab, setActiveTab] = useState('verification');
-    const [allUsers, setAllUsers] = useState([]);
+    const [giveawaySubTab, setGiveawaySubTab] = useState('winners');
     const [usersLoading, setUsersLoading] = useState(false);
     const [userSearch, setUserSearch] = useState('');
     const [userActionMsg, setUserActionMsg] = useState({});
@@ -187,6 +187,11 @@ export default function AdminVerification() {
                 <button onClick={() => { setActiveTab('users'); if (allUsers.length === 0) loadUsers(); }}
                     className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'users' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-zinc-500 hover:text-white'}`}>
                     <Users size={16}/> Users
+                </button>
+                <button onClick={() => setActiveTab('giveaway')}
+                    className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'giveaway' ? 'border-blue-400 text-blue-400' : 'border-transparent text-zinc-500 hover:text-white'}`}>
+                    <Gift size={16}/> Giveaway
+                    {blueUsed > 0 && <span className="bg-blue-500/20 text-blue-400 text-xs px-1.5 py-0.5 rounded-full font-bold">{blueUsed}</span>}
                 </button>
             </div>
 
@@ -416,7 +421,129 @@ export default function AdminVerification() {
                 </div>
             )}
 
-            {/* Confirm Delete Modal */}
+            {/* Giveaway Tab */}
+            {activeTab === 'giveaway' && (
+                <div className="max-w-2xl mx-auto px-4 pt-4 pb-8 space-y-4">
+
+                    {/* Progress Card */}
+                    <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/5 border border-blue-500/30 rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+                                    <Gift size={18} className="text-blue-400"/>
+                                </div>
+                                <div>
+                                    <p className="text-white font-bold text-sm">Blue Badge Giveaway</p>
+                                    <p className="text-zinc-500 text-xs">Free verified badges for early users</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className={`text-xl font-bold ${blueRemaining === 0 ? 'text-red-400' : 'text-blue-400'}`}>{blueUsed}<span className="text-zinc-600 font-normal text-sm">/{blueTotal}</span></p>
+                                <p className="text-zinc-500 text-xs">claimed</p>
+                            </div>
+                        </div>
+                        <div className="w-full bg-zinc-800 rounded-full h-3 overflow-hidden">
+                            <div className="bg-gradient-to-r from-blue-600 to-blue-400 h-3 rounded-full transition-all shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                                style={{ width: `${Math.min(100,(blueUsed/blueTotal)*100)}%` }}/>
+                        </div>
+                        <div className="flex justify-between mt-2 text-xs text-zinc-500">
+                            <span>🏆 {blueUsed} winners</span>
+                            <span>{blueRemaining === 0 ? '🔒 Giveaway closed' : `${blueRemaining} spots remaining`}</span>
+                        </div>
+                    </div>
+
+                    {/* Sub tabs */}
+                    <div className="flex gap-2">
+                        {[['winners', Trophy, `Winners (${requests.filter(r => r.status === 'approved' && (r.verify_type || 'blue') === 'blue').length})`],
+                          ['pending', Clock, `Pending (${requests.filter(r => r.status === 'pending' && (r.verify_type || 'blue') === 'blue').length})`]
+                        ].map(([val, Icon, label]) => (
+                            <button key={val} onClick={() => setGiveawaySubTab(val)}
+                                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition ${giveawaySubTab === val ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white'}`}>
+                                <Icon size={13}/> {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Winners list */}
+                    {(() => {
+                        const giveawayList = requests.filter(r =>
+                            (r.verify_type || 'blue') === 'blue' &&
+                            r.status === (giveawaySubTab === 'winners' ? 'approved' : 'pending')
+                        );
+
+                        if (giveawayList.length === 0) return (
+                            <div className="text-center py-16">
+                                <BadgeCheck size={40} className="mx-auto text-blue-500/20 mb-3"/>
+                                <p className="text-zinc-500 font-semibold">
+                                    {giveawaySubTab === 'winners' ? 'No winners yet' : 'No pending blue badge requests'}
+                                </p>
+                                <p className="text-zinc-600 text-xs mt-1">
+                                    {giveawaySubTab === 'winners' ? 'Approve blue badge requests to see them here' : 'All clear!'}
+                                </p>
+                            </div>
+                        );
+
+                        return (
+                            <div className="space-y-2">
+                                {giveawayList.map((req, idx) => (
+                                    <div key={req.user_id} className={`flex items-center gap-3 p-3 rounded-2xl border transition
+                                        ${giveawaySubTab === 'winners'
+                                            ? 'bg-blue-500/5 border-blue-500/20 hover:bg-blue-500/10'
+                                            : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'}`}>
+
+                                        {/* Rank number */}
+                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+                                            ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                                              idx === 1 ? 'bg-zinc-400/20 text-zinc-400' :
+                                              idx === 2 ? 'bg-orange-500/20 text-orange-400' :
+                                              'bg-zinc-800 text-zinc-500'}`}>
+                                            {idx + 1}
+                                        </div>
+
+                                        {/* Avatar */}
+                                        <div className="relative flex-shrink-0">
+                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 border-2 border-blue-500/40">
+                                                {req.profile_pic_url
+                                                    ? <img src={req.profile_pic_url} className="w-full h-full object-cover"/>
+                                                    : <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm">{req.username?.charAt(0).toUpperCase()}</div>}
+                                            </div>
+                                            {giveawaySubTab === 'winners' && (
+                                                <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
+                                                    <BadgeCheck size={12} className="text-blue-400"/>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <Link to={`/profile/${req.user_id}`} className="text-white font-bold text-sm hover:underline truncate">{req.username}</Link>
+                                                {giveawaySubTab === 'winners' && <BadgeCheck size={13} className="text-blue-400 flex-shrink-0"/>}
+                                            </div>
+                                            <div className="flex items-center gap-1 text-zinc-500 text-xs">
+                                                <Calendar size={10}/>
+                                                <span>{formatTime(req.created_at)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Status / Action */}
+                                        {giveawaySubTab === 'winners' ? (
+                                            <span className="text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full flex-shrink-0">
+                                                ✓ Winner
+                                            </span>
+                                        ) : (
+                                            <button onClick={() => handleAction(req.user_id, true, 'blue')}
+                                                className="text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-xl hover:bg-blue-500/30 transition flex-shrink-0">
+                                                Approve
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
             {confirmDelete && (
                 <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
                     <div className="bg-zinc-900 border border-red-500/40 rounded-2xl p-6 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
