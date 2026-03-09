@@ -29,7 +29,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const t = verifyType || 'blue';
     const title = titles[t] || titles.blue;
     const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
-    const style = t === 'red' ? { filter: 'drop-shadow(0 0 4px rgba(234,179,8,0.8))' } : {};
+    const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
     return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
 }
 
