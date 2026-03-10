@@ -384,8 +384,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN is_private BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE users ADD COLUMN notifications BOOLEAN DEFAULT TRUE");
     await patch("ALTER TABLE users ADD COLUMN show_active_status BOOLEAN DEFAULT TRUE");
-    await patch("ALTER TABLE users ADD COLUMN ghost_mode BOOLEAN DEFAULT FALSE");
-    await patch("CREATE TABLE IF NOT EXISTS followers (id INT AUTO_INCREMENT PRIMARY KEY, follower_id INT NOT NULL, following_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_follow (follower_id, following_id), FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (following_id) REFERENCES users(id) ON DELETE CASCADE)");
+    await patch("CREATE TABLE IF NOT EXISTS marketplace (id INT AUTO_INCREMENT PRIMARY KEY, seller_id INT NOT NULL, title VARCHAR(200) NOT NULL, description TEXT, price DECIMAL(10,2) DEFAULT 0, category VARCHAR(50) DEFAULT 'other', condition_type VARCHAR(50) DEFAULT 'Good', location VARCHAR(200), images JSON DEFAULT NULL, status VARCHAR(20) DEFAULT 'active', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch(`CREATE TABLE IF NOT EXISTS notifications_history (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, actor_id INT NOT NULL, type VARCHAR(30) NOT NULL, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE)`);
     await patch("ALTER TABLE users ADD COLUMN profile_links JSON DEFAULT NULL");
     await patch("ALTER TABLE posts ADD COLUMN hashtags JSON DEFAULT NULL");
@@ -508,52 +507,60 @@ app.post('/api/login', async (req, res) => { try { const[users] = await pool.que
     } catch (err) { res.status(500).json({ error: 'Server error.' }); }
 });
 
-// ===== FOLLOW SYSTEM FOR VERIFIED USERS =====
-app.get('/api/follow/status', async (req, res) => {
+// ===== MARKETPLACE =====
+app.get('/api/marketplace', async (req, res) => {
     try {
-        const { followerId, followingId } = req.query;
-        const [rows] = await pool.query('SELECT id FROM followers WHERE follower_id = ? AND following_id = ?', [followerId, followingId]);
-        const [countRows] = await pool.query('SELECT COUNT(*) as count FROM followers WHERE following_id = ?', [followingId]);
-        res.json({ following: rows.length > 0, follower_count: countRows[0].count });
-    } catch(err) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/api/follow', async (req, res) => {
-    try {
-        const { followerId, followingId } = req.body;
-        if (followerId == followingId) return res.status(400).json({ error: 'Cannot follow yourself' });
-        await pool.query('INSERT IGNORE INTO followers (follower_id, following_id) VALUES (?, ?)', [followerId, followingId]);
-        // Send notification
-        await pool.query('INSERT INTO notifications (user_id, type, from_user_id, message) VALUES (?, "follow", ?, ?) ON DUPLICATE KEY UPDATE created_at=NOW()',
-            [followingId, followerId, 'started following you']).catch(() => {});
-        const [countRows] = await pool.query('SELECT COUNT(*) as count FROM followers WHERE following_id = ?', [followingId]);
-        res.json({ success: true, follower_count: countRows[0].count });
-    } catch(err) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.post('/api/unfollow', async (req, res) => {
-    try {
-        const { followerId, followingId } = req.body;
-        await pool.query('DELETE FROM followers WHERE follower_id = ? AND following_id = ?', [followerId, followingId]);
-        const [countRows] = await pool.query('SELECT COUNT(*) as count FROM followers WHERE following_id = ?', [followingId]);
-        res.json({ success: true, follower_count: countRows[0].count });
-    } catch(err) { res.status(500).json({ error: 'Server error' }); }
-});
-
-app.get('/api/followers/:userId', async (req, res) => {
-    try {
-        const [rows] = await pool.query(`SELECT u.id, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type FROM users u JOIN followers f ON f.follower_id = u.id WHERE f.following_id = ? ORDER BY f.created_at DESC`, [req.params.userId]);
+        const { userId, category, q, sort, mine } = req.query;
+        let where = 'm.status = "active"';
+        const params = [];
+        if (mine === '1' && userId) { where += ' AND m.seller_id = ?'; params.push(userId); }
+        if (category && category !== 'all') { where += ' AND m.category = ?'; params.push(category); }
+        if (q) { where += ' AND (m.title LIKE ? OR m.description LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
+        let orderBy = 'm.created_at DESC';
+        if (sort === 'price_asc') orderBy = 'm.price ASC';
+        if (sort === 'price_desc') orderBy = 'm.price DESC';
+        const [rows] = await pool.query(
+            `SELECT m.*, COALESCE(u.display_name,u.username) as seller_username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type
+             FROM marketplace m JOIN users u ON u.id = m.seller_id
+             WHERE ${where} ORDER BY ${orderBy} LIMIT 100`,
+            params
+        );
         res.json(rows);
-    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-// Ghost mode toggle
-app.put('/api/users/:id/ghost-mode', async (req, res) => {
+app.post('/api/marketplace', async (req, res) => {
     try {
-        const { ghostMode } = req.body;
-        await pool.query('UPDATE users SET ghost_mode = ? WHERE id = ?', [!!ghostMode, req.params.id]);
-        io.emit('online_status', { userId: Number(req.params.id), online: false });
-        res.json({ message: 'Ghost mode updated', ghost_mode: !!ghostMode });
+        const { userId, title, description, price, category, condition, location } = req.body;
+        if (!userId || !title) return res.status(400).json({ error: 'Missing required fields' });
+        let images = null;
+        if (req.files && req.files.length > 0) {
+            // Cloudinary upload
+            const urls = await Promise.all(req.files.map(async f => {
+                const form = new FormData();
+                form.append('file', f.buffer.toString('base64'));
+                form.append('upload_preset', 'superapp');
+                const r = await fetch('https://api.cloudinary.com/v1_1/dqcfwjjhw/image/upload', { method: 'POST', body: form });
+                const d = await r.json();
+                return d.secure_url;
+            }));
+            images = JSON.stringify(urls);
+        }
+        const [result] = await pool.query(
+            'INSERT INTO marketplace (seller_id, title, description, price, category, condition_type, location, images) VALUES (?,?,?,?,?,?,?,?)',
+            [userId, title, description || null, price || 0, category || 'other', condition || 'Good', location || null, images]
+        );
+        res.json({ id: result.insertId, message: 'Listing created' });
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+app.delete('/api/marketplace/:id', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
+        if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query('DELETE FROM marketplace WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Deleted' });
     } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -880,7 +887,7 @@ app.get('/api/users/:id', async (req, res) => {
     try {
         // Base query — always works even if new columns don't exist yet
         const [users] = await pool.query(
-            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, COALESCE(ghost_mode, 0) as ghost_mode, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, verify_type, COALESCE(role,'user') as role, (SELECT COUNT(*) FROM followers WHERE following_id = users.id) as follower_count FROM users WHERE id = ?`,
+            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, verify_type, COALESCE(role,'user') as role FROM users WHERE id = ?`,
             [req.params.id]
         );
         if (users.length === 0) return res.status(404).json({ error: 'Not found' });
