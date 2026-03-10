@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck, Flag } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -25,7 +25,7 @@ function CarouselPost({ images, onImageClick }) {
     );
 }
 const STORY_FILTERS =[{ name: 'Normal', value: 'none' }, { name: 'Clarendon', value: 'contrast(1.2) saturate(1.3) sepia(0.2) hue-rotate(-10deg)' }, { name: 'Gingham', value: 'brightness(1.1) contrast(1.1) sepia(0.3) hue-rotate(-20deg)' }, { name: 'Moon', value: 'grayscale(100%) contrast(1.2) brightness(1.1)' }, { name: 'Warm', value: 'sepia(0.5) saturate(1.5) contrast(1.1)' }, { name: 'Neon', value: 'hue-rotate(90deg) saturate(2) contrast(1.2)' }];
-const SONG_LIST =["No Music", "Lo-Fi Beats 🎵", "Trending Hits 🔥", "Chill Vibes 🎧", "Gym Motivation 💪"];
+const SONG_LIST =["No Music", "Lo-Fi Beats ðŸŽµ", "Trending Hits ðŸ”¥", "Chill Vibes ðŸŽ§", "Gym Motivation ðŸ’ª"];
 const DRAW_COLORS =['#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#000000'];
 
 function formatTimeFriendly(dateString) {
@@ -64,7 +64,7 @@ function Feed({ onlineUsers = new Set() }) {
     const[hashtagLoading, setHashtagLoading] = useState(false);
     const[postAvatarMenu, setPostAvatarMenu] = useState(null); // { postId, userId, username, storyId }
 
-    // 🔥 NEW: POST EDIT & DELETE STATES 🔥
+    // ðŸ”¥ NEW: POST EDIT & DELETE STATES ðŸ”¥
     const [menuOpenPostId, setMenuOpenPostId] = useState(null);
     const [reportTarget, setReportTarget] = useState(null);
     const[editingPostId, setEditingPostId] = useState(null);
@@ -230,7 +230,7 @@ function Feed({ onlineUsers = new Set() }) {
 
     const handleVideoTimeUpdate = (e) => { setVideoProgress((e.target.currentTime / e.target.duration) * 100); };
 
-    // 🔥 NEW: POST ACTIONS (EDIT, DELETE, COPY LINK) 🔥
+    // ðŸ”¥ NEW: POST ACTIONS (EDIT, DELETE, COPY LINK) ðŸ”¥
     const deletePost = async (postId) => {
         if (window.confirm("Are you sure you want to delete this post?")) {
             try {
@@ -263,7 +263,7 @@ function Feed({ onlineUsers = new Set() }) {
     const submitShareToStory = async () => {
         if (!sharingToStory) return;
         const post = sharingToStory;
-        const text = storyShareCaption || `"${post.content?.slice(0, 80)}${post.content?.length > 80 ? '...' : ''}" — @${post.username}`;
+        const text = storyShareCaption || `"${post.content?.slice(0, 80)}${post.content?.length > 80 ? '...' : ''}" â€” @${post.username}`;
         try {
             const fd = new FormData();
             fd.append('user_id', userId);
@@ -285,7 +285,7 @@ function Feed({ onlineUsers = new Set() }) {
             await axios.post(`${BACKEND_URL}/api/stories`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             setSharingToStory(null);
             setStoryShareCaption('');
-            alert('✅ Shared to your story!');
+            alert('âœ… Shared to your story!');
         } catch(e) { alert('Failed to share. Try again.'); }
     };
 
@@ -404,7 +404,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                                 <p className="text-zinc-100 text-sm leading-relaxed whitespace-pre-wrap break-words">{renderPostText(post.content)}</p>
                                 {post.image_url && <img src={post.image_url} className="mt-2 rounded-xl w-full max-h-64 object-cover" />}
-                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>❤️ {post.like_count}</span><span>💬 {post.comment_count}</span></div>
+                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>â¤ï¸ {post.like_count}</span><span>ðŸ’¬ {post.comment_count}</span></div>
                             </div>
                         ))}
                     </div>
@@ -470,7 +470,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <input value={editingStory.caption} onChange={e => setEditingStory(p => ({...p, caption: e.target.value}))}
                                     placeholder="Add a caption..." className="flex-1 bg-black/70 text-white placeholder-white/50 rounded-full px-4 py-2 text-sm outline-none border border-white/20" autoFocus />
                                 <button onClick={saveStoryCaption} className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-bold">Save</button>
-                                <button onClick={() => setEditingStory(null)} className="text-white/60 px-2 text-sm">✕</button>
+                                <button onClick={() => setEditingStory(null)} className="text-white/60 px-2 text-sm">âœ•</button>
                             </div>
                         )}
 
@@ -529,10 +529,10 @@ function Feed({ onlineUsers = new Set() }) {
                             <p className="text-zinc-400 text-xs mb-2 font-medium uppercase tracking-wider">Who can see this?</p>
                             <div className="grid grid-cols-2 gap-2 mb-2">
                                 {[
-                                    { value: 'public', label: '🌍 Everyone' },
-                                    { value: 'friends', label: '👥 Friends Only' },
-                                    { value: 'only_me', label: '🔒 Only Me' },
-                                    { value: 'selected', label: '✅ Selected' },
+                                    { value: 'public', label: 'ðŸŒ Everyone' },
+                                    { value: 'friends', label: 'ðŸ‘¥ Friends Only' },
+                                    { value: 'only_me', label: 'ðŸ”’ Only Me' },
+                                    { value: 'selected', label: 'âœ… Selected' },
                                 ].map(opt => (
                                     <button key={opt.value} onClick={() => setStoryVisibility(opt.value)}
                                         className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${storyVisibility === opt.value ? 'border-blue-500 bg-blue-500/20 text-blue-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}>
@@ -620,7 +620,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition mb-4"
                             />
                             <button onClick={submitShareToStory} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-2xl transition">
-                                Share to Story ✨
+                                Share to Story âœ¨
                             </button>
                         </div>
                     </div>
@@ -673,15 +673,15 @@ function Feed({ onlineUsers = new Set() }) {
 ); })()}
                         <div className="w-full min-w-0">
                             
-                            {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
+                            {/* ðŸ”¥ THE POST HEADER W/ MORE OPTIONS MENU ðŸ”¥ */}
                             <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <div className="flex items-center gap-1"><Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:underline truncate">{post.username}</Link>{<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={14}/>}</div>
                                         {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><Link to={`/profile/${post.co_author_id}`} className="font-bold text-yellow-300 text-sm hover:underline">& {post.co_author_username}</Link></>}
                                         <span className="text-zinc-500 text-sm truncate">@{post.username.toLowerCase()}</span>
-                                        {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'}</span>}
-                                        <span className="text-zinc-600 text-sm hidden sm:inline">·</span><span className="text-zinc-500 text-xs w-full sm:w-auto">{formatTimeFriendly(post.created_at)}</span>
-                                        {post.tagged_users && (() => { try { const tags = JSON.parse(post.tagged_users); return tags.length > 0 ? <span className="text-blue-400 text-xs w-full">👥 with {tags.length} friend{tags.length>1?'s':''}</span> : null; } catch(e) { return null; } })()}
+                                        {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? 'ðŸ‘¥' : post.visibility === 'close_friends' ? 'â­' : 'ðŸ”’'}</span>}
+                                        <span className="text-zinc-600 text-sm hidden sm:inline">Â·</span><span className="text-zinc-500 text-xs w-full sm:w-auto">{formatTimeFriendly(post.created_at)}</span>
+                                        {post.tagged_users && (() => { try { const tags = JSON.parse(post.tagged_users); return tags.length > 0 ? <span className="text-blue-400 text-xs w-full">ðŸ‘¥ with {tags.length} friend{tags.length>1?'s':''}</span> : null; } catch(e) { return null; } })()}
                                 </div>
                                 
                                 {/* 3 Dots Menu Button */}
@@ -707,7 +707,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                             </div>
 
-                            {/* 🔥 EDITING MODE vs VIEWING MODE 🔥 */}
+                            {/* ðŸ”¥ EDITING MODE vs VIEWING MODE ðŸ”¥ */}
                             {editingPostId === post.id ? (
                                 <div className="mt-2 mb-3">
                                     <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition" rows="3" />
@@ -759,12 +759,12 @@ function Feed({ onlineUsers = new Set() }) {
                         <button onClick={loadMorePosts} disabled={loadingMore}
                             className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-sm font-semibold px-6 py-2.5 rounded-full transition disabled:opacity-50">
                             {loadingMore ? <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin"/> : null}
-                            {loadingMore ? 'Loading…' : 'Load more posts'}
+                            {loadingMore ? 'Loading...' : 'Load more posts'}
                         </button>
                     </div>
                 )}
                 {!hasMorePosts && posts.length > 0 && (
-                    <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
+                    <p className="text-center text-zinc-700 text-xs py-8">You're all caught up âœ“</p>
                 )}
             </div>
             {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
