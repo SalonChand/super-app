@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, X, ChevronLeft, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw, Settings, Users, Trash2, UserX, UserCheck, Shield, ShieldOff, Gift, Trophy, Calendar } from 'lucide-react';
+import { BadgeCheck, X, ChevronLeft, Clock, CheckCircle2, XCircle, AlertCircle, RefreshCw, Settings, Users, Trash2, UserX, UserCheck, Shield, ShieldOff } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -45,11 +45,12 @@ export default function AdminVerification() {
     const [editSlot, setEditSlot] = useState({});
     const [slotMsg, setSlotMsg] = useState('');
     const [activeTab, setActiveTab] = useState('verification');
-    const [giveawaySubTab, setGiveawaySubTab] = useState('winners');
+    const [allUsers, setAllUsers] = useState([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [userSearch, setUserSearch] = useState('');
     const [userActionMsg, setUserActionMsg] = useState({});
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [badgePickerUser, setBadgePickerUser] = useState(null);
 
     const loadData = async () => {
         setLoading(true); setError('');
@@ -189,9 +190,8 @@ export default function AdminVerification() {
                     <Users size={16}/> Users
                 </button>
                 <button onClick={() => setActiveTab('giveaway')}
-                    className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'giveaway' ? 'border-blue-400 text-blue-400' : 'border-transparent text-zinc-500 hover:text-white'}`}>
-                    <Gift size={16}/> Giveaway
-                    {blueUsed > 0 && <span className="bg-blue-500/20 text-blue-400 text-xs px-1.5 py-0.5 rounded-full font-bold">{blueUsed}</span>}
+                    className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'giveaway' ? 'border-yellow-400 text-yellow-400' : 'border-transparent text-zinc-500 hover:text-white'}`}>
+                    🎁 Giveaway {requests.filter(r => r.verify_type === 'blue' && r.status === 'pending').length > 0 && <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{requests.filter(r => r.verify_type === 'blue' && r.status === 'pending').length}</span>}
                 </button>
             </div>
 
@@ -369,181 +369,130 @@ export default function AdminVerification() {
             </div>
 
             {/* Users Management Tab */}
-            {activeTab === 'users' && (
-                <div className="max-w-2xl mx-auto px-4 pt-2 pb-8 space-y-3">
-                    <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
-                        placeholder="Search users..."
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm placeholder-zinc-500 outline-none focus:border-yellow-500/50"/>
-                    {usersLoading ? (
-                        <div className="text-center py-10 text-zinc-500">Loading users...</div>
-                    ) : (
-                        allUsers.filter(u => u.display_name?.toLowerCase().includes(userSearch.toLowerCase()) || u.username?.toLowerCase().includes(userSearch.toLowerCase())).map(user => (
-                            <div key={user.id} className={`bg-zinc-900 border rounded-2xl p-4 space-y-3 ${!user.is_active ? 'border-red-500/30 opacity-70' : 'border-zinc-800'}`}>
-                                <div className="flex items-center gap-3">
-                                    {user.profile_pic_url
-                                        ? <img src={user.profile_pic_url} className="w-10 h-10 rounded-full object-cover"/>
-                                        : <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-white font-bold">{user.display_name?.[0]?.toUpperCase()}</div>
-                                    }
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-white font-bold text-sm truncate">{user.display_name}</p>
-                                        <p className="text-zinc-500 text-xs">@{user.username} · {user.post_count} posts · {user.friend_count} friends</p>
+            {activeTab === 'users' && (() => {
+                const BADGE_TYPES = [
+                    { type: 'blue',   label: 'Blue',   desc: 'Verified Account', color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/40' },
+                    { type: 'yellow', label: 'Yellow', desc: 'Celebrity',        color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/40' },
+                    { type: 'green',  label: 'Green',  desc: 'Politician',       color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/40' },
+                    { type: 'red',    label: 'Red',    desc: 'Platform Owner',   color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/40' },
+                ];
+                const BADGE_COLOR = { blue: 'text-blue-400', yellow: 'text-yellow-400', green: 'text-green-400', red: 'text-red-500' };
+                const isVerified = (u) => u.is_verified == 1 || u.is_verified === true;
+                const handleGiveBadge = async (userId, badgeType) => {
+                    setUserActionMsg(prev => ({ ...prev, [userId]: 'Granting...' }));
+                    try {
+                        await axios.post(`${BACKEND_URL}/api/admin/verify-user`, {
+                            adminId, userId, approved: true, verify_type: badgeType,
+                            reason: BADGE_TYPES.find(b => b.type === badgeType)?.desc || 'Admin granted'
+                        });
+                        setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified: 1, verify_type: badgeType } : u));
+                        setUserActionMsg(prev => ({ ...prev, [userId]: `✅ ${BADGE_TYPES.find(b=>b.type===badgeType)?.label} badge granted!` }));
+                        setBadgePickerUser(null);
+                    } catch(e) { setUserActionMsg(prev => ({ ...prev, [userId]: '❌ Failed' })); }
+                    setTimeout(() => setUserActionMsg(prev => { const n={...prev}; delete n[userId]; return n; }), 2500);
+                };
+                return (
+                    <div className="max-w-2xl mx-auto px-4 pt-2 pb-8 space-y-3">
+                        <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                            placeholder="Search users..."
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm placeholder-zinc-500 outline-none focus:border-yellow-500/50"/>
+                        {usersLoading ? (
+                            <div className="text-center py-10 text-zinc-500">Loading users...</div>
+                        ) : (
+                            allUsers.filter(u =>
+                                u.display_name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                u.username?.toLowerCase().includes(userSearch.toLowerCase())
+                            ).map(user => (
+                                <div key={user.id} className={`bg-zinc-900 border rounded-2xl overflow-hidden transition-all ${user.is_active == 0 ? 'border-red-500/30' : badgePickerUser === user.id ? 'border-blue-500/30' : 'border-zinc-800'}`}>
+                                    <div className="flex items-center gap-3 p-4">
+                                        {user.profile_pic_url
+                                            ? <img src={user.profile_pic_url} className="w-10 h-10 rounded-full object-cover flex-shrink-0"/>
+                                            : <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-white font-bold flex-shrink-0">{user.display_name?.[0]?.toUpperCase()}</div>
+                                        }
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-white font-bold text-sm truncate">{user.display_name}</p>
+                                                {isVerified(user) && <BadgeCheck size={13} className={BADGE_COLOR[user.verify_type] || 'text-blue-400'}/>}
+                                            </div>
+                                            <p className="text-zinc-500 text-xs">@{user.username} · {user.post_count} posts · {user.friend_count} friends</p>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                            {isVerified(user) && (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border
+                                                    ${BADGE_TYPES.find(b=>b.type===user.verify_type)?.bg || 'bg-blue-500/10'}
+                                                    ${BADGE_TYPES.find(b=>b.type===user.verify_type)?.border || 'border-blue-500/40'}
+                                                    ${BADGE_COLOR[user.verify_type] || 'text-blue-400'}`}>
+                                                    ✓ {user.verify_type || 'blue'}
+                                                </span>
+                                            )}
+                                            {user.is_active == 0 && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Deactivated</span>}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        {user.is_verified ? <BadgeCheck size={14} className="text-blue-400"/> : null}
-                                        {!user.is_active && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Deactivated</span>}
-                                    </div>
-                                </div>
-                                {userActionMsg[user.id] && <p className="text-xs text-center font-semibold text-yellow-400">{userActionMsg[user.id]}</p>}
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={() => handleDeactivate(user.id, user.is_active !== 0)}
-                                        className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border ${user.is_active !== 0 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20' : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'}`}>
-                                        {user.is_active !== 0 ? <><UserX size={13}/> Deactivate</> : <><UserCheck size={13}/> Reactivate</>}
-                                    </button>
-                                    {user.is_verified ? (
-                                        <button onClick={() => handleUnverify(user.id)}
-                                            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-700">
-                                            <ShieldOff size={13}/> Remove Badge
+
+                                    {userActionMsg[user.id] && (
+                                        <p className={`text-xs text-center py-1.5 font-semibold ${userActionMsg[user.id].startsWith('✅') ? 'text-green-400 bg-green-500/5' : 'text-yellow-400 bg-yellow-500/5'}`}>
+                                            {userActionMsg[user.id]}
+                                        </p>
+                                    )}
+
+                                    {/* Badge Picker */}
+                                    {badgePickerUser === user.id && (
+                                        <div className="mx-4 mb-3 bg-zinc-950 border border-zinc-700 rounded-2xl p-3 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"><BadgeCheck size={12}/> Assign Badge</p>
+                                                <button onClick={() => setBadgePickerUser(null)} className="text-zinc-600 hover:text-white"><X size={13}/></button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {BADGE_TYPES.map(b => {
+                                                    const isActive = isVerified(user) && user.verify_type === b.type;
+                                                    return (
+                                                        <button key={b.type} onClick={() => handleGiveBadge(user.id, b.type)}
+                                                            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition ${isActive ? `${b.bg} ${b.border}` : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800'}`}>
+                                                            <BadgeCheck size={15} className={b.color}/>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className={`text-xs font-bold ${b.color}`}>{b.label}</p>
+                                                                <p className="text-[10px] text-zinc-500 truncate">{b.desc}</p>
+                                                            </div>
+                                                            {isActive && <span className="text-[9px] font-bold text-zinc-400">ON</span>}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {isVerified(user) && (
+                                                <button onClick={() => { handleUnverify(user.id); setBadgePickerUser(null); }}
+                                                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/20 transition">
+                                                    <ShieldOff size={13}/> Remove Badge Entirely
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+                                        <button onClick={() => handleDeactivate(user.id, user.is_active != 0)}
+                                            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border ${user.is_active != 0 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20' : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'}`}>
+                                            {user.is_active != 0 ? <><UserX size={13}/> Deactivate</> : <><UserCheck size={13}/> Reactivate</>}
                                         </button>
-                                    ) : (
+                                        <button onClick={() => setBadgePickerUser(badgePickerUser === user.id ? null : user.id)}
+                                            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition ${badgePickerUser === user.id ? 'bg-blue-500/20 border-blue-500/50 text-blue-300' : isVerified(user) ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}>
+                                            <BadgeCheck size={13}/> {isVerified(user) ? 'Change Badge' : 'Give Badge'}
+                                        </button>
                                         <button onClick={() => handleDeletePosts(user.id)}
                                             className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-700">
                                             <Trash2 size={13}/> Delete Posts
                                         </button>
-                                    )}
-                                    <button onClick={() => setConfirmDelete(user.id)}
-                                        className="col-span-2 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20">
-                                        <Trash2 size={13}/> Delete Account
-                                    </button>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            )}
-
-            {/* Giveaway Tab */}
-            {activeTab === 'giveaway' && (
-                <div className="max-w-2xl mx-auto px-4 pt-4 pb-8 space-y-4">
-
-                    {/* Progress Card */}
-                    <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/5 border border-blue-500/30 rounded-2xl p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
-                                    <Gift size={18} className="text-blue-400"/>
-                                </div>
-                                <div>
-                                    <p className="text-white font-bold text-sm">Blue Badge Giveaway</p>
-                                    <p className="text-zinc-500 text-xs">Free verified badges for early users</p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className={`text-xl font-bold ${blueRemaining === 0 ? 'text-red-400' : 'text-blue-400'}`}>{blueUsed}<span className="text-zinc-600 font-normal text-sm">/{blueTotal}</span></p>
-                                <p className="text-zinc-500 text-xs">claimed</p>
-                            </div>
-                        </div>
-                        <div className="w-full bg-zinc-800 rounded-full h-3 overflow-hidden">
-                            <div className="bg-gradient-to-r from-blue-600 to-blue-400 h-3 rounded-full transition-all shadow-[0_0_8px_rgba(59,130,246,0.6)]"
-                                style={{ width: `${Math.min(100,(blueUsed/blueTotal)*100)}%` }}/>
-                        </div>
-                        <div className="flex justify-between mt-2 text-xs text-zinc-500">
-                            <span>🏆 {blueUsed} winners</span>
-                            <span>{blueRemaining === 0 ? '🔒 Giveaway closed' : `${blueRemaining} spots remaining`}</span>
-                        </div>
-                    </div>
-
-                    {/* Sub tabs */}
-                    <div className="flex gap-2">
-                        {[['winners', Trophy, `Winners (${requests.filter(r => r.status === 'approved' && (r.verify_type || 'blue') === 'blue').length})`],
-                          ['pending', Clock, `Pending (${requests.filter(r => r.status === 'pending' && (r.verify_type || 'blue') === 'blue').length})`]
-                        ].map(([val, Icon, label]) => (
-                            <button key={val} onClick={() => setGiveawaySubTab(val)}
-                                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition ${giveawaySubTab === val ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white'}`}>
-                                <Icon size={13}/> {label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Winners list */}
-                    {(() => {
-                        const giveawayList = requests.filter(r =>
-                            (r.verify_type || 'blue') === 'blue' &&
-                            r.status === (giveawaySubTab === 'winners' ? 'approved' : 'pending')
-                        );
-
-                        if (giveawayList.length === 0) return (
-                            <div className="text-center py-16">
-                                <BadgeCheck size={40} className="mx-auto text-blue-500/20 mb-3"/>
-                                <p className="text-zinc-500 font-semibold">
-                                    {giveawaySubTab === 'winners' ? 'No winners yet' : 'No pending blue badge requests'}
-                                </p>
-                                <p className="text-zinc-600 text-xs mt-1">
-                                    {giveawaySubTab === 'winners' ? 'Approve blue badge requests to see them here' : 'All clear!'}
-                                </p>
-                            </div>
-                        );
-
-                        return (
-                            <div className="space-y-2">
-                                {giveawayList.map((req, idx) => (
-                                    <div key={req.user_id} className={`flex items-center gap-3 p-3 rounded-2xl border transition
-                                        ${giveawaySubTab === 'winners'
-                                            ? 'bg-blue-500/5 border-blue-500/20 hover:bg-blue-500/10'
-                                            : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'}`}>
-
-                                        {/* Rank number */}
-                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
-                                            ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                                              idx === 1 ? 'bg-zinc-400/20 text-zinc-400' :
-                                              idx === 2 ? 'bg-orange-500/20 text-orange-400' :
-                                              'bg-zinc-800 text-zinc-500'}`}>
-                                            {idx + 1}
-                                        </div>
-
-                                        {/* Avatar */}
-                                        <div className="relative flex-shrink-0">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 border-2 border-blue-500/40">
-                                                {req.profile_pic_url
-                                                    ? <img src={req.profile_pic_url} className="w-full h-full object-cover"/>
-                                                    : <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm">{req.username?.charAt(0).toUpperCase()}</div>}
-                                            </div>
-                                            {giveawaySubTab === 'winners' && (
-                                                <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
-                                                    <BadgeCheck size={12} className="text-blue-400"/>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Info */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-1.5">
-                                                <Link to={`/profile/${req.user_id}`} className="text-white font-bold text-sm hover:underline truncate">{req.username}</Link>
-                                                {giveawaySubTab === 'winners' && <BadgeCheck size={13} className="text-blue-400 flex-shrink-0"/>}
-                                            </div>
-                                            <div className="flex items-center gap-1 text-zinc-500 text-xs">
-                                                <Calendar size={10}/>
-                                                <span>{formatTime(req.created_at)}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Status / Action */}
-                                        {giveawaySubTab === 'winners' ? (
-                                            <span className="text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full flex-shrink-0">
-                                                ✓ Winner
-                                            </span>
-                                        ) : (
-                                            <button onClick={() => handleAction(req.user_id, true, 'blue')}
-                                                className="text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-xl hover:bg-blue-500/30 transition flex-shrink-0">
-                                                Approve
-                                            </button>
-                                        )}
+                                        <button onClick={() => setConfirmDelete(user.id)}
+                                            className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20">
+                                            <Trash2 size={13}/> Delete Account
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
-                        );
-                    })()}
-                </div>
-            )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                );
+            })()}
+
+            {/* Confirm Delete Modal */}
             {confirmDelete && (
                 <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
                     <div className="bg-zinc-900 border border-red-500/40 rounded-2xl p-6 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
