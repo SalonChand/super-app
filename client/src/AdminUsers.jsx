@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, Users, Trash2, UserX, UserCheck, ShieldOff, RefreshCw, Search, BadgeCheck, X } from 'lucide-react';
+import { ChevronLeft, Users, Trash2, UserX, UserCheck, ShieldOff, RefreshCw, Search, BadgeCheck, X, Eye } from 'lucide-react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -20,6 +21,7 @@ export default function AdminUsers() {
     const loginUsername = localStorage.getItem('loginUsername');
     const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || adminId === '1';
 
+    const navigate = useNavigate();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -43,6 +45,8 @@ export default function AdminUsers() {
         setActionMsg(p => ({ ...p, [userId]: text }));
         setTimeout(() => setActionMsg(p => { const n={...p}; delete n[userId]; return n; }), 2500);
     };
+
+    const isVerified = (user) => user.is_verified == 1 || user.is_verified === true;
 
     const handleDeactivate = async (user) => {
         const deactivate = user.is_active !== 0;
@@ -124,7 +128,7 @@ export default function AdminUsers() {
 
                     {loading ? <div className="text-center py-16 text-zinc-500">Loading...</div> :
                         filtered.map(user => (
-                            <div key={user.id} className={`bg-zinc-900 border rounded-2xl overflow-hidden transition-all ${!user.is_active ? 'border-red-500/30' : badgePickerUserId === user.id ? 'border-blue-500/30' : 'border-zinc-800'}`}>
+                            <div key={user.id} className={`bg-zinc-900 border rounded-2xl overflow-hidden transition-all ${user.is_active == 0 ? 'border-red-500/30' : badgePickerUserId === user.id ? 'border-blue-500/30' : 'border-zinc-800'}`}>
 
                                 {/* User info */}
                                 <div className="flex items-center gap-3 p-4">
@@ -135,13 +139,13 @@ export default function AdminUsers() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-white font-bold text-sm truncate">{user.display_name}</p>
-                                            {user.is_verified && <BadgeCheck size={14} className={BADGE_COLOR[user.verify_type] || 'text-blue-400'}/>}
+                                            {isVerified(user) && <BadgeCheck size={14} className={BADGE_COLOR[user.verify_type] || 'text-blue-400'}/>}
                                         </div>
                                         <p className="text-zinc-500 text-xs">@{user.username}</p>
                                         <p className="text-zinc-600 text-xs">{user.post_count} posts · {user.friend_count} friends</p>
                                     </div>
                                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                        {user.is_verified && (
+                                        {isVerified(user) && (
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border
                                                 ${BADGE_TYPES.find(b => b.type === user.verify_type)?.bg || 'bg-blue-500/10'}
                                                 ${BADGE_TYPES.find(b => b.type === user.verify_type)?.border || 'border-blue-500/40'}
@@ -149,7 +153,7 @@ export default function AdminUsers() {
                                                 ✓ {user.verify_type || 'blue'}
                                             </span>
                                         )}
-                                        {!user.is_active && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Deactivated</span>}
+                                        {user.is_active == 0 && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">Deactivated</span>}
                                     </div>
                                 </div>
 
@@ -170,13 +174,13 @@ export default function AdminUsers() {
                                             <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                                                 <BadgeCheck size={12}/> Assign Badge
                                             </p>
-                                            <button onClick={() => setBadgePickerUserId(null)} className="text-zinc-600 hover:text-white transition p-0.5">
+                                            <button onClick={() => setBadgePickerUserId(null)} className="text-zinc-600 hover:text-white transition">
                                                 <X size={13}/>
                                             </button>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             {BADGE_TYPES.map(b => {
-                                                const isActive = user.is_verified && user.verify_type === b.type;
+                                                const isActive = isVerified(user) && user.verify_type === b.type;
                                                 return (
                                                     <button key={b.type} onClick={() => handleGiveBadge(user.id, b.type)}
                                                         className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition
@@ -191,7 +195,7 @@ export default function AdminUsers() {
                                                 );
                                             })}
                                         </div>
-                                        {user.is_verified && (
+                                        {isVerified(user) && (
                                             <button onClick={() => handleRemoveBadge(user.id)}
                                                 className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/20 transition">
                                                 <ShieldOff size={13}/> Remove Badge Entirely
@@ -202,23 +206,27 @@ export default function AdminUsers() {
 
                                 {/* Action buttons */}
                                 <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+                                    <button onClick={() => navigate(`/admin/users/${user.id}/profile`)}
+                                        className="col-span-2 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition">
+                                        <Eye size={13}/> View Full Profile & Private Info
+                                    </button>
                                     <button onClick={() => handleDeactivate(user)}
                                         className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition
-                                            ${user.is_active !== 0
+                                            ${user.is_active != 0
                                                 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20'
                                                 : 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'}`}>
-                                        {user.is_active !== 0 ? <><UserX size={13}/> Deactivate</> : <><UserCheck size={13}/> Reactivate</>}
+                                        {user.is_active != 0 ? <><UserX size={13}/> Deactivate</> : <><UserCheck size={13}/> Reactivate</>}
                                     </button>
 
                                     <button onClick={() => setBadgePickerUserId(badgePickerUserId === user.id ? null : user.id)}
                                         className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border transition
                                             ${badgePickerUserId === user.id
                                                 ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-                                                : user.is_verified
+                                                : isVerified(user)
                                                     ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20'
                                                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}>
                                         <BadgeCheck size={13}/>
-                                        {user.is_verified ? 'Change Badge' : 'Give Badge'}
+                                        {isVerified(user) ? 'Change Badge' : 'Give Badge'}
                                     </button>
 
                                     <button onClick={() => handleDeletePosts(user.id)}

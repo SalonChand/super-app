@@ -235,7 +235,89 @@ app.put('/api/admin/app-settings', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ===== ADMIN POWER: BROADCAST ANNOUNCEMENT =====
+// ===== ADMIN: View full user profile =====
+app.get('/api/admin/users/:id/profile', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [user] = await pool.query(`SELECT u.*, 
+            (SELECT COUNT(*) FROM posts WHERE user_id = u.id) as post_count,
+            (SELECT COUNT(*) FROM connections WHERE (requester_id = u.id OR receiver_id = u.id) AND status = 'accepted') as friend_count,
+            (SELECT COUNT(*) FROM likes l JOIN posts p ON l.post_id = p.id WHERE p.user_id = u.id) as total_likes_received,
+            (SELECT COUNT(*) FROM comments c JOIN posts p ON c.post_id = p.id WHERE p.user_id = u.id) as total_comments_received
+            FROM users u WHERE u.id = ?`, [req.params.id]);
+        if (!user[0]) return res.status(404).json({ error: 'User not found' });
+        const [recentPosts] = await pool.query(`SELECT id, content, image_url, created_at, view_count,
+            (SELECT COUNT(*) FROM likes WHERE post_id = posts.id) as like_count,
+            (SELECT COUNT(*) FROM comments WHERE post_id = posts.id) as comment_count
+            FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 5`, [req.params.id]);
+        const [warnings] = await pool.query(`SELECT w.*, COALESCE(u.display_name, u.username) as admin_name FROM admin_warnings w JOIN users u ON w.admin_id = u.id WHERE w.user_id = ? ORDER BY w.created_at DESC`, [req.params.id]);
+        res.json({ ...user[0], recent_posts: recentPosts, warnings });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Get user's friends =====
+app.get('/api/admin/users/:id/friends', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [friends] = await pool.query(`SELECT u.id, COALESCE(u.display_name, u.username) as display_name, u.username, u.profile_pic_url,
+            COALESCE(u.is_verified, 0) as is_verified, u.verify_type, c.id as connection_id, c.created_at as friends_since
+            FROM connections c
+            JOIN users u ON (c.requester_id = ? AND u.id = c.receiver_id) OR (c.receiver_id = ? AND u.id = c.requester_id)
+            WHERE (c.requester_id = ? OR c.receiver_id = ?) AND c.status = 'accepted'
+            ORDER BY c.created_at DESC`, [req.params.id, req.params.id, req.params.id, req.params.id]);
+        res.json(friends);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Remove a friendship =====
+app.delete('/api/admin/users/:userId/friends/:friendId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query(`DELETE FROM connections WHERE 
+            (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,
+            [req.params.userId, req.params.friendId, req.params.friendId, req.params.userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Send warning to user =====
+app.post('/api/admin/users/:id/warn', async (req, res) => {
+    try {
+        const { adminId, message } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("INSERT INTO admin_warnings (user_id, admin_id, message) VALUES (?,?,?)", [req.params.id, adminId, message]);
+        // Notify the user
+        await pool.query("INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?,?,?,?)",
+            [req.params.id, adminId, 'warning', `⚠️ Official Warning: ${message}`]).catch(() => {});
+        if (global.io) global.io.to(req.params.id.toString()).emit('activity_updated');
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Delete a warning =====
+app.delete('/api/admin/warnings/:warningId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("DELETE FROM admin_warnings WHERE id = ?", [req.params.warningId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: View full user profile =====
 app.post('/api/admin/broadcast', async (req, res) => {
     try {
         const { adminId, title, message, type } = req.body;
@@ -548,6 +630,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE posts ADD COLUMN is_pinned_global BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE users ADD COLUMN silenced_until DATETIME DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN shadowbanned BOOLEAN DEFAULT FALSE");
+    // === ADMIN POWER FEATURES 2 ===
+    await patch("CREATE TABLE IF NOT EXISTS admin_warnings (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, admin_id INT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
