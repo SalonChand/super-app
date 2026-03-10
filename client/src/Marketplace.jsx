@@ -5,6 +5,12 @@ import { Link, useNavigate } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
+function safeParseImages(images) {
+    if (!images) return [];
+    if (Array.isArray(images)) return images;
+    try { const p = JSON.parse(images); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
 const CATEGORIES = [
     { key: 'all',        label: 'All',         Icon: Sparkles },
     { key: 'electronics',label: 'Electronics', Icon: Laptop },
@@ -215,7 +221,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                 {!loading && listings.length > 0 && (
                     <div className="grid grid-cols-2 gap-3">
                         {listings.map(listing => {
-                            const imgs = listing.images ? JSON.parse(listing.images) : [];
+                            const imgs = safeParseImages(listing.images);
                             const isSaved = savedIds.has(listing.id);
                             const isOwner = String(listing.seller_id) === String(userId);
                             return (
@@ -256,7 +262,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
 
             {/* View Listing Modal */}
             {viewListing && (() => {
-                const imgs = viewListing.images ? JSON.parse(viewListing.images) : [];
+                const imgs = safeParseImages(viewListing.images);
                 const isOwner = String(viewListing.seller_id) === String(userId);
                 return (
                     <div className="fixed inset-0 z-[100] bg-black/90 flex items-end sm:items-center justify-center" onClick={() => setViewListing(null)}>
