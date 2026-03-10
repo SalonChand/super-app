@@ -1,9 +1,17 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, User, FileText, Users } from 'lucide-react';
+import { Search as SearchIcon, User, FileText, Users, BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+
+function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
+    if (!isVerified) return null;
+    const t = verifyType || 'blue';
+    const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
+    const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} style={style}/>;
+}
 
 const FILTERS = [
     { key: 'people',      label: 'People',      Icon: User },
@@ -12,6 +20,7 @@ const FILTERS = [
 ];
 
 function Search() {
+    const currentUserId = localStorage.getItem('userId');
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [filter, setFilter] = useState('people');
@@ -74,12 +83,15 @@ function Search() {
 
                 {filter === 'people' && results.map(user => (
                     <Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition">
-                        <div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center flex-shrink-0">
                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-400" />}
                         </div>
-                        <div>
-                            <h4 className="font-bold text-white">{user.username}</h4>
-                            <p className="text-sm text-zinc-500">View Profile</p>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                                <h4 className="font-bold text-white truncate">{user.username}</h4>
+                                <VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={15}/>
+                            </div>
+                            <p className="text-sm text-zinc-500">@{user.username.toLowerCase()}</p>
                         </div>
                     </Link>
                 ))}
@@ -90,7 +102,7 @@ function Search() {
                             <Link to={`/profile/${post.user_id}`} className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
                                 {post.profile_pic_url ? <img src={post.profile_pic_url} className="w-full h-full object-cover" /> : <User size={14} className="text-zinc-500" />}
                             </Link>
-                            <Link to={`/profile/${post.user_id}`} className="font-semibold text-white text-sm hover:underline">{post.username}</Link>
+                            <Link to={`/profile/${post.user_id}`} className="font-semibold text-white text-sm hover:underline flex items-center gap-1">{post.username}<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={13}/></Link>
                             <span className="text-zinc-600 text-xs ml-auto">{new Date(post.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
                         </div>
                         <p className="text-zinc-200 text-sm line-clamp-3">{post.content}</p>
