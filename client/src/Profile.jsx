@@ -28,6 +28,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
 
 function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const { id } = useParams(); 
+    const currentUserId = localStorage.getItem('userId');
     const isMyProfile = id === currentUserId;
     const navigate = useNavigate();
 
