@@ -380,7 +380,6 @@ function Feed({ onlineUsers = new Set() }) {
     };
 
     return (
-        <React.Fragment>
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
             {/* ===== HASHTAG VIEW ===== */}
             {hashtagView && (
@@ -768,9 +767,8 @@ function Feed({ onlineUsers = new Set() }) {
                     <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
                 )}
             </div>
+            {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
         </div>
-        {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
-        </React.Fragment>
     );
 }
 
