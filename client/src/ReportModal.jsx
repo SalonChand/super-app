@@ -181,3 +181,5 @@ export default function ReportModal({ reportedUser, onClose }) {
         </div>
     );
 }
+
+export default ReportModal;
