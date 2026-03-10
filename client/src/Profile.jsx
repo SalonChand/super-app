@@ -462,7 +462,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
                                         <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-bold text-white">{post.username}<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={12}/></span>
+                                        <span className="font-bold text-white flex items-center gap-1">{post.username}<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={12}/></span>
                                         {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><span className="font-bold text-yellow-300 text-sm">& {post.co_author_username}</span></>}
                                         <span className="text-zinc-500 text-sm">@{post.username.toLowerCase()}</span>
                                         {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'} {post.visibility.replace('_', ' ')}</span>}
