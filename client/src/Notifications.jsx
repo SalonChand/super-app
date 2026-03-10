@@ -53,12 +53,13 @@ function Notifications() {
     };
 
     return (
-        <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in relative">
+        <div className="w-full bg-black flex flex-col h-screen animate-fade-in">
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex items-center gap-3 backdrop-blur-md">
                 <Bell size={24} className="text-white" />
                 <h2 className="text-2xl font-bold text-white">Notifications</h2>
             </div>
 
+            <div className="flex-1 overflow-y-auto pb-4">
             {birthdayFriends.length > 0 && (
                 <div className="mx-4 mt-4 bg-gradient-to-r from-pink-500/20 to-yellow-500/20 border border-pink-500/30 rounded-2xl p-4">
                     <div className="flex items-center gap-2 mb-3">
@@ -143,6 +144,7 @@ function Notifications() {
                     })
                 )}
             </div>
+            </div>{/* end scrollable */}
         </div>
     );
 }
