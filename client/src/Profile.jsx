@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Flag } from 'lucide-react';
+import ReportModal from './ReportModal';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -37,6 +38,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const[userReels, setUserReels] = useState([]);
     const[activeTab, setActiveTab] = useState('posts');
     const[friendStatus, setFriendStatus] = useState('none'); 
+    const [reportTarget, setReportTarget] = useState(null);
     const[errorMessage, setErrorMessage] = useState(''); 
     const[viewingImage, setViewingImage] = useState(null);
     
@@ -307,32 +309,21 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                               </>
                         ) : (
                             <>
-                                {friendStatus === 'none' && (
-                                    profileData.is_verified
-                                        ? <button onClick={sendFriendRequest} className={`flex items-center gap-2 text-white font-bold py-1.5 px-5 rounded-full transition
-                                            ${profileData.verify_type === 'red' ? 'bg-red-600 hover:bg-red-500' :
-                                              profileData.verify_type === 'yellow' ? 'bg-yellow-500 hover:bg-yellow-400 text-black' :
-                                              profileData.verify_type === 'green' ? 'bg-green-600 hover:bg-green-500' :
-                                              'bg-blue-600 hover:bg-blue-500'}`}>
-                                            ＋ Follow
-                                          </button>
-                                        : <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>
-                                )}
-                                {friendStatus === 'sent_request' && (
-                                    <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed">
-                                        <Clock size={18} className="text-zinc-400" />
-                                        {profileData.is_verified ? 'Following' : 'Request Sent'}
-                                    </button>
-                                )}
+                                {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>}
+                                {friendStatus === 'sent_request' && <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed"><Clock size={18} className="text-zinc-400" /> Request Sent</button>}
                                 {friendStatus === 'received_request' && <button onClick={acceptFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserCheck size={18} /> Accept Request</button>}
                                 {friendStatus === 'friends' && (
                                     <button onClick={unfriendUser} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-green-500 font-bold py-1.5 px-4 rounded-full hover:text-red-500 hover:border-red-500 transition group">
                                         <UserCheck size={18} className="group-hover:hidden" />
                                         <UserMinus size={18} className="hidden group-hover:block" />
-                                        <span className="group-hover:hidden">{profileData.is_verified ? 'Following' : 'Friends'}</span>
-                                        <span className="hidden group-hover:block">{profileData.is_verified ? 'Unfollow' : 'Unfriend'}</span>
+                                        <span className="group-hover:hidden">Friends</span>
+                                        <span className="hidden group-hover:block">Unfriend</span>
                                     </button>
                                 )}
+                                <button onClick={() => setReportTarget({ id: profileData.id, username: profileData.username })}
+                                    className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 font-bold py-1.5 px-3 rounded-full transition text-sm">
+                                    <Flag size={15}/> Report
+                                </button>
                             </>
                         )}
                     </div>
@@ -351,14 +342,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
                         </p>
                     )}
-                    {canSeeDetails && profileData.friend_count > 0 && (
-                        <p className="text-white font-bold mt-2 mb-1">
-                            {profileData.friend_count}{' '}
-                            <span className="text-zinc-500 font-normal">
-                                {profileData.is_verified ? 'Followers' : 'Friends'}
-                            </span>
-                        </p>
-                    )}
+                    {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
 
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
@@ -500,7 +484,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         </button>
                                         
                                         {menuOpenPostId === post.id && (
-                                            <div className="absolute right-0 mt-2 w-32 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
+                                            <div className="absolute right-0 mt-2 w-36 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
                                                 <button onClick={() => copyPostLink(post.id)} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><LinkIcon size={14}/> Copy Link</button>
                                                 
                                                 {/* Only show Edit/Delete if you own the post! */}
@@ -509,6 +493,9 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                                         <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><Edit2 size={14}/> Edit</button>
                                                         <button onClick={() => { deletePost(post.id); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-red-500 flex items-center gap-2 text-sm border-t border-zinc-700"><Trash2 size={14}/> Delete</button>
                                                     </>
+                                                )}
+                                                {post.user_id != currentUserId && (
+                                                    <button onClick={() => { setReportTarget({ id: post.user_id, username: post.username }); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-red-400 flex items-center gap-2 text-sm border-t border-zinc-700"><Flag size={14}/> Report</button>
                                                 )}
                                             </div>
                                         )}
@@ -612,6 +599,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 )}
             </div>
         </div>
+        {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
     );
 }
 

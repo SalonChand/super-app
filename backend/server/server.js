@@ -192,21 +192,49 @@ app.delete('/api/admin/reels/:reelId', async (req, res) => {
 });
 
 // ===== ADMIN: Reports =====
+// ===== USER: Submit Report =====
+app.post('/api/reports', async (req, res) => {
+    try {
+        const { reporterId, reportedUserId, postId, reasonCategory, description, proofUrl } = req.body;
+        if (!reporterId || !reportedUserId) return res.status(400).json({ error: 'Missing required fields.' });
+        if (!reasonCategory || !description || description.trim().length < 20) return res.status(400).json({ error: 'Please provide a valid reason (at least 20 characters).' });
+        // prevent duplicate pending report from same user
+        const [existing] = await pool.query("SELECT id FROM reports WHERE reporter_id = ? AND reported_user_id = ? AND status = 'pending'", [reporterId, reportedUserId]);
+        if (existing.length > 0) return res.status(400).json({ error: 'You already have a pending report against this user.' });
+        await pool.query("INSERT INTO reports (reporter_id, reported_user_id, post_id, reason_category, description, proof_url) VALUES (?,?,?,?,?,?)",
+            [reporterId, reportedUserId, postId || null, reasonCategory, description.trim(), proofUrl || null]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/admin/reports', async (req, res) => {
     try {
         const { adminId } = req.query;
         const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
         const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
         if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
-        const [reports] = await pool.query("SELECT r.*, COALESCE(u.display_name,u.username) as reporter_username, COALESCE(t.display_name,t.username) as reported_username FROM reports r JOIN users u ON r.reporter_id=u.id LEFT JOIN users t ON r.reported_user_id=t.id WHERE r.status='pending' ORDER BY r.created_at DESC").catch(() => [[],[]]);
+        const [reports] = await pool.query(`SELECT r.*, 
+            COALESCE(u.display_name,u.username) as reporter_username, u.profile_pic_url as reporter_pic,
+            COALESCE(t.display_name,t.username) as reported_username, t.profile_pic_url as reported_pic,
+            COALESCE(t.is_verified,0) as reported_is_verified, t.verify_type as reported_verify_type
+            FROM reports r 
+            JOIN users u ON r.reporter_id=u.id 
+            LEFT JOIN users t ON r.reported_user_id=t.id 
+            WHERE r.status='pending' ORDER BY r.created_at DESC`).catch(() => [[],[]]);
         res.json(reports || []);
     } catch(e) { res.json([]); }
 });
 
 app.post('/api/admin/reports/:reportId/dismiss', async (req, res) => {
     try {
-        const { adminId } = req.body;
         await pool.query("UPDATE reports SET status='dismissed' WHERE id=?", [req.params.reportId]).catch(()=>{});
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/reports/:reportId/resolve', async (req, res) => {
+    try {
+        await pool.query("UPDATE reports SET status='resolved' WHERE id=?", [req.params.reportId]).catch(()=>{});
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -735,6 +763,11 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN shadowbanned BOOLEAN DEFAULT FALSE");
     // === ADMIN POWER FEATURES 2 ===
     await patch("CREATE TABLE IF NOT EXISTS admin_warnings (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, admin_id INT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE)");
+    // === REPORTS UPGRADE ===
+    await patch("CREATE TABLE IF NOT EXISTS reports (id INT AUTO_INCREMENT PRIMARY KEY, reporter_id INT NOT NULL, reported_user_id INT, post_id INT DEFAULT NULL, reason_category VARCHAR(100) NOT NULL, description TEXT NOT NULL, proof_url VARCHAR(500) DEFAULT NULL, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE)");
+    await patch("ALTER TABLE reports ADD COLUMN reason_category VARCHAR(100) DEFAULT 'other'");
+    await patch("ALTER TABLE reports ADD COLUMN description TEXT");
+    await patch("ALTER TABLE reports ADD COLUMN proof_url VARCHAR(500) DEFAULT NULL");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
