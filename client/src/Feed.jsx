@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck, Flag } from 'lucide-react';
-import ReportModal from './ReportModal';
 import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
+import ReportModal from './ReportModal';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -380,7 +380,7 @@ function Feed({ onlineUsers = new Set() }) {
     };
 
     return (
-        <>
+        <React.Fragment>
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
             {/* ===== HASHTAG VIEW ===== */}
             {hashtagView && (
@@ -436,7 +436,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
                                     {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white text-xs font-bold">{viewingStory.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
-                                <span className="text-white text-sm font-bold">{viewingStory.username}</span>
+                                <span className="text-white text-sm font-bold flex items-center gap-1">{viewingStory.username}<VerifiedBadge isVerified={!!viewingStory.is_verified} verifyType={viewingStory.verify_type} size={14}/></span>
                             </Link>
                             <div className="flex items-center gap-2">
                                 {/* Edit/Delete menu for own stories */}
@@ -460,7 +460,7 @@ function Feed({ onlineUsers = new Set() }) {
                         {/* Media */}
                         <div className="flex-1 flex items-center justify-center bg-black" style={{ filter: viewingStory.filter_css || 'none' }}>
                             {viewingStory.media_type === 'video'
-                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
+                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay muted playsInline className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
                                 : <img key={viewingStory.id} src={viewingStory.media_url} className="w-full h-full object-contain" />
                             }
                         </div>
@@ -694,8 +694,6 @@ function Feed({ onlineUsers = new Set() }) {
                                     {menuOpenPostId === post.id && (
                                         <div className="absolute right-0 mt-2 w-36 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
                                             <button onClick={() => copyPostLink(post.id)} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><LinkIcon size={14}/> Copy Link</button>
-                                            
-                                            {/* Only show Edit/Delete if you own the post! */}
                                             {post.user_id == userId && (
                                                 <>
                                                     <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><Edit2 size={14}/> Edit</button>
@@ -772,7 +770,7 @@ function Feed({ onlineUsers = new Set() }) {
             </div>
         </div>
         {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
-        </>
+        </React.Fragment>
     );
 }
 
