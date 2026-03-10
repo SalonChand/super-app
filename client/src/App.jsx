@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff, ShoppingBag } from 'lucide-react';
+import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import Register from './Register'; 
 import Login from './Login';
@@ -23,7 +23,6 @@ import AdminContent from './AdminContent';
 import AdminAnalytics from './AdminAnalytics';
 import AdminReports from './AdminReports';
 import AdminAppSettings from './AdminAppSettings';
-import Marketplace from './Marketplace';
 
 
 class ErrorBoundary extends React.Component {
@@ -166,12 +165,17 @@ function CallManager({ currentUserId, startCallRef }) {
     const createPC = (targetId) => {
         callTargetRef.current = targetId;
         const pc = new RTCPeerConnection({
+            iceTransportPolicy: 'all',
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-                { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                { urls: 'turn:relay1.expressturn.com:3478', username: 'efIWZKDMTSLS1PG0NZ', credential: 'VEWVkEqZRVvSBsxo' },
+                { urls: 'turn:global.relay.metered.ca:80', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
+                { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
+                { urls: 'turn:global.relay.metered.ca:443', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
+                { urls: 'turn:global.relay.metered.ca:443?transport=tcp', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
             ],
             iceCandidatePoolSize: 10,
         });
@@ -202,17 +206,25 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const hangUp = React.useCallback((notify = true) => {
         stopRinging();
+        if (callTimeoutRef.current) { clearTimeout(callTimeoutRef.current); callTimeoutRef.current = null; }
         if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current });
         stopAllMedia();
         setActiveCall(null); setCallStatus(''); setIncomingCall(null);
         callTargetRef.current = null; pendingIce.current = [];
     }, []);
 
+    const callTimeoutRef = React.useRef(null);
+
     const startCall = React.useCallback(async (target, isVideo) => {
         stopRinging(); pendingIce.current = [];
         setActiveCall({ targetId: target.id, targetName: target.username, isVideo, isCaller: true });
         setCallStatus('ringing');
         startRinging();
+        // Auto-hangup if no answer in 30s
+        if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = setTimeout(() => {
+            hangUp(true);
+        }, 30000);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: isVideo });
             myStreamRef.current = stream;
@@ -264,6 +276,7 @@ function CallManager({ currentUserId, startCallRef }) {
         const onIncoming = (data) => { setIncomingCall(data); startRinging(); };
         const onAccepted = async (signal) => {
             stopRinging(); setCallStatus('connected');
+            if (callTimeoutRef.current) { clearTimeout(callTimeoutRef.current); callTimeoutRef.current = null; }
             if (peerConnectionRef.current) {
                 await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
                 for (const c of pendingIce.current) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
@@ -545,7 +558,6 @@ function AppContent() {
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/create-post" element={<ProtectedRoute><CreatePost themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><UserDashboard themeColor={userThemeColor} /></ProtectedRoute>} />
-            <Route path="/marketplace" element={<ProtectedRoute><Marketplace themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/verification" element={<ProtectedRoute><AdminVerification /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
@@ -567,7 +579,6 @@ function AppContent() {
                     <div className="p-4 flex flex-col gap-2">
                         <NavItem to="/search" icon={SearchIcon} label="Explore Users" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
                         <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
-                        <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
                         <NavItem to="/settings" icon={SettingsIcon} label="App Settings" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
                     </div>
                 </aside>
