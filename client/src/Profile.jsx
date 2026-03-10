@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Flag } from 'lucide-react';
-import ReportModal from './ReportModal';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -29,7 +28,6 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
 
 function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const { id } = useParams(); 
-    const currentUserId = localStorage.getItem('userId');
     const isMyProfile = id === currentUserId;
     const navigate = useNavigate();
 
@@ -37,8 +35,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const[userPosts, setUserPosts] = useState([]);
     const[userReels, setUserReels] = useState([]);
     const[activeTab, setActiveTab] = useState('posts');
-    const[friendStatus, setFriendStatus] = useState('none');
-    const [reportTarget, setReportTarget] = useState(null); 
+    const[friendStatus, setFriendStatus] = useState('none'); 
     const[errorMessage, setErrorMessage] = useState(''); 
     const[viewingImage, setViewingImage] = useState(null);
     
@@ -320,18 +317,17 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         <span className="hidden group-hover:block">Unfriend</span>
                                     </button>
                                 )}
-                                <button onClick={() => setReportTarget({ id: profileData.id, username: profileData.username })} className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 font-bold py-1.5 px-3 rounded-full transition text-sm"><Flag size={15}/> Report</button>
                             </>
                         )}
                     </div>
                 </div>
 
                 <div className="mt-3">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-2xl font-bold text-white">{profileData.username}</h1>
-                        <VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        {profileData.username}
+                        {<VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>}
                         {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
-                    </div>
+                    </h1>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
                     {/* Active status badge */}
                     {!!profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
@@ -592,7 +588,6 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     </div>
                 )}
             </div>
-            {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
         </div>
     );
 }

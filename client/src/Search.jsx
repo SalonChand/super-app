@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, User, FileText, Users, Flag } from 'lucide-react';
-import ReportModal from './ReportModal';
+import { Search as SearchIcon, User, FileText, Users } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -13,12 +12,9 @@ const FILTERS = [
 ];
 
 function Search() {
-    const currentUserId = localStorage.getItem('userId');
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [filter, setFilter] = useState('people');
-    const [reportTarget, setReportTarget] = useState(null);
-    const currentUserId = localStorage.getItem('userId');
     const debounceRef = useRef(null);
 
     const doSearch = async (q, f) => {
@@ -77,18 +73,15 @@ function Search() {
                 )}
 
                 {filter === 'people' && results.map(user => (
-                    <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900 border border-zinc-800">
-                        <Link to={`/profile/${user.id}`} className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center flex-shrink-0">
+                    <Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition">
+                        <div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">
                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-400" />}
-                        </Link>
-                        <Link to={`/profile/${user.id}`} className="flex-1 min-w-0">
-                            <h4 className="font-bold text-white truncate">{user.username}</h4>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-white">{user.username}</h4>
                             <p className="text-sm text-zinc-500">View Profile</p>
-                        </Link>
-                        {String(user.id) !== String(currentUserId) && (
-                            <button onClick={() => setReportTarget({ id: user.id, username: user.username })} className="flex items-center gap-1 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-xl hover:bg-red-500/20 transition flex-shrink-0"><Flag size={11}/> Report</button>
-                        )}
-                    </div>
+                        </div>
+                    </Link>
                 ))}
 
                 {filter === 'posts' && results.map(post => (
@@ -119,7 +112,6 @@ function Search() {
                     </Link>
                 ))}
             </div>
-            {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
         </div>
     );
 }
