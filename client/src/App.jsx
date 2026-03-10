@@ -143,10 +143,33 @@ function CallManager({ currentUserId, startCallRef }) {
     const remoteStreamRef = React.useRef(new MediaStream());
 
     const playRemoteAudio = () => {
-        if (!remoteAudioRef.current) return;
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
-        remoteAudioRef.current.volume = 1.0;
-        remoteAudioRef.current.play().catch(e => console.warn('play blocked:', e));
+        // Method 1: standard audio element
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStreamRef.current;
+            remoteAudioRef.current.volume = 1.0;
+            remoteAudioRef.current.muted = false;
+            const p = remoteAudioRef.current.play();
+            if (p) p.catch(() => {
+                // Method 2: re-assign srcObject to force play on iOS
+                setTimeout(() => {
+                    if (remoteAudioRef.current) {
+                        remoteAudioRef.current.srcObject = null;
+                        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+                        remoteAudioRef.current.play().catch(() => {});
+                    }
+                }, 200);
+            });
+        }
+    };
+
+    const forcePlayAudio = () => {
+        // Called on button tap (user gesture) — guaranteed to work
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStreamRef.current;
+            remoteAudioRef.current.muted = false;
+            remoteAudioRef.current.volume = 1.0;
+            remoteAudioRef.current.play().catch(() => {});
+        }
     };
 
     const [incomingCall, setIncomingCall] = React.useState(null);
@@ -165,7 +188,6 @@ function CallManager({ currentUserId, startCallRef }) {
     const createPC = (targetId) => {
         callTargetRef.current = targetId;
         const pc = new RTCPeerConnection({
-            iceTransportPolicy: 'all',
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
@@ -188,6 +210,7 @@ function CallManager({ currentUserId, startCallRef }) {
                 remoteStreamRef.current.addTrack(e.track);
             }
             playRemoteAudio();
+            setTimeout(playRemoteAudio, 300);
             if (remoteVideoRef.current && e.track.kind === 'video') {
                 remoteVideoRef.current.srcObject = remoteStreamRef.current;
                 remoteVideoRef.current.play().catch(()=>{});
@@ -206,7 +229,6 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const hangUp = React.useCallback((notify = true) => {
         stopRinging();
-        if (callTimeoutRef.current) { clearTimeout(callTimeoutRef.current); callTimeoutRef.current = null; }
         if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current });
         stopAllMedia();
         setActiveCall(null); setCallStatus(''); setIncomingCall(null);
@@ -220,11 +242,8 @@ function CallManager({ currentUserId, startCallRef }) {
         setActiveCall({ targetId: target.id, targetName: target.username, isVideo, isCaller: true });
         setCallStatus('ringing');
         startRinging();
-        // Auto-hangup if no answer in 30s
         if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-        callTimeoutRef.current = setTimeout(() => {
-            hangUp(true);
-        }, 30000);
+        callTimeoutRef.current = setTimeout(() => { hangUp(true); }, 30000);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: isVideo });
             myStreamRef.current = stream;
@@ -263,8 +282,12 @@ function CallManager({ currentUserId, startCallRef }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             globalSocket.emit('answer_call', { signal: answer, to: caller.from });
-            // Play audio - we're inside a user gesture (button tap) so autoplay is allowed
+            // Force play inside user gesture — browser allows this
+            forcePlayAudio();
             setTimeout(playRemoteAudio, 300);
+            setTimeout(playRemoteAudio, 800);
+            setTimeout(playRemoteAudio, 2000);
+            setTimeout(playRemoteAudio, 1500);
         } catch (err) {
             hangUp(true);
             alert('Could not answer call: ' + err.message);
@@ -276,13 +299,14 @@ function CallManager({ currentUserId, startCallRef }) {
         const onIncoming = (data) => { setIncomingCall(data); startRinging(); };
         const onAccepted = async (signal) => {
             stopRinging(); setCallStatus('connected');
-            if (callTimeoutRef.current) { clearTimeout(callTimeoutRef.current); callTimeoutRef.current = null; }
             if (peerConnectionRef.current) {
                 await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
                 for (const c of pendingIce.current) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
                 pendingIce.current = [];
             }
-            setTimeout(playRemoteAudio, 500);
+            setTimeout(playRemoteAudio, 300);
+            setTimeout(playRemoteAudio, 800);
+            setTimeout(playRemoteAudio, 2000);
         };
         const onIce = async (candidate) => {
             if (peerConnectionRef.current?.remoteDescription) {
@@ -307,7 +331,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
     return (
         <>
-            <audio ref={remoteAudioRef} autoPlay playsInline style={{ position:'absolute', width:0, height:0, opacity:0 }} />
+            <audio ref={remoteAudioRef} autoPlay playsInline muted={false} controls={false} style={{ position:'fixed', bottom:0, left:0, width:'1px', height:'1px', opacity:0.01 }} />
 
             {incomingCall && !activeCall && (
                 <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
@@ -356,6 +380,7 @@ function CallManager({ currentUserId, startCallRef }) {
                                 </div>
                                 <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
                                 <p className="text-green-400 animate-pulse mt-2">Connected</p>
+                                <button onClick={forcePlayAudio} className="mt-4 text-xs text-zinc-500 underline">Tap if no sound</button>
                             </div>
                         )}
                         {activeCall.isVideo && (
