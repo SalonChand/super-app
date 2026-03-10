@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Search, Plus, X, Tag, MapPin, ChevronDown, Heart, MessageCircle, Share2, Filter, Sparkles, Package, ShoppingBag, Laptop, Car, Home, Music, BookOpen, Shirt, Dumbbell, Camera, MoreHorizontal, Check, Edit2, Trash2, Eye, Star, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, X, Tag, MapPin, ChevronDown, Heart, MessageCircle, Share2, Filter, Sparkles, Package, ShoppingBag, Laptop, Car, Home, Music, BookOpen, Shirt, Dumbbell, Camera, MoreHorizontal, Check, Edit2, Trash2, Eye, Star, Upload, ChevronLeft, ChevronRight, Palette } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -15,6 +15,7 @@ const CATEGORIES = [
     { key: 'books',      label: 'Books',        Icon: BookOpen },
     { key: 'sports',     label: 'Sports',       Icon: Dumbbell },
     { key: 'photography',label: 'Photography',  Icon: Camera },
+    { key: 'art',        label: 'Art',           Icon: Palette },
     { key: 'other',      label: 'Other',        Icon: Package },
 ];
 
@@ -95,10 +96,17 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
         setCreating(true);
         try {
             const fd = new FormData();
-            Object.entries(form).forEach(([k, v]) => fd.append(k, v));
             fd.append('userId', userId);
+            fd.append('title', form.title);
+            fd.append('description', form.description);
+            fd.append('price', form.price);
+            fd.append('category', form.category);
+            fd.append('condition', form.condition);
+            fd.append('location', form.location);
             formImages.forEach(img => fd.append('images', img));
-            await axios.post(`${BACKEND_URL}/api/marketplace`, fd);
+            await axios.post(`${BACKEND_URL}/api/marketplace`, fd, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             setShowCreate(false);
             setForm({ title: '', description: '', price: '', category: 'other', condition: 'Good', location: '' });
             setFormImages([]); setFormPreviews([]);
@@ -365,7 +373,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Price ($) *</label>
-                                    <input type="number" value={form.price} onChange={e => setForm(f => ({...f, price: e.target.value}))} placeholder="0 = Free" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 placeholder-zinc-600"/>
+                                    <input type="number" value={form.price} onChange={e => setForm(f => ({...f, price: e.target.value}))} placeholder="0 for Free" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 placeholder-zinc-600"/>
                                 </div>
                                 <div>
                                     <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Condition</label>
@@ -395,7 +403,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                 <textarea value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} placeholder="Describe your item..." rows={3} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 placeholder-zinc-600 resize-none"/>
                             </div>
 
-                            <button onClick={submitListing} disabled={creating || !form.title.trim() || !form.price} className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 text-black font-bold py-3.5 rounded-xl transition text-sm">
+                            <button onClick={submitListing} disabled={creating || !form.title.trim()} className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 text-black font-bold py-3.5 rounded-xl transition text-sm">
                                 {creating ? 'Publishing...' : <><Plus size={16}/> Publish Listing</>}
                             </button>
                         </div>

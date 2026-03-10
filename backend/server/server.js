@@ -529,21 +529,13 @@ app.get('/api/marketplace', async (req, res) => {
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-app.post('/api/marketplace', async (req, res) => {
+app.post('/api/marketplace', upload.array('images', 5), async (req, res) => {
     try {
         const { userId, title, description, price, category, condition, location } = req.body;
         if (!userId || !title) return res.status(400).json({ error: 'Missing required fields' });
         let images = null;
         if (req.files && req.files.length > 0) {
-            // Cloudinary upload
-            const urls = await Promise.all(req.files.map(async f => {
-                const form = new FormData();
-                form.append('file', f.buffer.toString('base64'));
-                form.append('upload_preset', 'superapp');
-                const r = await fetch('https://api.cloudinary.com/v1_1/dqcfwjjhw/image/upload', { method: 'POST', body: form });
-                const d = await r.json();
-                return d.secure_url;
-            }));
+            const urls = req.files.map(f => f.path);
             images = JSON.stringify(urls);
         }
         const [result] = await pool.query(
