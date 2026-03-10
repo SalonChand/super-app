@@ -17,9 +17,9 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
 
-    // 🔥 Mobile Video Streaming URL 🔥
+    // Use video_url directly if it's already a full URL (Cloudinary), otherwise use stream endpoint
     const videoFileName = reel.video_url.split('/').pop();
-    const streamUrl = `${BACKEND_URL}/api/stream/${videoFileName}`;
+    const streamUrl = reel.video_url.startsWith('http') ? reel.video_url : `${BACKEND_URL}/api/stream/${videoFileName}`;
 
     useEffect(() => {
         if (videoRef.current) {
@@ -150,8 +150,9 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
                             {reel.profile_pic_url ? <img src={`${reel.profile_pic_url}`} className="w-full h-full object-cover" alt="Profile" /> : <div className="flex items-center justify-center h-full text-white font-bold">{reel.username.charAt(0).toUpperCase()}</div>}
                         </Link>
                         
-                        <Link to={`/profile/${reel.user_id}`} className="text-white font-bold text-[16px] hover:underline drop-shadow-md">
+                        <Link to={`/profile/${reel.user_id}`} className="text-white font-bold text-[16px] hover:underline drop-shadow-md flex items-center gap-1">
                             {reel.username}
+                            <VerifiedBadge isVerified={reel.is_verified == 1} verifyType={reel.verify_type} size={15}/>
                         </Link>
                         
                         {reel.user_id != userId && (
@@ -423,7 +424,7 @@ function Reels() {
                     <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl">
                         {/* Original video preview */}
                         <div className="aspect-video bg-black rounded-xl mb-4 overflow-hidden border border-zinc-700">
-                            <video src={`${BACKEND_URL}/api/stream/${duetTarget.video_url.split('/').pop()}`} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                            <video src={duetTarget.video_url.startsWith('http') ? duetTarget.video_url : `${BACKEND_URL}/api/stream/${duetTarget.video_url.split('/').pop()}`} className="w-full h-full object-cover" muted loop autoPlay playsInline />
                         </div>
                         <input type="file" ref={duetFileRef} accept="video/*" className="hidden" onChange={e => { if (e.target.files[0]) setDuetFile(e.target.files[0]); }} />
                         {duetFile ? (

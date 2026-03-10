@@ -532,8 +532,13 @@ app.get('/api/make-me-admin/:userId/:secret', async (req, res) => {
 });
 
 app.get('/api/stream/:filename', (req, res) => {
-    const filePath = path.join(uploadDir, req.params.filename);
-    if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
+    // If filename is actually a full URL (shouldn't happen), redirect
+    const filename = req.params.filename;
+    const filePath = path.join(uploadDir, filename);
+    if (!fs.existsSync(filePath)) {
+        // Try to find the reel in DB by filename and redirect to Cloudinary URL
+        return res.redirect(302, `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/video/upload/${filename}`);
+    }
     const stat = fs.statSync(filePath); const fileSize = stat.size; const range = req.headers.range;
     if (range) {
         const parts = range.replace(/bytes=/, "").split("-"); const start = parseInt(parts[0], 10);
