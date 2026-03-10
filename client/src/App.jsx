@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff } from 'lucide-react';
+import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff, ShoppingBag } from 'lucide-react';
 import { io } from 'socket.io-client'; 
 import Register from './Register'; 
 import Login from './Login';
@@ -23,6 +23,7 @@ import AdminContent from './AdminContent';
 import AdminAnalytics from './AdminAnalytics';
 import AdminReports from './AdminReports';
 import AdminAppSettings from './AdminAppSettings';
+import Marketplace from './Marketplace';
 
 
 class ErrorBoundary extends React.Component {
@@ -148,24 +149,11 @@ function CallManager({ currentUserId, startCallRef }) {
             remoteAudioRef.current.volume = 1.0;
             remoteAudioRef.current.muted = false;
             const p = remoteAudioRef.current.play();
-            if (p) p.catch(() => {
-                setTimeout(() => {
-                    if (remoteAudioRef.current) {
-                        remoteAudioRef.current.srcObject = null;
-                        remoteAudioRef.current.srcObject = remoteStreamRef.current;
-                        remoteAudioRef.current.play().catch(() => {});
-                    }
-                }, 200);
-            });
+            if (p) p.catch(() => { setTimeout(() => { if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.play().catch(() => {}); } }, 200); });
         }
     };
     const forcePlayAudio = () => {
-        if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remoteStreamRef.current;
-            remoteAudioRef.current.muted = false;
-            remoteAudioRef.current.volume = 1.0;
-            remoteAudioRef.current.play().catch(() => {});
-        }
+        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.muted = false; remoteAudioRef.current.volume = 1.0; remoteAudioRef.current.play().catch(() => {}); }
     };
 
     const [incomingCall, setIncomingCall] = React.useState(null);
@@ -231,7 +219,6 @@ function CallManager({ currentUserId, startCallRef }) {
     }, []);
 
     const callTimeoutRef = React.useRef(null);
-
     const startCall = React.useCallback(async (target, isVideo) => {
         stopRinging(); pendingIce.current = [];
         setActiveCall({ targetId: target.id, targetName: target.username, isVideo, isCaller: true });
@@ -277,9 +264,7 @@ function CallManager({ currentUserId, startCallRef }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             globalSocket.emit('answer_call', { signal: answer, to: caller.from });
-            forcePlayAudio();
-            setTimeout(playRemoteAudio, 500);
-            setTimeout(playRemoteAudio, 1500);
+            forcePlayAudio(); setTimeout(playRemoteAudio, 500); setTimeout(playRemoteAudio, 1500);
         } catch (err) {
             hangUp(true);
             alert('Could not answer call: ' + err.message);
@@ -502,7 +487,7 @@ function AppContent() {
   useEffect(() => { setMobileMenuOpen(false); },[location.pathname]);
 
   return (
-      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden" id="app-root">
+      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
         
         {showSplash && <SplashScreen />}
 
@@ -523,6 +508,7 @@ function AppContent() {
                     <NavItem to="/notifications" onClick={clearNotifications} icon={Bell} label="Notifications" badgeCount={badges.total_notifications} themeColor={userThemeColor} />
                     <NavItem to="/search" icon={SearchIcon} label="Explore" themeColor={userThemeColor} />
                     <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
+                    <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
                 </>
             )}
@@ -545,11 +531,7 @@ function AppContent() {
         </header>
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
-        <main className={`border-x border-zinc-800 h-screen relative bg-black ${
-          location.pathname === '/chat'
-            ? 'flex-1 overflow-hidden pb-0 w-full'
-            : 'w-full max-w-[620px] overflow-y-auto pb-[70px] sm:pb-0'
-        }`}>
+        <main className={`flex-1 min-w-0 border-x border-zinc-800 h-screen relative bg-black ${location.pathname === '/chat' || location.pathname === '/reels' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
               <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">
@@ -575,6 +557,7 @@ function AppContent() {
             <Route path="/settings" element={<ProtectedRoute><Settings themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/create-post" element={<ProtectedRoute><CreatePost themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><Marketplace themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><UserDashboard themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/verification" element={<ProtectedRoute><AdminVerification /></ProtectedRoute>} />
@@ -597,6 +580,7 @@ function AppContent() {
                     <div className="p-4 flex flex-col gap-2">
                         <NavItem to="/search" icon={SearchIcon} label="Explore Users" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
                         <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
+                        <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
                         <NavItem to="/settings" icon={SettingsIcon} label="App Settings" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
                     </div>
                 </aside>
