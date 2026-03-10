@@ -360,11 +360,10 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
                         </p>
                     )}
-                    {isVerifiedProfile ? (
-                        <p className="text-white font-bold mt-2 mb-1">{followerCount} <span className="text-zinc-500 font-normal">Followers</span></p>
-                    ) : (
-                        canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>
-                    )}
+                    <div className="flex items-center gap-4 mt-2 mb-1">
+                        {isVerifiedProfile && <p className="text-white font-bold">{followerCount} <span className="text-zinc-500 font-normal">Followers</span></p>}
+                        {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                    </div>
 
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
