@@ -475,7 +475,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         const pinnedMessage = messages.slice().reverse().find(m => m.is_pinned);
 
         return (
-            <div className="flex flex-col w-full relative bg-black" className='h-[calc(100dvh-70px)] sm:h-screen'>
+            <div className="flex flex-col w-full relative bg-black h-[calc(100dvh-70px)] sm:h-screen">
                 {viewingImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
                 {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><div className="flex items-center gap-1"><span className="text-white font-bold">{friend.username}</span>{<VerifiedBadge isVerified={!!friend.is_verified} verifyType={friend.verify_type} size={13}/>}</div><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
 
@@ -843,7 +843,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     }
 
     return (
-        <div className="flex flex-col w-full bg-black" className='h-[calc(100dvh-70px)] sm:h-screen'>
+        <div className="flex flex-col w-full bg-black h-[calc(100dvh-70px)] sm:h-screen">
             {/* Header */}
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex-shrink-0 flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">Messages</h2>
