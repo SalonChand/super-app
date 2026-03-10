@@ -253,7 +253,7 @@ app.get('/api/admin/users/:id/profile', async (req, res) => {
             (SELECT COUNT(*) FROM likes WHERE post_id = posts.id) as like_count,
             (SELECT COUNT(*) FROM comments WHERE post_id = posts.id) as comment_count
             FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 5`, [req.params.id]);
-        const [warnings] = await pool.query(`SELECT w.*, COALESCE(u.display_name, u.username) as admin_name FROM admin_warnings w JOIN users u ON w.admin_id = u.id WHERE w.user_id = ? ORDER BY w.created_at DESC`, [req.params.id]);
+        const [warnings] = await pool.query(`SELECT w.*, COALESCE(u.display_name, u.username) as admin_name FROM admin_warnings w JOIN users u ON w.admin_id = u.id WHERE w.user_id = ? ORDER BY w.created_at DESC`, [req.params.id]).catch(() => [[],[]]);
         res.json({ ...user[0], recent_posts: recentPosts, warnings });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
