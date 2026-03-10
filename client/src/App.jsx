@@ -24,6 +24,7 @@ import AdminAnalytics from './AdminAnalytics';
 import AdminReports from './AdminReports';
 import AdminAppSettings from './AdminAppSettings';
 import AdminUserProfile from './AdminUserProfile';
+import AdminCommunities from './AdminCommunities';
 
 
 class ErrorBoundary extends React.Component {
@@ -553,6 +554,7 @@ function AppContent() {
             <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
             <Route path="/admin/app-settings" element={<ProtectedRoute><AdminAppSettings /></ProtectedRoute>} />
             <Route path="/admin/users/:userId/profile" element={<ProtectedRoute><AdminUserProfile /></ProtectedRoute>} />
+            <Route path="/admin/communities" element={<ProtectedRoute><AdminCommunities /></ProtectedRoute>} />
           </Routes>
         </main>
 

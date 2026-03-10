@@ -317,6 +317,104 @@ app.delete('/api/admin/warnings/:warningId', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===== ADMIN: Community Control =====
+app.get('/api/admin/communities', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [communities] = await pool.query(`
+            SELECT c.*, COALESCE(u.display_name, u.username) as creator_name, u.profile_pic_url as creator_pic,
+            (SELECT COUNT(*) FROM community_members WHERE community_id = c.id) as member_count,
+            (SELECT COUNT(*) FROM community_posts WHERE community_id = c.id) as post_count,
+            (SELECT COUNT(*) FROM community_channels WHERE community_id = c.id) as channel_count
+            FROM communities c JOIN users u ON c.creator_id = u.id
+            ORDER BY member_count DESC`);
+        res.json(communities);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/communities/:id/members', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [members] = await pool.query(`SELECT u.id, COALESCE(u.display_name,u.username) as display_name, u.username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type, cm.role, cm.joined_at FROM community_members cm JOIN users u ON cm.user_id = u.id WHERE cm.community_id = ? ORDER BY cm.role DESC, cm.joined_at ASC`, [req.params.id]);
+        res.json(members);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/communities/:id/posts', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [posts] = await pool.query(`SELECT cp.*, COALESCE(u.display_name,u.username) as username, u.profile_pic_url,
+            (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id) as like_count,
+            (SELECT COUNT(*) FROM community_post_comments WHERE post_id = cp.id) as comment_count
+            FROM community_posts cp JOIN users u ON cp.user_id = u.id WHERE cp.community_id = ? ORDER BY cp.created_at DESC LIMIT 50`, [req.params.id]);
+        res.json(posts);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/communities/:id', async (req, res) => {
+    try {
+        const { adminId, name, description } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("UPDATE communities SET name = ?, description = ? WHERE id = ?", [name, description, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/communities/:id', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("DELETE FROM communities WHERE id = ?", [req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/communities/:id/posts/:postId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("DELETE FROM community_posts WHERE id = ? AND community_id = ?", [req.params.postId, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/communities/:id/members/:userId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("DELETE FROM community_members WHERE community_id = ? AND user_id = ?", [req.params.id, req.params.userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/communities/:id/members/:userId/role', async (req, res) => {
+    try {
+        const { adminId, role } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("UPDATE community_members SET role = ? WHERE community_id = ? AND user_id = ?", [role, req.params.id, req.params.userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ===== ADMIN: View full user profile =====
 app.post('/api/admin/broadcast', async (req, res) => {
     try {
