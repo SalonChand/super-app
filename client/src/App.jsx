@@ -144,17 +144,9 @@ function CallManager({ currentUserId, startCallRef }) {
     const remoteStreamRef = React.useRef(new MediaStream());
 
     const playRemoteAudio = () => {
-        if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remoteStreamRef.current;
-            remoteAudioRef.current.volume = 1.0;
-            remoteAudioRef.current.muted = false;
-            const p = remoteAudioRef.current.play();
-            if (p) p.catch(() => { setTimeout(() => { if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.play().catch(() => {}); } }, 200); });
-        }
+        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.volume = 1.0; remoteAudioRef.current.muted = false; const p = remoteAudioRef.current.play(); if (p) p.catch(() => { setTimeout(() => { if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.play().catch(() => {}); } }, 200); }); }
     };
-    const forcePlayAudio = () => {
-        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.muted = false; remoteAudioRef.current.volume = 1.0; remoteAudioRef.current.play().catch(() => {}); }
-    };
+    const forcePlayAudio = () => { if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.muted = false; remoteAudioRef.current.volume = 1.0; remoteAudioRef.current.play().catch(() => {}); } };
 
     const [incomingCall, setIncomingCall] = React.useState(null);
     const [activeCall, setActiveCall] = React.useState(null);
@@ -487,7 +479,7 @@ function AppContent() {
   useEffect(() => { setMobileMenuOpen(false); },[location.pathname]);
 
   return (
-      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
+      <div className="h-screen bg-black text-zinc-50 font-sans flex overflow-hidden">
         
         {showSplash && <SplashScreen />}
 
