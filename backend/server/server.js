@@ -385,6 +385,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN notifications BOOLEAN DEFAULT TRUE");
     await patch("ALTER TABLE users ADD COLUMN show_active_status BOOLEAN DEFAULT TRUE");
     await patch("ALTER TABLE users ADD COLUMN ghost_mode BOOLEAN DEFAULT FALSE");
+    await patch("CREATE TABLE IF NOT EXISTS followers (id INT AUTO_INCREMENT PRIMARY KEY, follower_id INT NOT NULL, following_id INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_follow (follower_id, following_id), FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (following_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch(`CREATE TABLE IF NOT EXISTS notifications_history (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, actor_id INT NOT NULL, type VARCHAR(30) NOT NULL, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE)`);
     await patch("ALTER TABLE users ADD COLUMN profile_links JSON DEFAULT NULL");
     await patch("ALTER TABLE posts ADD COLUMN hashtags JSON DEFAULT NULL");
@@ -506,23 +507,57 @@ app.post('/api/login', async (req, res) => { try { const[users] = await pool.que
         res.json({ message: 'Logged in!', token, user: { id: u.id, username: u.display_name || u.username, loginUsername: u.username, email: u.email, role } });
     } catch (err) { res.status(500).json({ error: 'Server error.' }); }
 });
+
+// ===== FOLLOW SYSTEM FOR VERIFIED USERS =====
+app.get('/api/follow/status', async (req, res) => {
+    try {
+        const { followerId, followingId } = req.query;
+        const [rows] = await pool.query('SELECT id FROM followers WHERE follower_id = ? AND following_id = ?', [followerId, followingId]);
+        const [countRows] = await pool.query('SELECT COUNT(*) as count FROM followers WHERE following_id = ?', [followingId]);
+        res.json({ following: rows.length > 0, follower_count: countRows[0].count });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.post('/api/follow', async (req, res) => {
+    try {
+        const { followerId, followingId } = req.body;
+        if (followerId == followingId) return res.status(400).json({ error: 'Cannot follow yourself' });
+        await pool.query('INSERT IGNORE INTO followers (follower_id, following_id) VALUES (?, ?)', [followerId, followingId]);
+        // Send notification
+        await pool.query('INSERT INTO notifications (user_id, type, from_user_id, message) VALUES (?, "follow", ?, ?) ON DUPLICATE KEY UPDATE created_at=NOW()',
+            [followingId, followerId, 'started following you']).catch(() => {});
+        const [countRows] = await pool.query('SELECT COUNT(*) as count FROM followers WHERE following_id = ?', [followingId]);
+        res.json({ success: true, follower_count: countRows[0].count });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.post('/api/unfollow', async (req, res) => {
+    try {
+        const { followerId, followingId } = req.body;
+        await pool.query('DELETE FROM followers WHERE follower_id = ? AND following_id = ?', [followerId, followingId]);
+        const [countRows] = await pool.query('SELECT COUNT(*) as count FROM followers WHERE following_id = ?', [followingId]);
+        res.json({ success: true, follower_count: countRows[0].count });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+app.get('/api/followers/:userId', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT u.id, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type FROM users u JOIN followers f ON f.follower_id = u.id WHERE f.following_id = ? ORDER BY f.created_at DESC`, [req.params.userId]);
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Ghost mode toggle
 app.put('/api/users/:id/ghost-mode', async (req, res) => {
     try {
         const { ghostMode } = req.body;
-        const userId = req.params.id;
-        await pool.query('UPDATE users SET ghost_mode = ? WHERE id = ?', [!!ghostMode, userId]);
-        // Emit online status change - ghost users appear offline to everyone
-        io.emit('online_status', { userId: Number(userId), online: false });
+        await pool.query('UPDATE users SET ghost_mode = ? WHERE id = ?', [!!ghostMode, req.params.id]);
+        io.emit('online_status', { userId: Number(req.params.id), online: false });
         res.json({ message: 'Ghost mode updated', ghost_mode: !!ghostMode });
-    } catch(err) {
-        console.error(err);
-        res.status(500).json({ error: 'Server error' });
-    }
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); const [ghostRows] = await pool.query('SELECT ghost_mode FROM users WHERE id = ?', [req.params.id]).catch(() => [[{}]]);
-                const isGhost = ghostRows[0]?.ghost_mode ?? false;
-                io.emit('online_status', { userId: Number(req.params.id), online: !!showActive && !isGhost }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.put('/api/users/:id/settings', async (req, res) => { try { await pool.query('UPDATE users SET is_private = ?, notifications = ?, theme_color = ?, anthem_url = ? WHERE id = ?',[req.body.is_private, req.body.notifications, req.body.theme_color, req.body.anthem_url, req.params.id]); try { const showActive = req.body.show_active_status ?? true; await pool.query('UPDATE users SET show_active_status = ? WHERE id = ?',[showActive, req.params.id]); io.emit('online_status', { userId: Number(req.params.id), online: !!showActive }); } catch(e) {} res.json({ message: "Saved!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/:id/password', async (req, res) => { try { const[users] = await pool.query('SELECT password_hash FROM users WHERE id = ?',[req.params.id]); if (!(await bcrypt.compare(req.body.oldPassword, users[0].password_hash))) return res.status(401).json({ error: "Incorrect password" }); const hash = await bcrypt.hash(req.body.newPassword, 10); await pool.query('UPDATE users SET password_hash = ? WHERE id = ?',[hash, req.params.id]); res.json({ message: "Password updated!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.delete('/api/users/:id', async (req, res) => { try { await pool.query('DELETE FROM users WHERE id = ?',[req.params.id]); res.json({ message: "Deleted." }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/search', async (req, res) => {
@@ -845,7 +880,7 @@ app.get('/api/users/:id', async (req, res) => {
     try {
         // Base query — always works even if new columns don't exist yet
         const [users] = await pool.query(
-            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, COALESCE(ghost_mode, 0) as ghost_mode, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, verify_type, COALESCE(role,'user') as role FROM users WHERE id = ?`,
+            `SELECT id, username, display_name, bio, profile_pic_url, cover_pic_url, is_private, theme_color, anthem_url, profile_links, show_active_status, COALESCE(ghost_mode, 0) as ghost_mode, created_at, COALESCE(is_verified, 0) as is_verified, verified_reason, verify_type, COALESCE(role,'user') as role, (SELECT COUNT(*) FROM followers WHERE following_id = users.id) as follower_count FROM users WHERE id = ?`,
             [req.params.id]
         );
         if (users.length === 0) return res.status(404).json({ error: 'Not found' });

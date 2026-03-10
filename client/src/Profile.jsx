@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost, Rss } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -36,7 +36,9 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const[userPosts, setUserPosts] = useState([]);
     const[userReels, setUserReels] = useState([]);
     const[activeTab, setActiveTab] = useState('posts');
-    const[friendStatus, setFriendStatus] = useState('none'); 
+    const[friendStatus, setFriendStatus] = useState('none');
+    const[followStatus, setFollowStatus] = useState(false); // for verified profiles
+    const[followerCount, setFollowerCount] = useState(0);
     const[errorMessage, setErrorMessage] = useState(''); 
     const[viewingImage, setViewingImage] = useState(null);
     
@@ -115,6 +117,15 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
             axios.get(`${BACKEND_URL}/api/friends/status/${currentUserId}/${id}`)
                 .then(r => { if (r.data?.status) setFriendStatus(r.data.status); })
                 .catch(() => {});
+            // Load follow data if target is verified
+            axios.get(`${BACKEND_URL}/api/users/${id}`)
+                .then(r => {
+                    if (r.data?.is_verified) {
+                        axios.get(`${BACKEND_URL}/api/follow/status?followerId=${currentUserId}&followingId=${id}`)
+                            .then(fr => { setFollowStatus(!!fr.data?.following); setFollowerCount(fr.data?.follower_count || 0); })
+                            .catch(() => {});
+                    }
+                }).catch(() => {});
             axios.get(`${BACKEND_URL}/api/friends/mutual/${currentUserId}/${id}`)
                 .then(r => { if (Array.isArray(r.data)) setMutualFriends(r.data); })
                 .catch(() => {});
@@ -140,6 +151,8 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     useEffect(() => { loadProfileData(); }, [id]);
 
     const sendFriendRequest = () => axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: id }).then(() => setFriendStatus('sent_request'));
+    const followUser = () => axios.post(`${BACKEND_URL}/api/follow`, { followerId: currentUserId, followingId: id }).then(() => { setFollowStatus(true); setFollowerCount(c => c+1); });
+    const unfollowUser = () => axios.post(`${BACKEND_URL}/api/unfollow`, { followerId: currentUserId, followingId: id }).then(() => { setFollowStatus(false); setFollowerCount(c => Math.max(0,c-1)); });
     const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
     const unfriendUser = () => { if(window.confirm(`Are you sure you want to unfriend ${profileData.username}?`)) { axios.post(`${BACKEND_URL}/api/friends/remove`, { user1: currentUserId, user2: id }).then(() => { setFriendStatus('none'); loadProfileData(); }).catch(console.error); } };
 
@@ -252,7 +265,8 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const tempAvatarUrl = editAvatar ? URL.createObjectURL(editAvatar) : avatarUrl;
     const tempCoverUrl = editCover ? URL.createObjectURL(editCover) : coverUrl;
     
-    const canSeeDetails = isMyProfile || !profileData.is_private || friendStatus === 'friends';
+    const isVerifiedProfile = !!profileData.is_verified;
+    const canSeeDetails = isMyProfile || isVerifiedProfile || !profileData.is_private || friendStatus === 'friends';
     const displayedPosts = canSeeDetails ? userPosts : userPosts.slice(0, 1);
 
     return (
@@ -307,16 +321,25 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                               </>
                         ) : (
                             <>
-                                {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>}
-                                {friendStatus === 'sent_request' && <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed"><Clock size={18} className="text-zinc-400" /> Request Sent</button>}
-                                {friendStatus === 'received_request' && <button onClick={acceptFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserCheck size={18} /> Accept Request</button>}
-                                {friendStatus === 'friends' && (
-                                    <button onClick={unfriendUser} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-green-500 font-bold py-1.5 px-4 rounded-full hover:text-red-500 hover:border-red-500 transition group">
-                                        <UserCheck size={18} className="group-hover:hidden" />
-                                        <UserMinus size={18} className="hidden group-hover:block" />
-                                        <span className="group-hover:hidden">Friends</span>
-                                        <span className="hidden group-hover:block">Unfriend</span>
-                                    </button>
+                                {isVerifiedProfile ? (
+                                    <>
+                                        {!followStatus && <button onClick={followUser} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><Rss size={16}/> Follow</button>}
+                                        {followStatus && <button onClick={unfollowUser} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-blue-400 hover:text-red-400 hover:border-red-500 font-bold py-1.5 px-4 rounded-full transition group"><Rss size={16}/> <span className="group-hover:hidden">Following</span><span className="hidden group-hover:block">Unfollow</span></button>}
+                                    </>
+                                ) : (
+                                    <>
+                                        {friendStatus === 'none' && <button onClick={sendFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserPlus size={18} /> Add Friend</button>}
+                                        {friendStatus === 'sent_request' && <button className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full cursor-not-allowed"><Clock size={18} className="text-zinc-400" /> Request Sent</button>}
+                                        {friendStatus === 'received_request' && <button onClick={acceptFriendRequest} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><UserCheck size={18} /> Accept Request</button>}
+                                        {friendStatus === 'friends' && (
+                                            <button onClick={unfriendUser} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-green-500 font-bold py-1.5 px-4 rounded-full hover:text-red-500 hover:border-red-500 transition group">
+                                                <UserCheck size={18} className="group-hover:hidden" />
+                                                <UserMinus size={18} className="hidden group-hover:block" />
+                                                <span className="group-hover:hidden">Friends</span>
+                                                <span className="hidden group-hover:block">Unfriend</span>
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </>
                         )}
@@ -327,7 +350,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     <div className="flex items-center gap-2 flex-wrap">
                         <h1 className="text-2xl font-bold text-white leading-tight">{profileData.username}</h1>
                         <VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>
-                        {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
+                        {!isVerifiedProfile && profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
                         {isMyProfile && !!profileData.ghost_mode && <span title="Ghost Mode ON" className="text-purple-400"><Ghost size={16}/></span>}
                     </div>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
@@ -337,7 +360,11 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',display:'inline-block'}}></span> Active now
                         </p>
                     )}
-                    {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                    {isVerifiedProfile ? (
+                        <p className="text-white font-bold mt-2 mb-1">{followerCount} <span className="text-zinc-500 font-normal">Followers</span></p>
+                    ) : (
+                        canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold mt-2 mb-1">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>
+                    )}
 
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
@@ -382,10 +409,9 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             <div>
                                 <label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
                                     <span>🔗 Links <span className="text-zinc-600 normal-case font-normal">{profileData.is_verified ? '(max 5)' : '(max 2)'}</span></span>
-                                    {editLinks.length < (profileData.is_verified ? 5 : 2) && (
+                                    {editLinks.length < (profileData.is_verified ? 5 : 2) ? (
                                         <button type="button" onClick={() => setEditLinks(prev => [...prev, { label: '', url: '' }])} className="text-blue-400 hover:text-blue-300 text-xs font-bold">+ Add Link</button>
-                                    )}
-                                    {editLinks.length >= (profileData.is_verified ? 5 : 2) && (
+                                    ) : (
                                         <span className="text-zinc-600 text-xs">{profileData.is_verified ? 'Max 5 reached' : <span className="text-yellow-500">Verify to add more ✦</span>}</span>
                                     )}
                                 </label>
