@@ -51,6 +51,7 @@ export default function AdminVerification() {
     const [userActionMsg, setUserActionMsg] = useState({});
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [badgePickerUser, setBadgePickerUser] = useState(null);
+    const [giveawaySubTab, setGiveawaySubTab] = useState('winners');
 
     const loadData = async () => {
         setLoading(true); setError('');
@@ -487,6 +488,102 @@ export default function AdminVerification() {
                                     </div>
                                 </div>
                             ))
+                        )}
+                    </div>
+                );
+            })()}
+
+            {/* Giveaway Tab */}
+            {activeTab === 'giveaway' && (() => {
+                const winners = requests.filter(r => r.verify_type === 'blue' && r.status === 'approved');
+                const pending = requests.filter(r => r.verify_type === 'blue' && r.status === 'pending');
+                const progressPct = Math.min((blueUsed / blueTotal) * 100, 100);
+                return (
+                    <div className="max-w-2xl mx-auto px-4 pt-4 pb-8 space-y-4">
+                        {/* Progress card */}
+                        <div className="bg-zinc-900 border border-blue-500/30 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg">🎁</span>
+                                    <span className="text-white font-bold text-sm">Blue Badge Giveaway</span>
+                                </div>
+                                <span className="text-blue-400 font-bold text-sm">{blueRemaining}/{blueTotal} left</span>
+                            </div>
+                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                <div className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all"
+                                    style={{ width: `${progressPct}%`, boxShadow: '0 0 8px rgba(59,130,246,0.6)' }}/>
+                            </div>
+                            <p className="text-zinc-500 text-xs">{blueUsed} claimed · {blueRemaining === 0 ? '🔒 Giveaway closed' : `${blueRemaining} spots open`}</p>
+                        </div>
+
+                        {/* Sub tabs */}
+                        <div className="flex gap-2">
+                            {[['winners', `🏆 Winners (${winners.length})`], ['pending', `⏳ Pending (${pending.length})`]].map(([val, label]) => (
+                                <button key={val} onClick={() => setGiveawaySubTab(val)}
+                                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${giveawaySubTab === val ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800'}`}>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Winners list */}
+                        {giveawaySubTab === 'winners' && (
+                            winners.length === 0
+                                ? <div className="text-center py-12 text-zinc-600">
+                                    <span className="text-4xl block mb-3">🏆</span>
+                                    <p className="text-sm">No winners yet</p>
+                                  </div>
+                                : <div className="space-y-2">
+                                    {winners.map((r, i) => (
+                                        <div key={r.user_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+                                            <span className={`text-lg font-black w-7 text-center flex-shrink-0 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-zinc-300' : i === 2 ? 'text-amber-600' : 'text-zinc-600'}`}>
+                                                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
+                                            </span>
+                                            <div className="relative flex-shrink-0">
+                                                {r.profile_pic_url
+                                                    ? <img src={r.profile_pic_url} className="w-10 h-10 rounded-full object-cover"/>
+                                                    : <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-white font-bold">{r.username?.[0]?.toUpperCase()}</div>
+                                                }
+                                                <span className="absolute -bottom-0.5 -right-0.5 text-[10px]">🔵</span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white font-bold text-sm truncate">@{r.username}</p>
+                                                <p className="text-zinc-500 text-xs">{new Date(r.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                            <span className="text-[10px] font-bold bg-green-500/10 border border-green-500/30 text-green-400 px-2 py-1 rounded-full flex-shrink-0">✓ Winner</span>
+                                        </div>
+                                    ))}
+                                  </div>
+                        )}
+
+                        {/* Pending list */}
+                        {giveawaySubTab === 'pending' && (
+                            pending.length === 0
+                                ? <div className="text-center py-12 text-zinc-600">
+                                    <span className="text-4xl block mb-3">✅</span>
+                                    <p className="text-sm">No pending requests</p>
+                                  </div>
+                                : <div className="space-y-2">
+                                    {pending.map(r => (
+                                        <div key={r.user_id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+                                            {r.profile_pic_url
+                                                ? <img src={r.profile_pic_url} className="w-10 h-10 rounded-full object-cover flex-shrink-0"/>
+                                                : <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-white font-bold flex-shrink-0">{r.username?.[0]?.toUpperCase()}</div>
+                                            }
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white font-bold text-sm truncate">@{r.username}</p>
+                                                <p className="text-zinc-500 text-xs">{r.reason || 'No reason given'}</p>
+                                            </div>
+                                            {actionMsg[r.user_id]
+                                                ? <p className="text-xs font-bold text-green-400">{actionMsg[r.user_id]}</p>
+                                                : <button onClick={() => handleAction(r.user_id, true, 'blue')}
+                                                    className="bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-blue-500/30 transition flex-shrink-0">
+                                                    Approve
+                                                  </button>
+                                            }
+                                        </div>
+                                    ))}
+                                  </div>
                         )}
                     </div>
                 );
