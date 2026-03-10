@@ -457,7 +457,7 @@ function Feed({ onlineUsers = new Set() }) {
                         {/* Media */}
                         <div className="flex-1 flex items-center justify-center bg-black" style={{ filter: viewingStory.filter_css || 'none' }}>
                             {viewingStory.media_type === 'video'
-                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
+                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay muted playsInline className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
                                 : <img key={viewingStory.id} src={viewingStory.media_url} className="w-full h-full object-contain" />
                             }
                         </div>
