@@ -119,9 +119,9 @@ function NavItem({ to, icon: Icon, label, badgeCount, themeColor, onClick, showL
   const location = useLocation();
   const isActive = location.pathname === to;
   return (
-    <Link to={to} onClick={onClick} className="flex items-center gap-4 p-3 rounded-xl transition-colors text-xl font-medium w-fit xl:w-full relative" style={{ backgroundColor: isActive ? `${themeColor}20` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
+    <Link to={to} onClick={onClick} className="flex items-center gap-3 p-2 rounded-xl transition-colors text-base font-medium w-fit xl:w-full relative" style={{ backgroundColor: isActive ? `${themeColor}20` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
       <div className="relative">
-          <Icon size={28} />
+          <Icon size={22} />
           {badgeCount > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">{badgeCount > 9 ? '9+' : badgeCount}</span>}
       </div>
       <span className={showLabelAlways ? "block" : "hidden xl:block"}>{label}</span>
@@ -143,14 +143,12 @@ function CallManager({ currentUserId, startCallRef }) {
     const remoteStreamRef = React.useRef(new MediaStream());
 
     const playRemoteAudio = () => {
-        // Method 1: standard audio element
         if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = remoteStreamRef.current;
             remoteAudioRef.current.volume = 1.0;
             remoteAudioRef.current.muted = false;
             const p = remoteAudioRef.current.play();
             if (p) p.catch(() => {
-                // Method 2: re-assign srcObject to force play on iOS
                 setTimeout(() => {
                     if (remoteAudioRef.current) {
                         remoteAudioRef.current.srcObject = null;
@@ -161,9 +159,7 @@ function CallManager({ currentUserId, startCallRef }) {
             });
         }
     };
-
     const forcePlayAudio = () => {
-        // Called on button tap (user gesture) — guaranteed to work
         if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = remoteStreamRef.current;
             remoteAudioRef.current.muted = false;
@@ -210,7 +206,6 @@ function CallManager({ currentUserId, startCallRef }) {
                 remoteStreamRef.current.addTrack(e.track);
             }
             playRemoteAudio();
-            setTimeout(playRemoteAudio, 300);
             if (remoteVideoRef.current && e.track.kind === 'video') {
                 remoteVideoRef.current.srcObject = remoteStreamRef.current;
                 remoteVideoRef.current.play().catch(()=>{});
@@ -282,11 +277,8 @@ function CallManager({ currentUserId, startCallRef }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             globalSocket.emit('answer_call', { signal: answer, to: caller.from });
-            // Force play inside user gesture — browser allows this
             forcePlayAudio();
-            setTimeout(playRemoteAudio, 300);
-            setTimeout(playRemoteAudio, 800);
-            setTimeout(playRemoteAudio, 2000);
+            setTimeout(playRemoteAudio, 500);
             setTimeout(playRemoteAudio, 1500);
         } catch (err) {
             hangUp(true);
@@ -304,9 +296,7 @@ function CallManager({ currentUserId, startCallRef }) {
                 for (const c of pendingIce.current) { try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch(e) {} }
                 pendingIce.current = [];
             }
-            setTimeout(playRemoteAudio, 300);
-            setTimeout(playRemoteAudio, 800);
-            setTimeout(playRemoteAudio, 2000);
+            setTimeout(playRemoteAudio, 500);
         };
         const onIce = async (candidate) => {
             if (peerConnectionRef.current?.remoteDescription) {
@@ -331,7 +321,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
     return (
         <>
-            <audio ref={remoteAudioRef} autoPlay playsInline muted={false} controls={false} style={{ position:'fixed', bottom:0, left:0, width:'1px', height:'1px', opacity:0.01 }} />
+            <audio ref={remoteAudioRef} autoPlay playsInline muted={false} style={{ position:'fixed', bottom:0, left:0, width:'1px', height:'1px', opacity:0.01 }} />
 
             {incomingCall && !activeCall && (
                 <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
@@ -380,7 +370,6 @@ function CallManager({ currentUserId, startCallRef }) {
                                 </div>
                                 <h2 className="text-white text-2xl font-bold">{activeCall.targetName}</h2>
                                 <p className="text-green-400 animate-pulse mt-2">Connected</p>
-                                <button onClick={forcePlayAudio} className="mt-4 text-xs text-zinc-500 underline">Tap if no sound</button>
                             </div>
                         )}
                         {activeCall.isVideo && (
@@ -513,16 +502,16 @@ function AppContent() {
   useEffect(() => { setMobileMenuOpen(false); },[location.pathname]);
 
   return (
-      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
+      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden" id="app-root">
         
         {showSplash && <SplashScreen />}
 
         {/* DESKTOP SIDEBAR */}
-        <header className="hidden sm:flex flex-col justify-between w-20 xl:w-64 border-r border-zinc-800 h-screen sticky top-0 py-6 px-2 xl:px-6 z-40 bg-black">
+        <header className="hidden sm:flex flex-col justify-between w-16 xl:w-56 flex-shrink-0 border-r border-zinc-800 h-screen sticky top-0 py-4 px-1 xl:px-4 z-40 bg-black overflow-y-auto scrollbar-hide">
           <div className="flex flex-col gap-4">
-            <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
-              <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
-              <span className="hidden xl:block font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
+            <Link to="/" className="p-2 mb-2 w-fit rounded-xl transition flex items-center gap-2">
+              <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+              <span className="hidden xl:block font-extrabold text-xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
             </Link>
 
             {currentUserId && (
@@ -546,7 +535,7 @@ function AppContent() {
           </div>
           
           {currentUserId && (
-            <Link to={`/profile/${currentUserId}`} className="mt-auto hidden xl:flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-full cursor-pointer transition">
+            <Link to={`/profile/${currentUserId}`} className="mt-auto hidden xl:flex items-center gap-3 p-2 hover:bg-zinc-900 rounded-xl cursor-pointer transition">
               <div className="w-10 h-10 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
                  {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
               </div>
@@ -556,7 +545,11 @@ function AppContent() {
         </header>
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
-        <main className={`w-full max-w-[600px] border-x border-zinc-800 h-screen relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
+        <main className={`border-x border-zinc-800 h-screen relative bg-black ${
+          location.pathname === '/chat'
+            ? 'flex-1 overflow-hidden pb-0 w-full'
+            : 'w-full max-w-[620px] overflow-y-auto pb-[70px] sm:pb-0'
+        }`}>
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
               <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">
