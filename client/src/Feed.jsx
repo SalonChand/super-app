@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck, Flag } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -435,7 +435,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
                                     {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white text-xs font-bold">{viewingStory.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
-                                <span className="text-white text-sm font-bold flex items-center gap-1">{viewingStory.username}<VerifiedBadge isVerified={!!viewingStory.is_verified} verifyType={viewingStory.verify_type} size={14}/></span>
+                                <span className="text-white text-sm font-bold">{viewingStory.username}</span>
                             </Link>
                             <div className="flex items-center gap-2">
                                 {/* Edit/Delete menu for own stories */}
@@ -459,7 +459,7 @@ function Feed({ onlineUsers = new Set() }) {
                         {/* Media */}
                         <div className="flex-1 flex items-center justify-center bg-black" style={{ filter: viewingStory.filter_css || 'none' }}>
                             {viewingStory.media_type === 'video'
-                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay muted playsInline className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
+                                ? <video key={viewingStory.id} src={viewingStory.media_url} autoPlay className="w-full h-full object-contain" onTimeUpdate={handleVideoTimeUpdate} onEnded={goToNextStory} />
                                 : <img key={viewingStory.id} src={viewingStory.media_url} className="w-full h-full object-contain" />
                             }
                         </div>

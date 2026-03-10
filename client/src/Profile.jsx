@@ -37,8 +37,8 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const[userPosts, setUserPosts] = useState([]);
     const[userReels, setUserReels] = useState([]);
     const[activeTab, setActiveTab] = useState('posts');
-    const[friendStatus, setFriendStatus] = useState('none'); 
-    const [reportTarget, setReportTarget] = useState(null);
+    const[friendStatus, setFriendStatus] = useState('none');
+    const [reportTarget, setReportTarget] = useState(null); 
     const[errorMessage, setErrorMessage] = useState(''); 
     const[viewingImage, setViewingImage] = useState(null);
     
@@ -258,7 +258,6 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const displayedPosts = canSeeDetails ? userPosts : userPosts.slice(0, 1);
 
     return (
-        <>
         <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
             {/* QR Code Modal */}
             {showQR && (
@@ -321,17 +320,14 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         <span className="hidden group-hover:block">Unfriend</span>
                                     </button>
                                 )}
-                                <button onClick={() => setReportTarget({ id: profileData.id, username: profileData.username })}
-                                    className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 font-bold py-1.5 px-3 rounded-full transition text-sm">
-                                    <Flag size={15}/> Report
-                                </button>
+                                <button onClick={() => setReportTarget({ id: profileData.id, username: profileData.username })} className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 font-bold py-1.5 px-3 rounded-full transition text-sm"><Flag size={15}/> Report</button>
                             </>
                         )}
                     </div>
                 </div>
 
                 <div className="mt-3">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
                         <h1 className="text-2xl font-bold text-white">{profileData.username}</h1>
                         <VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>
                         {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
@@ -485,7 +481,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         </button>
                                         
                                         {menuOpenPostId === post.id && (
-                                            <div className="absolute right-0 mt-2 w-36 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
+                                            <div className="absolute right-0 mt-2 w-32 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
                                                 <button onClick={() => copyPostLink(post.id)} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><LinkIcon size={14}/> Copy Link</button>
                                                 
                                                 {/* Only show Edit/Delete if you own the post! */}
@@ -494,9 +490,6 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                                         <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><Edit2 size={14}/> Edit</button>
                                                         <button onClick={() => { deletePost(post.id); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-red-500 flex items-center gap-2 text-sm border-t border-zinc-700"><Trash2 size={14}/> Delete</button>
                                                     </>
-                                                )}
-                                                {post.user_id != currentUserId && (
-                                                    <button onClick={() => { setReportTarget({ id: post.user_id, username: post.username }); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-red-400 flex items-center gap-2 text-sm border-t border-zinc-700"><Flag size={14}/> Report</button>
                                                 )}
                                             </div>
                                         )}
@@ -599,9 +592,8 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     </div>
                 )}
             </div>
+            {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
         </div>
-        {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
-        </>
     );
 }
 

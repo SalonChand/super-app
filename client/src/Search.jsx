@@ -43,7 +43,6 @@ function Search() {
     };
 
     return (
-        <>
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex items-center gap-3 backdrop-blur-md">
                 <SearchIcon className="text-zinc-400 flex-shrink-0" size={22} />
@@ -78,7 +77,7 @@ function Search() {
                 )}
 
                 {filter === 'people' && results.map(user => (
-                    <div key={user.id} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                         <Link to={`/profile/${user.id}`} className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center flex-shrink-0">
                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-400" />}
                         </Link>
@@ -86,11 +85,8 @@ function Search() {
                             <h4 className="font-bold text-white truncate">{user.username}</h4>
                             <p className="text-sm text-zinc-500">View Profile</p>
                         </Link>
-                        {user.id != currentUserId && (
-                            <button onClick={() => setReportTarget({ id: user.id, username: user.username })}
-                                className="flex items-center gap-1 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-xl hover:bg-red-500/20 transition flex-shrink-0">
-                                <Flag size={11}/> Report
-                            </button>
+                        {String(user.id) !== String(currentUserId) && (
+                            <button onClick={() => setReportTarget({ id: user.id, username: user.username })} className="flex items-center gap-1 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-xl hover:bg-red-500/20 transition flex-shrink-0"><Flag size={11}/> Report</button>
                         )}
                     </div>
                 ))}
@@ -123,9 +119,8 @@ function Search() {
                     </Link>
                 ))}
             </div>
+            {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
         </div>
-        {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
-        </>
     );
 }
 
