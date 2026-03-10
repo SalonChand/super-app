@@ -402,7 +402,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                                 <p className="text-zinc-100 text-sm leading-relaxed whitespace-pre-wrap break-words">{renderPostText(post.content)}</p>
                                 {post.image_url && <img src={post.image_url} className="mt-2 rounded-xl w-full max-h-64 object-cover" />}
-                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>{post.like_count > 0 ? `❤️ ${post.like_count}` : ''}</span><span>{post.comment_count > 0 ? `💬 ${post.comment_count}` : ''}</span></div>
+                                <div className="flex gap-4 mt-2 text-zinc-500 text-xs"><span>❤️ {post.like_count}</span><span>💬 {post.comment_count}</span></div>
                             </div>
                         ))}
                     </div>
@@ -433,7 +433,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
                                     {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white text-xs font-bold">{viewingStory.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
-                                <span className="text-white text-sm font-bold">{viewingStory.username}</span>
+                                <span className="text-white text-sm font-bold flex items-center gap-1">{viewingStory.username}<VerifiedBadge isVerified={!!viewingStory.is_verified} verifyType={viewingStory.verify_type} size={14}/></span>
                             </Link>
                             <div className="flex items-center gap-2">
                                 {/* Edit/Delete menu for own stories */}
