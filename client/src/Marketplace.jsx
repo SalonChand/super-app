@@ -59,7 +59,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     const searchRef = useRef(null);
 
     // Create form state
-    const [form, setForm] = useState({ title: '', description: '', price: '', category: 'other', condition: 'Good', location: '' });
+    const [form, setForm] = useState({ title: '', description: '', price: '0', category: 'other', condition: 'Good', location: '' });
     const [formImages, setFormImages] = useState([]);
     const [formPreviews, setFormPreviews] = useState([]);
     const [creating, setCreating] = useState(false);
@@ -92,7 +92,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     };
 
     const submitListing = async () => {
-        if (!form.title.trim() || !form.price) return;
+        if (!form.title.trim()) return;
         setCreating(true);
         try {
             const fd = new FormData();
@@ -108,7 +108,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setShowCreate(false);
-            setForm({ title: '', description: '', price: '', category: 'other', condition: 'Good', location: '' });
+            setForm({ title: '', description: '', price: '0', category: 'other', condition: 'Good', location: '' });
             setFormImages([]); setFormPreviews([]);
             fetchListings();
         } catch(e) { alert(e.response?.data?.error || 'Failed to create listing'); }
