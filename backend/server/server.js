@@ -563,7 +563,7 @@ app.get('/api/followers/:userId', async (req, res) => {
 app.get('/api/marketplace', async (req, res) => {
     try {
         const { userId, category, q, sort, mine } = req.query;
-        let where = 'm.status = "active"';
+        let where = "m.status = 'active'";
         const params = [];
         if (mine === '1' && userId) { where += ' AND m.seller_id = ?'; params.push(userId); }
         if (category && category !== 'all') { where += ' AND m.category = ?'; params.push(category); }
@@ -604,7 +604,7 @@ app.delete('/api/marketplace/:id', async (req, res) => {
         const { userId } = req.body;
         const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
         if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
-        await pool.query('UPDATE marketplace SET status = "deleted" WHERE id = ?', [req.params.id]);
+        await pool.query("DELETE FROM marketplace WHERE id = ?", [req.params.id]);
         res.json({ message: 'Deleted' });
     } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
