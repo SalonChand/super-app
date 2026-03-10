@@ -88,6 +88,12 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [mutualFriends, setMutualFriends] = useState([]);
+    const [showPeopleModal, setShowPeopleModal] = useState(null); // 'friends' | 'followers'
+    const [peopleList, setPeopleList] = useState([]);
+    const [peopleLoading, setPeopleLoading] = useState(false);
+    const [peopleSearch, setPeopleSearch] = useState('');
+    const [peopleMenuOpen, setPeopleMenuOpen] = useState(null); // user id
+    const [peopleFollowMap, setPeopleFollowMap] = useState({});
     const loadProfileData = async () => {
         if (!id || id === 'undefined') { setErrorMessage('Invalid User ID'); return; }
         setIsRefreshing(true);
@@ -149,6 +155,51 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     };
 
     useEffect(() => { loadProfileData(); }, [id]);
+
+    const openPeopleModal = async (type) => {
+        setShowPeopleModal(type);
+        setPeopleLoading(true);
+        setPeopleSearch('');
+        setPeopleMenuOpen(null);
+        try {
+            let data = [];
+            if (type === 'friends') {
+                const res = await axios.get(`${BACKEND_URL}/api/friends/list/${id}`);
+                data = Array.isArray(res.data) ? res.data : [];
+            } else {
+                const res = await axios.get(`${BACKEND_URL}/api/followers/${id}`);
+                data = Array.isArray(res.data) ? res.data : [];
+            }
+            setPeopleList(data);
+            // Load follow status for each verified user
+            const map = {};
+            await Promise.all(data.filter(u => u.is_verified).map(async u => {
+                try {
+                    const r = await axios.get(`${BACKEND_URL}/api/follow/status?followerId=${currentUserId}&followingId=${u.id}`);
+                    map[u.id] = r.data?.following;
+                } catch {}
+            }));
+            setPeopleFollowMap(map);
+        } catch {}
+        setPeopleLoading(false);
+    };
+
+    const handleUnfriendFromModal = async (userId) => {
+        if (!window.confirm('Unfriend this person?')) return;
+        try {
+            await axios.post(`${BACKEND_URL}/api/friends/remove`, { user1: currentUserId, user2: userId });
+            setPeopleList(p => p.filter(u => u.id !== userId));
+            loadProfileData();
+        } catch {}
+    };
+
+    const handleUnfollowFromModal = async (userId) => {
+        try {
+            await axios.post(`${BACKEND_URL}/api/unfollow`, { followerId: currentUserId, followingId: userId });
+            setPeopleList(p => p.filter(u => u.id !== userId));
+            setFollowerCount(c => Math.max(0, c - 1));
+        } catch {}
+    };
 
     const sendFriendRequest = () => axios.post(`${BACKEND_URL}/api/friends/request`, { requester_id: currentUserId, receiver_id: id }).then(() => setFriendStatus('sent_request'));
     const followUser = () => axios.post(`${BACKEND_URL}/api/follow`, { followerId: currentUserId, followingId: id }).then(() => { setFollowStatus(true); setFollowerCount(c => c+1); });
@@ -271,6 +322,80 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
 
     return (
         <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
+            {/* Friends / Followers Modal */}
+            {showPeopleModal && (
+                <div className="fixed inset-0 z-[200] bg-black/85 flex items-end sm:items-center justify-center" onClick={() => setShowPeopleModal(null)}>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800 flex-shrink-0">
+                            <h2 className="text-white font-bold text-lg">{showPeopleModal === 'friends' ? 'Friends' : 'Followers'}</h2>
+                            <button onClick={() => setShowPeopleModal(null)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
+                        </div>
+                        {/* Search */}
+                        <div className="px-4 py-3 border-b border-zinc-800 flex-shrink-0">
+                            <input
+                                value={peopleSearch}
+                                onChange={e => setPeopleSearch(e.target.value)}
+                                placeholder="Search..."
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-white text-sm placeholder-zinc-600 outline-none focus:border-zinc-600"
+                            />
+                        </div>
+                        {/* List */}
+                        <div className="overflow-y-auto flex-1 p-3 space-y-1">
+                            {peopleLoading && [1,2,3,4].map(i => (
+                                <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                                    <div className="w-11 h-11 rounded-full bg-zinc-800 flex-shrink-0"/>
+                                    <div className="flex-1 space-y-2"><div className="h-3 bg-zinc-800 rounded w-1/2"/><div className="h-2 bg-zinc-800 rounded w-1/3"/></div>
+                                </div>
+                            ))}
+                            {!peopleLoading && peopleList.filter(u => u.username?.toLowerCase().includes(peopleSearch.toLowerCase())).length === 0 && (
+                                <p className="text-zinc-500 text-center py-8 text-sm">No {showPeopleModal} found.</p>
+                            )}
+                            {!peopleLoading && peopleList.filter(u => u.username?.toLowerCase().includes(peopleSearch.toLowerCase())).map(user => (
+                                <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-900 transition relative">
+                                    <a href={`/profile/${user.id}`} className="w-11 h-11 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                        {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover"/> : <span className="text-white font-bold">{user.username?.charAt(0).toUpperCase()}</span>}
+                                    </a>
+                                    <a href={`/profile/${user.id}`} className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1">
+                                            <p className="font-bold text-white text-sm truncate">{user.username}</p>
+                                            <VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={13}/>
+                                        </div>
+                                        <p className="text-zinc-500 text-xs">@{user.username?.toLowerCase()}</p>
+                                    </a>
+                                    {/* 3 dot menu */}
+                                    <div className="relative flex-shrink-0">
+                                        <button onClick={() => setPeopleMenuOpen(peopleMenuOpen === user.id ? null : user.id)} className="text-zinc-500 hover:text-white p-1.5 rounded-full hover:bg-zinc-800 transition">
+                                            <MoreHorizontal size={18}/>
+                                        </button>
+                                        {peopleMenuOpen === user.id && (
+                                            <div className="absolute right-0 bottom-8 w-44 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
+                                                <a href={`/profile/${user.id}`} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800 text-white text-sm"><UserCheck size={14}/> View Profile</a>
+                                                {showPeopleModal === 'friends' && String(user.id) !== String(currentUserId) && (
+                                                    <button onClick={() => { handleUnfriendFromModal(user.id); setPeopleMenuOpen(null); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800 text-red-400 text-sm border-t border-zinc-800"><UserMinus size={14}/> Unfriend</button>
+                                                )}
+                                                {showPeopleModal === 'followers' && String(user.id) !== String(currentUserId) && (
+                                                    <button onClick={() => { handleUnfollowFromModal(user.id); setPeopleMenuOpen(null); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800 text-red-400 text-sm border-t border-zinc-800"><UserMinus size={14}/> Remove Follower</button>
+                                                )}
+                                                {!!user.is_verified && !peopleFollowMap[user.id] && (
+                                                    <button onClick={async () => { await axios.post(`${BACKEND_URL}/api/follow`, { followerId: currentUserId, followingId: user.id }); setPeopleFollowMap(m => ({...m, [user.id]: true})); setPeopleMenuOpen(null); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800 text-blue-400 text-sm border-t border-zinc-800"><Rss size={14}/> Follow</button>
+                                                )}
+                                                {!!user.is_verified && peopleFollowMap[user.id] && (
+                                                    <button onClick={async () => { await axios.post(`${BACKEND_URL}/api/unfollow`, { followerId: currentUserId, followingId: user.id }); setPeopleFollowMap(m => ({...m, [user.id]: false})); setPeopleMenuOpen(null); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800 text-zinc-400 text-sm border-t border-zinc-800"><Rss size={14}/> Unfollow</button>
+                                                )}
+                                                {String(user.id) !== String(currentUserId) && (
+                                                    <button onClick={() => { window.location.href=`/chat?userId=${user.id}`; }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800 text-zinc-300 text-sm border-t border-zinc-800"><MessageCircle size={14}/> Message</button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="h-4 flex-shrink-0"/>
+                    </div>
+                </div>
+            )}
             {/* QR Code Modal */}
             {showQR && (
                 <div className="fixed inset-0 z-[150] bg-black/90 flex items-center justify-center animate-fade-in" onClick={() => setShowQR(false)}>
@@ -361,8 +486,16 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         </p>
                     )}
                     <div className="flex items-center gap-4 mt-2 mb-1">
-                        {isVerifiedProfile && <p className="text-white font-bold">{followerCount} <span className="text-zinc-500 font-normal">Followers</span></p>}
-                        {canSeeDetails && profileData.friend_count > 0 && <p className="text-white font-bold">{profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span></p>}
+                        {isVerifiedProfile && (
+                            <button onClick={() => openPeopleModal('followers')} className="text-white font-bold hover:underline">
+                                {followerCount} <span className="text-zinc-500 font-normal">Followers</span>
+                            </button>
+                        )}
+                        {canSeeDetails && profileData.friend_count > 0 && (
+                            <button onClick={() => openPeopleModal('friends')} className="text-white font-bold hover:underline">
+                                {profileData.friend_count} <span className="text-zinc-500 font-normal">Friends</span>
+                            </button>
+                        )}
                     </div>
 
                     {profileData.created_at && (
