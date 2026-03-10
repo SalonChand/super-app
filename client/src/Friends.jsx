@@ -60,11 +60,11 @@ function Friends() {
     if (!currentUserId) return <div className="p-8 text-center text-zinc-500">Please log in.</div>;
 
     return (
-        <div className="w-full bg-black flex flex-col h-screen animate-fade-in">
+        <div className="w-full bg-black flex flex-col h-screen">
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10">
                 <h2 className="text-2xl font-bold text-white">Friends & Connect</h2>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto pb-20 sm:pb-4">
             <div className="p-4 space-y-8">
 
                 {/* Incoming Requests */}
@@ -145,8 +145,7 @@ function Friends() {
                 </div>
 
             </div>
-        </div>
-            </div>{/* end scrollable */}
+            </div>
         </div>
     );
 }

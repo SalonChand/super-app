@@ -523,7 +523,7 @@ function AppContent() {
         </header>
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
-        <main className={`flex-1 min-w-0 border-x border-zinc-800 h-screen relative bg-black ${location.pathname === '/chat' || location.pathname === '/reels' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
+        <main className="flex-1 min-w-0 border-x border-zinc-800 h-screen relative bg-black overflow-hidden">
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
               <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">
