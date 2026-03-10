@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, User, FileText, Users, BadgeCheck, SlidersHorizontal } from 'lucide-react';
+import { Search as SearchIcon, User, FileText, Users, BadgeCheck } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -25,29 +25,45 @@ function Search() {
     const [results, setResults] = useState([]);
     const [filter, setFilter] = useState('people');
     const debounceRef = useRef(null);
-    const [verifiedOnly, setVerifiedOnly] = useState(false);
+    const [verifiedSuggestions, setVerifiedSuggestions] = useState([]);
+    const [loadingSuggestions, setLoadingSuggestions] = useState(true);
 
-    const doSearch = async (q, f, vOnly) => {
+    const doSearch = async (q, f) => {
         if (!q.trim()) { setResults([]); return; }
         try {
             const res = await axios.get(`${BACKEND_URL}/api/search?q=${encodeURIComponent(q)}&userId=${currentUserId}&filter=${f}`);
-            let data = Array.isArray(res.data) ? res.data : [];
-            if (vOnly !== undefined ? vOnly : verifiedOnly) data = data.filter(r => r.is_verified);
-            setResults(data);
+            setResults(Array.isArray(res.data) ? res.data : []);
         } catch { setResults([]); }
     };
+
+    useEffect(() => {
+        const fetchVerified = async () => {
+            try {
+                const res = await axios.get(`${BACKEND_URL}/api/search?q=&userId=${currentUserId}&filter=people&verified=true`);
+                // fallback: just search common chars and filter verified
+                const res2 = await axios.get(`${BACKEND_URL}/api/search?q=a&userId=${currentUserId}&filter=people`);
+                const res3 = await axios.get(`${BACKEND_URL}/api/search?q=s&userId=${currentUserId}&filter=people`);
+                const combined = [...(Array.isArray(res2.data) ? res2.data : []), ...(Array.isArray(res3.data) ? res3.data : [])];
+                const verified = combined.filter(u => u.is_verified);
+                const unique = verified.filter((u, i, a) => a.findIndex(x => x.id === u.id) === i);
+                setVerifiedSuggestions(unique);
+            } catch {}
+            setLoadingSuggestions(false);
+        };
+        fetchVerified();
+    }, []);
 
     const handleSearch = (e) => {
         const val = e.target.value;
         setQuery(val);
         clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => doSearch(val, filter, verifiedOnly), 300);
+        debounceRef.current = setTimeout(() => doSearch(val, filter), 300);
     };
 
     const switchFilter = (f) => {
         setFilter(f);
         setResults([]);
-        if (query.trim()) doSearch(query, f, verifiedOnly);
+        if (query.trim()) doSearch(query, f);
     };
 
     return (
@@ -62,13 +78,7 @@ function Search() {
                     className="w-full bg-transparent text-white text-lg outline-none placeholder-zinc-600"
                     autoFocus
                 />
-                <button
-                    onClick={() => { const next = !verifiedOnly; setVerifiedOnly(next); if (query.trim()) doSearch(query, filter, next); }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition flex-shrink-0 ${verifiedOnly ? 'bg-blue-500/20 border-blue-500/60 text-blue-400' : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:text-zinc-300'}`}
-                    title="Show verified users only"
-                >
-                    <BadgeCheck size={13}/> Verified
-                </button>
+
             </div>
 
             <div className="flex border-b border-zinc-800 bg-zinc-950/60 sticky top-[72px] z-10">
@@ -87,6 +97,50 @@ function Search() {
             </div>
 
             <div className="p-4 space-y-2">
+                {/* Verified Suggestions - show when no query typed */}
+                {query === '' && filter === 'people' && (
+                    <div className="mb-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <BadgeCheck size={16} className="text-blue-400"/>
+                            <h3 className="text-white font-bold text-sm">Verified Users</h3>
+                        </div>
+                        {loadingSuggestions && (
+                            <div className="flex gap-3 overflow-x-auto pb-2">
+                                {[1,2,3,4].map(i => (
+                                    <div key={i} className="flex flex-col items-center gap-2 flex-shrink-0 w-20 animate-pulse">
+                                        <div className="w-14 h-14 rounded-full bg-zinc-800"/>
+                                        <div className="w-14 h-3 rounded bg-zinc-800"/>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {!loadingSuggestions && verifiedSuggestions.length === 0 && (
+                            <p className="text-zinc-600 text-sm">No verified users found.</p>
+                        )}
+                        {!loadingSuggestions && verifiedSuggestions.length > 0 && (
+                            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                {verifiedSuggestions.map(user => (
+                                    <a key={user.id} href={`/profile/${user.id}`} className="flex flex-col items-center gap-2 flex-shrink-0 w-20 group">
+                                        <div className="relative">
+                                            <div className="w-14 h-14 rounded-full bg-zinc-800 overflow-hidden border-2 border-zinc-700 group-hover:border-blue-500 transition">
+                                                {user.profile_pic_url
+                                                    ? <img src={user.profile_pic_url} className="w-full h-full object-cover"/>
+                                                    : <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xl font-bold">{user.username.charAt(0).toUpperCase()}</div>
+                                                }
+                                            </div>
+                                            <div className="absolute -bottom-1 -right-1 bg-zinc-950 rounded-full p-0.5">
+                                                <VerifiedBadge isVerified={true} verifyType={user.verify_type} size={14}/>
+                                            </div>
+                                        </div>
+                                        <span className="text-white text-xs font-semibold text-center truncate w-full">{user.username}</span>
+                                    </a>
+                                ))}
+                            </div>
+                        )}
+                        <div className="border-b border-zinc-800 mt-4"/>
+                    </div>
+                )}
+
                 {query !== '' && results.length === 0 && (
                     <p className="text-zinc-500 text-center mt-10">No {filter} found for "{query}".</p>
                 )}
