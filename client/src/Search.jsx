@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, User, FileText, Users, BadgeCheck } from 'lucide-react';
+import { Search as SearchIcon, User, FileText, Users, BadgeCheck, SlidersHorizontal } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -25,12 +25,15 @@ function Search() {
     const [results, setResults] = useState([]);
     const [filter, setFilter] = useState('people');
     const debounceRef = useRef(null);
+    const [verifiedOnly, setVerifiedOnly] = useState(false);
 
-    const doSearch = async (q, f) => {
+    const doSearch = async (q, f, vOnly) => {
         if (!q.trim()) { setResults([]); return; }
         try {
             const res = await axios.get(`${BACKEND_URL}/api/search?q=${encodeURIComponent(q)}&userId=${currentUserId}&filter=${f}`);
-            setResults(Array.isArray(res.data) ? res.data : []);
+            let data = Array.isArray(res.data) ? res.data : [];
+            if (vOnly !== undefined ? vOnly : verifiedOnly) data = data.filter(r => r.is_verified);
+            setResults(data);
         } catch { setResults([]); }
     };
 
@@ -38,13 +41,13 @@ function Search() {
         const val = e.target.value;
         setQuery(val);
         clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => doSearch(val, filter), 300);
+        debounceRef.current = setTimeout(() => doSearch(val, filter, verifiedOnly), 300);
     };
 
     const switchFilter = (f) => {
         setFilter(f);
         setResults([]);
-        if (query.trim()) doSearch(query, f);
+        if (query.trim()) doSearch(query, f, verifiedOnly);
     };
 
     return (
@@ -59,6 +62,13 @@ function Search() {
                     className="w-full bg-transparent text-white text-lg outline-none placeholder-zinc-600"
                     autoFocus
                 />
+                <button
+                    onClick={() => { const next = !verifiedOnly; setVerifiedOnly(next); if (query.trim()) doSearch(query, filter, next); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition flex-shrink-0 ${verifiedOnly ? 'bg-blue-500/20 border-blue-500/60 text-blue-400' : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:text-zinc-300'}`}
+                    title="Show verified users only"
+                >
+                    <BadgeCheck size={13}/> Verified
+                </button>
             </div>
 
             <div className="flex border-b border-zinc-800 bg-zinc-950/60 sticky top-[72px] z-10">
