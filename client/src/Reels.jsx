@@ -5,7 +5,7 @@ import { ThumbsUp, MessageCircle, Share, Camera, X, Clapperboard, Volume2, Volum
 import { Link } from 'react-router-dom';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
-let globalMuteState = true; 
+let globalMuteState = localStorage.getItem('reelsMuted') === 'true' ? true : false;
 
 const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
     const videoRef = useRef(null);
@@ -23,7 +23,6 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
 
     useEffect(() => {
         if (videoRef.current) {
-            videoRef.current.defaultMuted = true;
             videoRef.current.muted = isMuted;
             videoRef.current.setAttribute('playsinline', '');
             videoRef.current.setAttribute('webkit-playsinline', '');
@@ -69,7 +68,8 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
         e.stopPropagation();
         const newState = !isMuted;
         setIsMuted(newState);
-        globalMuteState = newState; 
+        globalMuteState = newState;
+        localStorage.setItem('reelsMuted', newState);
         if (videoRef.current) videoRef.current.muted = newState;
     };
 
@@ -424,7 +424,7 @@ function Reels() {
                     <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl">
                         {/* Original video preview */}
                         <div className="aspect-video bg-black rounded-xl mb-4 overflow-hidden border border-zinc-700">
-                            <video src={duetTarget.video_url.startsWith('http') ? duetTarget.video_url : `${BACKEND_URL}/api/stream/${duetTarget.video_url.split('/').pop()}`} className="w-full h-full object-cover" muted loop autoPlay playsInline />
+                            <video src={`${BACKEND_URL}/api/stream/${duetTarget.video_url.split('/').pop()}`} className="w-full h-full object-cover" muted loop autoPlay playsInline />
                         </div>
                         <input type="file" ref={duetFileRef} accept="video/*" className="hidden" onChange={e => { if (e.target.files[0]) setDuetFile(e.target.files[0]); }} />
                         {duetFile ? (
