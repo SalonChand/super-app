@@ -324,11 +324,11 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 </div>
 
                 <div className="mt-3">
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                        {profileData.username}
-                        {<VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h1 className="text-2xl font-bold text-white leading-tight">{profileData.username}</h1>
+                        <VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>
                         {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
-                    </h1>
+                    </div>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
                     {/* Active status badge */}
                     {!!profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
