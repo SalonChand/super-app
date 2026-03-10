@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -328,6 +328,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         <h1 className="text-2xl font-bold text-white leading-tight">{profileData.username}</h1>
                         <VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>
                         {profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
+                        {isMyProfile && !!profileData.ghost_mode && <span title="Ghost Mode ON" className="text-purple-400"><Ghost size={16}/></span>}
                     </div>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
                     {/* Active status badge */}
@@ -358,10 +359,35 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         <div className="space-y-4 mt-4 bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800">
                             <div><label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1 block">Bio</label><textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition-colors" placeholder="Write a bio..." rows="2" /></div>
                             <div><label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1"><Music size={14}/> Profile Anthem (YouTube Link)</label><input type="text" value={editAnthem} onChange={(e) => setEditAnthem(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition-colors text-sm" /></div>
+                            {!!profileData.is_verified && (
+                                <div className="flex items-center justify-between bg-purple-500/10 border border-purple-500/30 rounded-xl px-4 py-3">
+                                    <div className="flex items-center gap-2">
+                                        <Ghost size={18} className="text-purple-400"/>
+                                        <div>
+                                            <p className="text-white text-sm font-semibold">Ghost Mode</p>
+                                            <p className="text-zinc-500 text-xs">Hide your active status from everyone including friends</p>
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={async () => {
+                                        const newVal = !profileData.ghost_mode;
+                                        try {
+                                            await axios.put(`${BACKEND_URL}/api/users/${currentUserId}/ghost-mode`, { ghostMode: newVal });
+                                            setProfileData(p => ({...p, ghost_mode: newVal}));
+                                        } catch(e) { alert('Failed to update ghost mode'); }
+                                    }} className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${profileData.ghost_mode ? 'bg-purple-500' : 'bg-zinc-700'}`}>
+                                        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${profileData.ghost_mode ? 'translate-x-5' : 'translate-x-0.5'}`}/>
+                                    </button>
+                                </div>
+                            )}
                             <div>
                                 <label className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
-                                    <span>🔗 Links</span>
-                                    <button type="button" onClick={() => setEditLinks(prev => [...prev, { label: '', url: '' }])} className="text-blue-400 hover:text-blue-300 text-xs font-bold">+ Add Link</button>
+                                    <span>🔗 Links <span className="text-zinc-600 normal-case font-normal">{profileData.is_verified ? '(max 5)' : '(max 2)'}</span></span>
+                                    {editLinks.length < (profileData.is_verified ? 5 : 2) && (
+                                        <button type="button" onClick={() => setEditLinks(prev => [...prev, { label: '', url: '' }])} className="text-blue-400 hover:text-blue-300 text-xs font-bold">+ Add Link</button>
+                                    )}
+                                    {editLinks.length >= (profileData.is_verified ? 5 : 2) && (
+                                        <span className="text-zinc-600 text-xs">{profileData.is_verified ? 'Max 5 reached' : <span className="text-yellow-500">Verify to add more ✦</span>}</span>
+                                    )}
                                 </label>
                                 <div className="space-y-2">
                                     {editLinks.map((link, i) => (
