@@ -43,6 +43,7 @@ function Search() {
     };
 
     return (
+        <>
         <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex items-center gap-3 backdrop-blur-md">
                 <SearchIcon className="text-zinc-400 flex-shrink-0" size={22} />
@@ -124,6 +125,7 @@ function Search() {
             </div>
         </div>
         {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
+        </>
     );
 }
 

@@ -258,6 +258,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const displayedPosts = canSeeDetails ? userPosts : userPosts.slice(0, 1);
 
     return (
+        <>
         <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
             {/* QR Code Modal */}
             {showQR && (
@@ -600,6 +601,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
             </div>
         </div>
         {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
+        </>
     );
 }
 

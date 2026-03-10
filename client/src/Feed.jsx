@@ -380,6 +380,7 @@ function Feed({ onlineUsers = new Set() }) {
     };
 
     return (
+        <>
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
             {/* ===== HASHTAG VIEW ===== */}
             {hashtagView && (
@@ -771,6 +772,7 @@ function Feed({ onlineUsers = new Set() }) {
             </div>
         </div>
         {reportTarget && <ReportModal reportedUser={reportTarget} onClose={() => setReportTarget(null)}/>}
+        </>
     );
 }
 
