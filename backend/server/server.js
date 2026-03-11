@@ -450,6 +450,9 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE messages ADD COLUMN story_preview_url VARCHAR(500) DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS verification_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, reason TEXT, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch("UPDATE users SET role = 'superadmin' WHERE username = 'superadmin'");
+    // === MARKETPLACE UPGRADES ===
+    await patch("ALTER TABLE marketplace ADD COLUMN is_boosted BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE marketplace ADD COLUMN boosted_at DATETIME DEFAULT NULL");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -562,15 +565,23 @@ app.get('/api/followers/:userId', async (req, res) => {
 // ===== MARKETPLACE =====
 app.get('/api/marketplace', async (req, res) => {
     try {
-        const { userId, category, q, sort, mine } = req.query;
-        let where = "m.status = 'active'";
+        const { userId, category, q, sort, mine, seller, price_min, price_max, condition, location } = req.query;
+        let where = "1=1";
         const params = [];
+        if (!mine) { where += " AND m.status != 'deleted'"; }
         if (mine === '1' && userId) { where += ' AND m.seller_id = ?'; params.push(userId); }
+        if (seller) { where += ' AND m.seller_id = ?'; params.push(seller); }
         if (category && category !== 'all') { where += ' AND m.category = ?'; params.push(category); }
         if (q) { where += ' AND (m.title LIKE ? OR m.description LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
-        let orderBy = 'm.created_at DESC';
+        if (price_min) { where += ' AND m.price >= ?'; params.push(price_min); }
+        if (price_max) { where += ' AND m.price <= ?'; params.push(price_max); }
+        if (condition) { where += ' AND m.condition_type = ?'; params.push(condition); }
+        if (location) { where += ' AND m.location LIKE ?'; params.push(`%${location}%`); }
+        let orderBy = 'CASE WHEN m.is_boosted=1 THEN 0 ELSE 1 END ASC, m.created_at DESC';
         if (sort === 'price_asc') orderBy = 'm.price ASC';
         if (sort === 'price_desc') orderBy = 'm.price DESC';
+        if (sort === 'newest') orderBy = 'CASE WHEN m.is_boosted=1 THEN 0 ELSE 1 END ASC, m.created_at DESC';
+        if (sort === 'boosted') orderBy = 'CASE WHEN m.is_boosted=1 THEN 0 ELSE 1 END ASC, m.created_at DESC';
         const [rows] = await pool.query(
             `SELECT m.*, COALESCE(u.display_name,u.username) as seller_username, u.profile_pic_url,
              COALESCE(u.is_verified,0) as is_verified, u.verify_type
@@ -597,6 +608,42 @@ app.post('/api/marketplace', upload.array('images', 5), async (req, res) => {
         );
         res.json({ id: result.insertId, message: 'Listing created' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+
+// Mark listing as sold
+app.put('/api/marketplace/:id/sold', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
+        if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE marketplace SET status = 'sold' WHERE id = ?", [req.params.id]);
+        res.json({ message: 'Marked as sold' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Boost listing (pin to top)
+app.put('/api/marketplace/:id/boost', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
+        if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
+        // Remove boost from previous listing by same user, then boost this one
+        await pool.query("UPDATE marketplace SET is_boosted = 0 WHERE seller_id = ?", [userId]);
+        await pool.query("UPDATE marketplace SET is_boosted = 1 WHERE id = ?", [req.params.id]);
+        res.json({ message: 'Listing boosted' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Renew listing (reset created_at to now so it appears fresh)
+app.put('/api/marketplace/:id/renew', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
+        if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE marketplace SET created_at = NOW(), status = 'active' WHERE id = ?", [req.params.id]);
+        res.json({ message: 'Listing renewed' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
 
