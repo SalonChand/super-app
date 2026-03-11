@@ -484,7 +484,7 @@ function AppContent() {
           <div className="flex flex-col gap-4">
             <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
               <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
-              <span className="hidden xl:block font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
+              <span className="hidden font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
             </Link>
 
             {currentUserId && (
