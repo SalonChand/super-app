@@ -67,7 +67,7 @@ function Search() {
     };
 
     return (
-        <div className="w-full bg-black flex flex-col h-screen">
+        <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
             <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex items-center gap-3 backdrop-blur-md">
                 <SearchIcon className="text-zinc-400 flex-shrink-0" size={22} />
                 <input
@@ -96,7 +96,6 @@ function Search() {
                 ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-20 sm:pb-4">
             <div className="p-4 space-y-2">
                 {/* Verified Suggestions - show when no query typed */}
                 {query === '' && filter === 'people' && (
@@ -188,7 +187,6 @@ function Search() {
                         </div>
                     </Link>
                 ))}
-            </div>
             </div>
         </div>
     );

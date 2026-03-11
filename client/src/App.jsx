@@ -120,9 +120,9 @@ function NavItem({ to, icon: Icon, label, badgeCount, themeColor, onClick, showL
   const location = useLocation();
   const isActive = location.pathname === to;
   return (
-    <Link to={to} onClick={onClick} className="flex items-center gap-3 p-2 rounded-xl transition-colors text-base font-medium w-fit xl:w-full relative" style={{ backgroundColor: isActive ? `${themeColor}20` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
+    <Link to={to} onClick={onClick} className="flex items-center gap-4 p-3 rounded-xl transition-colors text-xl font-medium w-fit xl:w-full relative" style={{ backgroundColor: isActive ? `${themeColor}20` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
       <div className="relative">
-          <Icon size={22} />
+          <Icon size={28} />
           {badgeCount > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">{badgeCount > 9 ? '9+' : badgeCount}</span>}
       </div>
       <span className={showLabelAlways ? "block" : "hidden xl:block"}>{label}</span>
@@ -144,9 +144,11 @@ function CallManager({ currentUserId, startCallRef }) {
     const remoteStreamRef = React.useRef(new MediaStream());
 
     const playRemoteAudio = () => {
-        if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.volume = 1.0; remoteAudioRef.current.muted = false; const p = remoteAudioRef.current.play(); if (p) p.catch(() => { setTimeout(() => { if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.play().catch(() => {}); } }, 200); }); }
+        if (!remoteAudioRef.current) return;
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        remoteAudioRef.current.volume = 1.0;
+        remoteAudioRef.current.play().catch(e => console.warn('play blocked:', e));
     };
-    const forcePlayAudio = () => { if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = remoteStreamRef.current; remoteAudioRef.current.muted = false; remoteAudioRef.current.volume = 1.0; remoteAudioRef.current.play().catch(() => {}); } };
 
     const [incomingCall, setIncomingCall] = React.useState(null);
     const [activeCall, setActiveCall] = React.useState(null);
@@ -166,14 +168,10 @@ function CallManager({ currentUserId, startCallRef }) {
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
-                { urls: 'turn:relay1.expressturn.com:3478', username: 'efIWZKDMTSLS1PG0NZ', credential: 'VEWVkEqZRVvSBsxo' },
-                { urls: 'turn:global.relay.metered.ca:80', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
-                { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
-                { urls: 'turn:global.relay.metered.ca:443', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
-                { urls: 'turn:global.relay.metered.ca:443?transport=tcp', username: 'e8dd65f332e9b3ee0b4e3866', credential: 'fRpZuGjuKOoTG0lN' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
             ],
             iceCandidatePoolSize: 10,
         });
@@ -210,14 +208,11 @@ function CallManager({ currentUserId, startCallRef }) {
         callTargetRef.current = null; pendingIce.current = [];
     }, []);
 
-    const callTimeoutRef = React.useRef(null);
     const startCall = React.useCallback(async (target, isVideo) => {
         stopRinging(); pendingIce.current = [];
         setActiveCall({ targetId: target.id, targetName: target.username, isVideo, isCaller: true });
         setCallStatus('ringing');
         startRinging();
-        if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-        callTimeoutRef.current = setTimeout(() => { hangUp(true); }, 30000);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: isVideo });
             myStreamRef.current = stream;
@@ -256,7 +251,8 @@ function CallManager({ currentUserId, startCallRef }) {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             globalSocket.emit('answer_call', { signal: answer, to: caller.from });
-            forcePlayAudio(); setTimeout(playRemoteAudio, 500); setTimeout(playRemoteAudio, 1500);
+            // Play audio - we're inside a user gesture (button tap) so autoplay is allowed
+            setTimeout(playRemoteAudio, 300);
         } catch (err) {
             hangUp(true);
             alert('Could not answer call: ' + err.message);
@@ -298,7 +294,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
     return (
         <>
-            <audio ref={remoteAudioRef} autoPlay playsInline muted={false} style={{ position:'fixed', bottom:0, left:0, width:'1px', height:'1px', opacity:0.01 }} />
+            <audio ref={remoteAudioRef} autoPlay playsInline style={{ position:'absolute', width:0, height:0, opacity:0 }} />
 
             {incomingCall && !activeCall && (
                 <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
@@ -479,16 +475,16 @@ function AppContent() {
   useEffect(() => { setMobileMenuOpen(false); },[location.pathname]);
 
   return (
-      <div className="h-screen bg-black text-zinc-50 font-sans flex overflow-hidden">
+      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
         
         {showSplash && <SplashScreen />}
 
         {/* DESKTOP SIDEBAR */}
-        <header className="hidden sm:flex flex-col justify-between w-16 xl:w-56 flex-shrink-0 border-r border-zinc-800 h-screen sticky top-0 py-4 px-1 xl:px-4 z-40 bg-black overflow-y-auto scrollbar-hide">
+        <header className="hidden sm:flex flex-col justify-between w-20 xl:w-64 border-r border-zinc-800 h-screen sticky top-0 py-6 px-2 xl:px-6 z-40 bg-black">
           <div className="flex flex-col gap-4">
-            <Link to="/" className="p-2 mb-2 w-fit rounded-xl transition flex items-center gap-2">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
-              <span className="hidden xl:block font-extrabold text-xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
+            <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
+              <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
+              <span className="hidden xl:block font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
             </Link>
 
             {currentUserId && (
@@ -500,7 +496,6 @@ function AppContent() {
                     <NavItem to="/notifications" onClick={clearNotifications} icon={Bell} label="Notifications" badgeCount={badges.total_notifications} themeColor={userThemeColor} />
                     <NavItem to="/search" icon={SearchIcon} label="Explore" themeColor={userThemeColor} />
                     <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
-                    <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
                 </>
             )}
@@ -513,7 +508,7 @@ function AppContent() {
           </div>
           
           {currentUserId && (
-            <Link to={`/profile/${currentUserId}`} className="mt-auto hidden xl:flex items-center gap-3 p-2 hover:bg-zinc-900 rounded-xl cursor-pointer transition">
+            <Link to={`/profile/${currentUserId}`} className="mt-auto hidden xl:flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-full cursor-pointer transition">
               <div className="w-10 h-10 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
                  {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
               </div>
@@ -523,7 +518,7 @@ function AppContent() {
         </header>
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
-        <main className="flex-1 min-w-0 border-x border-zinc-800 h-screen relative bg-black overflow-hidden">
+        <main className={`w-full max-w-[600px] border-x border-zinc-800 h-screen relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
               <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">
@@ -549,8 +544,8 @@ function AppContent() {
             <Route path="/settings" element={<ProtectedRoute><Settings themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/profile/:id" element={<ProtectedRoute><Profile themeColor={userThemeColor} onlineUsers={onlineUsers} /></ProtectedRoute>} />
             <Route path="/create-post" element={<ProtectedRoute><CreatePost themeColor={userThemeColor} /></ProtectedRoute>} />
-            <Route path="/marketplace" element={<ProtectedRoute><Marketplace themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><UserDashboard themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><Marketplace themeColor={userThemeColor} /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/verification" element={<ProtectedRoute><AdminVerification /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
