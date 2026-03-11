@@ -611,6 +611,21 @@ app.post('/api/marketplace', upload.array('images', 5), async (req, res) => {
 });
 
 
+// Edit listing
+app.put('/api/marketplace/:id', async (req, res) => {
+    try {
+        const { userId, title, description, price, condition, location } = req.body;
+        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
+        if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query(
+            'UPDATE marketplace SET title=?, description=?, price=?, condition_type=?, location=? WHERE id=?',
+            [title, description || null, price || 0, condition || 'Good', location || null, req.params.id]
+        );
+        res.json({ message: 'Listing updated' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+
 // Mark listing as sold
 app.put('/api/marketplace/:id/sold', async (req, res) => {
     try {

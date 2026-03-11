@@ -5,7 +5,7 @@ import {
     Filter, Sparkles, Package, ShoppingBag, Laptop, Car, Home, Music,
     BookOpen, Shirt, Dumbbell, Camera, Trash2, Eye, Upload,
     ChevronLeft, ChevronRight, Palette, Zap, CheckCircle, RefreshCw,
-    Clock, SlidersHorizontal, User
+    Clock, SlidersHorizontal, User, Edit2
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -76,6 +76,10 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     const [sellerView, setSellerView] = useState(null);
     const [sellerListings, setSellerListings] = useState([]);
     const [sellerLoading, setSellerLoading] = useState(false);
+
+    const [editListing, setEditListing] = useState(null);
+    const [editForm, setEditForm] = useState({});
+    const [editing, setEditing] = useState(false);
 
     // Filters
     const [filterPriceMin, setFilterPriceMin] = useState('');
@@ -172,6 +176,25 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
             fetchListings();
             alert('Listing renewed — it\'s fresh again!');
         } catch { alert('Failed to renew listing'); }
+    };
+
+    const saveEdit = async () => {
+        if (!editListing || !editForm.title?.trim()) return;
+        setEditing(true);
+        try {
+            await axios.put(`${BACKEND_URL}/api/marketplace/${editListing.id}`, {
+                userId,
+                title: editForm.title,
+                description: editForm.description,
+                price: editForm.price,
+                condition: editForm.condition,
+                location: editForm.location,
+            });
+            setListings(l => l.map(x => x.id === editListing.id ? { ...x, ...editForm, condition_type: editForm.condition } : x));
+            if (viewListing?.id === editListing.id) setViewListing(v => ({ ...v, ...editForm, condition_type: editForm.condition }));
+            setEditListing(null);
+        } catch { alert('Failed to save changes'); }
+        setEditing(false);
     };
 
     const toggleSave = (id) => {
@@ -504,7 +527,12 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                     </button>
                                 )}
                                 {!isOwner && isSold && <p className="text-center text-zinc-600 text-sm py-2">This item has been sold</p>}
-                                {isOwner && <p className="text-center text-zinc-600 text-sm">This is your listing</p>}
+                                {isOwner && (
+                                    <button onClick={() => { setEditListing(viewListing); setEditForm({ title: viewListing.title, description: viewListing.description || '', price: viewListing.price, condition: viewListing.condition_type || 'Good', location: viewListing.location || '' }); }}
+                                        className="w-full flex items-center justify-center gap-2 border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white hover:border-zinc-500 font-semibold py-2.5 rounded-xl transition text-sm">
+                                        <Edit2 size={15}/> Edit Listing
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -630,6 +658,52 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                             <button onClick={submitListing} disabled={creating || !form.title.trim()}
                                 className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 text-black font-bold py-3.5 rounded-xl transition text-sm">
                                 {creating ? 'Publishing...' : <><Plus size={16}/> Publish Listing</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ── EDIT LISTING MODAL ── */}
+            {editListing && (
+                <div className="fixed inset-0 z-[120] bg-black/90 flex items-end sm:items-center justify-center" onClick={() => setEditListing(null)}>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800">
+                            <h2 className="text-white font-bold text-lg">Edit Listing</h2>
+                            <button onClick={() => setEditListing(null)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div>
+                                <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Title *</label>
+                                <input value={editForm.title} onChange={e => setEditForm(f => ({...f, title: e.target.value}))}
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50"/>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Price (NPR)</label>
+                                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({...f, price: e.target.value}))}
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50"/>
+                                </div>
+                                <div>
+                                    <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Condition</label>
+                                    <select value={editForm.condition} onChange={e => setEditForm(f => ({...f, condition: e.target.value}))}
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50">
+                                        {CONDITIONS.map(c => <option key={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Location</label>
+                                <input value={editForm.location} onChange={e => setEditForm(f => ({...f, location: e.target.value}))}
+                                    placeholder="City, Area..." className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 placeholder-zinc-600"/>
+                            </div>
+                            <div>
+                                <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Description</label>
+                                <textarea value={editForm.description} onChange={e => setEditForm(f => ({...f, description: e.target.value}))}
+                                    rows={3} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 resize-none"/>
+                            </div>
+                            <button onClick={saveEdit} disabled={editing || !editForm.title?.trim()}
+                                className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 text-black font-bold py-3.5 rounded-xl transition text-sm">
+                                {editing ? 'Saving...' : <><Edit2 size={15}/> Save Changes</>}
                             </button>
                         </div>
                     </div>
