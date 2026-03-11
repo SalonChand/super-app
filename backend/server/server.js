@@ -451,6 +451,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("CREATE TABLE IF NOT EXISTS verification_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, reason TEXT, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch("UPDATE users SET role = 'superadmin' WHERE username = 'superadmin'");
     // === MARKETPLACE UPGRADES ===
+    await patch("ALTER TABLE marketplace MODIFY COLUMN price VARCHAR(50) DEFAULT '0'");
     await patch("ALTER TABLE marketplace ADD COLUMN is_boosted BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE marketplace ADD COLUMN boosted_at DATETIME DEFAULT NULL");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
@@ -604,7 +605,7 @@ app.post('/api/marketplace', upload.array('images', 5), async (req, res) => {
         }
         const [result] = await pool.query(
             'INSERT INTO marketplace (seller_id, title, description, price, category, condition_type, location, images) VALUES (?,?,?,?,?,?,?,?)',
-            [userId, title, description || null, price || 0, category || 'other', condition || 'Good', location || null, images]
+            [userId, title, description || null, price || '0', category || 'other', condition || 'Good', location || null, images]
         );
         res.json({ id: result.insertId, message: 'Listing created' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }

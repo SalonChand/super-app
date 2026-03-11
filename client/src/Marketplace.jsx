@@ -40,8 +40,8 @@ function VerifiedBadge({ isVerified, verifyType }) {
 }
 
 function formatPrice(p) {
-    if (!p || Number(p) === 0) return 'Free';
-    return `NPR ${Number(p).toLocaleString()}`;
+    if (!p || p === '0' || p === 0) return 'Free';
+    return `NPR ${p}`;
 }
 
 function timeAgo(date) {
@@ -627,8 +627,8 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Price (NPR) *</label>
-                                    <input type="number" value={form.price} onChange={e => setForm(f => ({...f, price: e.target.value}))}
-                                        placeholder="0 for Free" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 placeholder-zinc-600"/>
+                                    <input value={form.price} onChange={e => setForm(f => ({...f, price: e.target.value}))}
+                                        placeholder="e.g. 500, 20k, 1.5k" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50 placeholder-zinc-600"/>
                                 </div>
                                 <div>
                                     <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Condition</label>
@@ -680,7 +680,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1">Price (NPR)</label>
-                                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({...f, price: e.target.value}))}
+                                    <input value={editForm.price} onChange={e => setEditForm(f => ({...f, price: e.target.value}))}
                                         className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50"/>
                                 </div>
                                 <div>
