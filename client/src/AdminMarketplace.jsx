@@ -77,10 +77,11 @@ export default function AdminMarketplace() {
             const data = await res.json();
             if (data && !data.error) {
                 setPaySettings(s => ({ ...s, ...data }));
+                const resolveUrl = (url) => !url ? '' : url.startsWith('http') ? url : `${BACKEND_URL}${url}`;
                 setPayQrPreviews({
-                    esewa: data.esewa_qr ? `${BACKEND_URL}${data.esewa_qr}` : '',
-                    khalti: data.khalti_qr ? `${BACKEND_URL}${data.khalti_qr}` : '',
-                    bank: data.bank_qr ? `${BACKEND_URL}${data.bank_qr}` : '',
+                    esewa: resolveUrl(data.esewa_qr),
+                    khalti: resolveUrl(data.khalti_qr),
+                    bank: resolveUrl(data.bank_qr),
                 });
             }
         } catch {}
