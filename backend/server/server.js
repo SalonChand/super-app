@@ -644,15 +644,8 @@ app.put('/api/marketplace/:id/sold', async (req, res) => {
 
 // Boost listing (pin to top)
 app.put('/api/marketplace/:id/boost', async (req, res) => {
-    try {
-        const { userId } = req.body;
-        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
-        if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
-        // Remove boost from previous listing by same user, then boost this one
-        await pool.query("UPDATE marketplace SET is_boosted = 0 WHERE seller_id = ?", [userId]);
-        await pool.query("UPDATE marketplace SET is_boosted = 1 WHERE id = ?", [req.params.id]);
-        res.json({ message: 'Listing boosted' });
-    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+    // Direct boost disabled - must go through paid boost-request flow
+    res.status(403).json({ error: 'Direct boost not allowed. Please submit a boost request with payment proof.' });
 });
 
 // Renew listing (reset created_at to now so it appears fresh)

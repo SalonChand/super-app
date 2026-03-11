@@ -84,6 +84,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     const [sellerListings, setSellerListings] = useState([]);
     const [sellerLoading, setSellerLoading] = useState(false);
     const [paySettings, setPaySettings] = useState(null);
+    const [paySettingsLoading, setPaySettingsLoading] = useState(true);
 
     const [editListing, setEditListing] = useState(null);
     const [boostModal, setBoostModal] = useState(null); // listing to boost
@@ -127,8 +128,12 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     };
 
     useEffect(() => {
+        setPaySettingsLoading(true);
         fetch(`${BACKEND_URL}/api/marketplace/payment-settings`)
-            .then(r => r.json()).then(d => { if (d && !d.error) setPaySettings(d); }).catch(() => {});
+            .then(r => r.json())
+            .then(d => { if (d && !d.error) setPaySettings(d); })
+            .catch(() => {})
+            .finally(() => setPaySettingsLoading(false));
     }, []);
 
     useEffect(() => { fetchListings(); }, [category, searchQ, sortBy, myListings, filterPriceMin, filterPriceMax, filterCondition, filterLocation]);
@@ -761,6 +766,16 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                             {boostStep === 2 && (
                                 <div className="space-y-4">
                                     <p className="text-zinc-400 text-sm font-semibold">Payment Instructions</p>
+                                    {paySettingsLoading && (
+                                        <div className="text-center py-6 text-zinc-500 text-sm animate-pulse">Loading payment details...</div>
+                                    )}
+                                    {!paySettingsLoading && !paySettings && (
+                                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
+                                            <p className="text-red-400 font-semibold text-sm">Payment not configured</p>
+                                            <p className="text-zinc-500 text-xs mt-1">Admin hasn't set up payment details yet. Please try again later.</p>
+                                        </div>
+                                    )}
+                                    {!paySettingsLoading && paySettings && (
                                     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
                                         {boostMethod === 'esewa' && (
                                             <>
@@ -845,10 +860,13 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                             </>
                                         )}
                                     </div>
+                                    )}
+                                    {!paySettingsLoading && paySettings && (
                                     <button onClick={() => setBoostStep(3)}
                                         className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-xl transition text-sm">
                                         I've Paid — Upload Proof <ChevronRight size={16}/>
                                     </button>
+                                    )}
                                 </div>
                             )}
 
