@@ -16,7 +16,8 @@ export default function AdminPowers() {
     const adminId = localStorage.getItem('userId');
     const userRole = localStorage.getItem('userRole');
     const loginUsername = localStorage.getItem('loginUsername');
-    const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || adminId === '1';
+    const username = localStorage.getItem('username');
+    const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || username === 'superadmin' || adminId === '1';
 
     const [tab, setTab] = useState('broadcast');
 
