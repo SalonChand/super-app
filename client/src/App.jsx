@@ -480,7 +480,7 @@ function AppContent() {
         {showSplash && <SplashScreen />}
 
         {/* DESKTOP SIDEBAR */}
-        <header className="hidden sm:flex flex-col justify-between w-56 border-r border-zinc-800 h-screen sticky top-0 py-6 px-4 z-40 bg-black overflow-y-auto">
+        <header className="hidden sm:flex flex-col justify-start w-56 border-r border-zinc-800 h-screen sticky top-0 py-6 px-4 z-40 bg-black overflow-y-auto">
           <div className="flex flex-col gap-4">
             <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
               <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
@@ -496,7 +496,6 @@ function AppContent() {
                     <NavItem to="/notifications" onClick={clearNotifications} icon={Bell} label="Notifications" badgeCount={badges.total_notifications} themeColor={userThemeColor} />
                     <NavItem to="/search" icon={SearchIcon} label="Explore" themeColor={userThemeColor} />
                     <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
-                    <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
                 </>
             )}
