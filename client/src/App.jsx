@@ -125,7 +125,7 @@ function NavItem({ to, icon: Icon, label, badgeCount, themeColor, onClick, showL
           <Icon size={28} />
           {badgeCount > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">{badgeCount > 9 ? '9+' : badgeCount}</span>}
       </div>
-      <span className={"block"}>{label}</span>
+      <span className={showLabelAlways ? "block" : "hidden xl:block"}>{label}</span>
     </Link>
   );
 }
@@ -480,11 +480,11 @@ function AppContent() {
         {showSplash && <SplashScreen />}
 
         {/* DESKTOP SIDEBAR */}
-        <header className="hidden sm:flex flex-col justify-start w-56 border-r border-zinc-800 h-screen sticky top-0 py-6 px-4 z-40 bg-black overflow-y-auto">
-          <div className="flex flex-col gap-4">
-            <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
+        <header className="hidden sm:flex flex-col justify-between w-20 xl:w-64 border-r border-zinc-800 h-screen sticky top-0 py-6 px-2 xl:px-6 z-40 bg-black">
+          <div className="flex flex-col gap-1">
+            <Link to="/" className="p-3 mb-2 w-fit rounded-full transition flex items-center gap-3">
               <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
-              <span className="font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
+              <span className="hidden xl:block font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
             </Link>
 
             {currentUserId && (
@@ -496,6 +496,7 @@ function AppContent() {
                     <NavItem to="/notifications" onClick={clearNotifications} icon={Bell} label="Notifications" badgeCount={badges.total_notifications} themeColor={userThemeColor} />
                     <NavItem to="/search" icon={SearchIcon} label="Explore" themeColor={userThemeColor} />
                     <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
+                    <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} />
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
                 </>
             )}
@@ -508,7 +509,7 @@ function AppContent() {
           </div>
           
           {currentUserId && (
-            <Link to={`/profile/${currentUserId}`} className="mt-auto flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-xl cursor-pointer transition">
+            <Link to={`/profile/${currentUserId}`} className="mt-auto hidden xl:flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-full cursor-pointer transition">
               <div className="w-10 h-10 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
                  {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
               </div>
