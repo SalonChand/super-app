@@ -453,6 +453,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     // === MARKETPLACE UPGRADES ===
     await patch("ALTER TABLE marketplace MODIFY COLUMN price VARCHAR(50) DEFAULT '0'");
     await patch("ALTER TABLE marketplace ADD COLUMN is_boosted BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE marketplace ADD COLUMN boost_status VARCHAR(20) DEFAULT NULL");
+    await patch("CREATE TABLE IF NOT EXISTS boost_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, listing_id INT NOT NULL, listing_title VARCHAR(200), payment_method VARCHAR(50), proof_url VARCHAR(500), status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (listing_id) REFERENCES marketplace(id) ON DELETE CASCADE)");
     await patch("ALTER TABLE marketplace ADD COLUMN boosted_at DATETIME DEFAULT NULL");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
@@ -660,6 +662,65 @@ app.put('/api/marketplace/:id/renew', async (req, res) => {
         await pool.query("UPDATE marketplace SET created_at = NOW(), status = 'active' WHERE id = ?", [req.params.id]);
         res.json({ message: 'Listing renewed' });
     } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+
+// Submit boost request with payment proof
+app.post('/api/marketplace/boost-request', upload.single('proof'), async (req, res) => {
+    try {
+        const { userId, listingId, listingTitle, paymentMethod } = req.body;
+        if (!userId || !listingId || !req.file) return res.status(400).json({ error: 'Missing required fields' });
+        const proofUrl = req.file.path;
+        // Mark listing as pending boost
+        await pool.query("UPDATE marketplace SET boost_status = 'pending' WHERE id = ? AND seller_id = ?", [listingId, userId]);
+        // Create boost request
+        await pool.query(
+            "INSERT INTO boost_requests (user_id, listing_id, listing_title, payment_method, proof_url, status) VALUES (?,?,?,?,?,'pending')",
+            [userId, listingId, listingTitle, paymentMethod, proofUrl]
+        );
+        res.json({ message: 'Boost request submitted' });
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: get all boost requests
+app.get('/api/admin/boost-requests', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(
+            `SELECT br.*, COALESCE(u.display_name, u.username) as username
+             FROM boost_requests br
+             JOIN users u ON u.id = br.user_id
+             ORDER BY CASE WHEN br.status='pending' THEN 0 ELSE 1 END ASC, br.created_at DESC`
+        );
+        res.json(rows);
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: approve or reject boost request
+app.put('/api/admin/boost-requests/:id', async (req, res) => {
+    try {
+        const { adminId, action } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [reqs] = await pool.query("SELECT * FROM boost_requests WHERE id = ?", [req.params.id]);
+        if (!reqs[0]) return res.status(404).json({ error: 'Not found' });
+        const boostReq = reqs[0];
+        if (action === 'approve') {
+            // Activate boost for 7 days
+            await pool.query(
+                "UPDATE marketplace SET is_boosted = 1, boost_status = 'approved', boosted_at = NOW() WHERE id = ?",
+                [boostReq.listing_id]
+            );
+            // Auto-expire after 7 days (set a future timestamp check)
+            await pool.query("UPDATE boost_requests SET status = 'approved' WHERE id = ?", [req.params.id]);
+        } else {
+            await pool.query("UPDATE marketplace SET boost_status = 'rejected' WHERE id = ?", [boostReq.listing_id]);
+            await pool.query("UPDATE boost_requests SET status = 'rejected' WHERE id = ?", [req.params.id]);
+        }
+        res.json({ message: `Request ${action}d` });
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 

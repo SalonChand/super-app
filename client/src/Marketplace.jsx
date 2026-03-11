@@ -5,7 +5,7 @@ import {
     Filter, Sparkles, Package, ShoppingBag, Laptop, Car, Home, Music,
     BookOpen, Shirt, Dumbbell, Camera, Trash2, Eye, Upload,
     ChevronLeft, ChevronRight, Palette, Zap, CheckCircle, RefreshCw,
-    Clock, SlidersHorizontal, User, Edit2
+    Clock, SlidersHorizontal, User, Edit2, CreditCard, CheckCircle2, Copy, ImageIcon
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -78,6 +78,12 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     const [sellerLoading, setSellerLoading] = useState(false);
 
     const [editListing, setEditListing] = useState(null);
+    const [boostModal, setBoostModal] = useState(null); // listing to boost
+    const [boostStep, setBoostStep] = useState(1); // 1=select payment, 2=instructions, 3=upload proof
+    const [boostMethod, setBoostMethod] = useState('');
+    const [boostProof, setBoostProof] = useState(null);
+    const [boostProofPreview, setBoostProofPreview] = useState('');
+    const [submittingBoost, setSubmittingBoost] = useState(false);
     const [editForm, setEditForm] = useState({});
     const [editing, setEditing] = useState(false);
 
@@ -161,13 +167,31 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
         } catch { alert('Failed to mark as sold'); }
     };
 
-    const boostListing = async (id) => {
+    const boostListing = (listing) => {
+        setBoostModal(listing);
+        setBoostStep(1);
+        setBoostMethod('');
+        setBoostProof(null);
+        setBoostProofPreview('');
+    };
+
+    const submitBoostRequest = async () => {
+        if (!boostProof || !boostMethod) return;
+        setSubmittingBoost(true);
         try {
-            await axios.put(`${BACKEND_URL}/api/marketplace/${id}/boost`, { userId });
-            fetchListings();
-            setViewListing(v => v ? { ...v, is_boosted: 1 } : v);
-            alert('Listing boosted to top!');
-        } catch { alert('Failed to boost listing'); }
+            const fd = new FormData();
+            fd.append('userId', userId);
+            fd.append('listingId', boostModal.id);
+            fd.append('listingTitle', boostModal.title);
+            fd.append('paymentMethod', boostMethod);
+            fd.append('proof', boostProof);
+            await axios.post(`${BACKEND_URL}/api/marketplace/boost-request`, fd, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setBoostModal(null);
+            alert('Boost request submitted! Admin will review your payment and activate the boost within 24 hours.');
+        } catch { alert('Failed to submit boost request. Please try again.'); }
+        setSubmittingBoost(false);
     };
 
     const renewListing = async (id) => {
@@ -508,9 +532,11 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                             className={`flex flex-col items-center gap-1 py-3 rounded-xl border text-xs font-semibold transition ${isSold ? 'bg-green-500/10 border-green-500/30 text-green-400 cursor-default' : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'}`}>
                                             <CheckCircle size={18}/>{isSold ? 'Sold ✓' : 'Mark Sold'}
                                         </button>
-                                        <button onClick={() => boostListing(viewListing.id)}
-                                            className="flex flex-col items-center gap-1 py-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-400 text-xs font-semibold hover:bg-yellow-500/20 transition">
-                                            <Zap size={18}/>Boost
+                                        <button onClick={() => boostListing(viewListing)}
+                                            className={`flex flex-col items-center gap-1 py-3 rounded-xl border text-xs font-semibold transition ${viewListing.boost_status === 'pending' ? 'border-orange-500/30 bg-orange-500/10 text-orange-400 cursor-default' : viewListing.is_boosted ? 'border-green-500/30 bg-green-500/10 text-green-400 cursor-default' : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20'}`}
+                                            disabled={viewListing.is_boosted || viewListing.boost_status === 'pending'}>
+                                            <Zap size={18}/>
+                                            {viewListing.boost_status === 'pending' ? 'Pending...' : viewListing.is_boosted ? 'Boosted ✓' : 'Boost'}
                                         </button>
                                         <button onClick={() => renewListing(viewListing.id)}
                                             className="flex flex-col items-center gap-1 py-3 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-semibold hover:text-white hover:border-zinc-500 transition">
@@ -663,6 +689,186 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                     </div>
                 </div>
             )}
+            {/* ── BOOST PAYMENT MODAL ── */}
+            {boostModal && (
+                <div className="fixed inset-0 z-[130] bg-black/90 flex items-end sm:items-center justify-center" onClick={() => setBoostModal(null)}>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800">
+                            <div className="flex items-center gap-2">
+                                {boostStep > 1 && (
+                                    <button onClick={() => setBoostStep(s => s - 1)} className="text-zinc-500 hover:text-white mr-1">
+                                        <ChevronLeft size={18}/>
+                                    </button>
+                                )}
+                                <Zap size={18} className="text-yellow-400"/>
+                                <h2 className="text-white font-bold">Boost Listing</h2>
+                            </div>
+                            <button onClick={() => setBoostModal(null)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                            {/* Listing preview */}
+                            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                                <div className="w-12 h-12 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+                                    {safeParseImages(boostModal.images)[0]
+                                        ? <img src={safeParseImages(boostModal.images)[0]} className="w-full h-full object-cover"/>
+                                        : <div className="w-full h-full flex items-center justify-center"><Package size={20} className="text-zinc-600"/></div>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white font-semibold text-sm truncate">{boostModal.title}</p>
+                                    <p className="text-yellow-400 text-xs font-bold">NPR {boostModal.price}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-yellow-400 font-bold text-lg">Rs 200</p>
+                                    <p className="text-zinc-500 text-xs">7 days boost</p>
+                                </div>
+                            </div>
+
+                            {/* Step 1: Choose payment method */}
+                            {boostStep === 1 && (
+                                <div className="space-y-3">
+                                    <p className="text-zinc-400 text-sm font-semibold">Choose payment method</p>
+                                    {[
+                                        { id: 'esewa', label: 'eSewa', color: 'text-green-400', border: 'border-green-500/40', bg: 'bg-green-500/10', emoji: '🟢' },
+                                        { id: 'khalti', label: 'Khalti', color: 'text-purple-400', border: 'border-purple-500/40', bg: 'bg-purple-500/10', emoji: '🟣' },
+                                        { id: 'bank', label: 'Bank Transfer', color: 'text-blue-400', border: 'border-blue-500/40', bg: 'bg-blue-500/10', emoji: '🏦' },
+                                    ].map(m => (
+                                        <button key={m.id} onClick={() => { setBoostMethod(m.id); setBoostStep(2); }}
+                                            className={`w-full flex items-center gap-3 p-4 rounded-xl border ${m.border} ${m.bg} hover:opacity-90 transition`}>
+                                            <span className="text-2xl">{m.emoji}</span>
+                                            <span className={`font-bold text-sm ${m.color}`}>{m.label}</span>
+                                            <ChevronRight size={16} className="text-zinc-500 ml-auto"/>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Step 2: Payment instructions */}
+                            {boostStep === 2 && (
+                                <div className="space-y-4">
+                                    <p className="text-zinc-400 text-sm font-semibold">Payment Instructions</p>
+                                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                                        {boostMethod === 'esewa' && (
+                                            <>
+                                                <p className="text-white font-bold">Pay via eSewa</p>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">eSewa ID</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-white font-mono font-bold">9800000000</span>
+                                                            <button onClick={() => navigator.clipboard.writeText('9800000000')} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Amount</span>
+                                                        <span className="text-yellow-400 font-bold">Rs 200</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Name</span>
+                                                        <span className="text-white font-semibold">SuperApp Admin</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-zinc-500 text-xs">Open your eSewa app → Send Money → Enter the above details</p>
+                                            </>
+                                        )}
+                                        {boostMethod === 'khalti' && (
+                                            <>
+                                                <p className="text-white font-bold">Pay via Khalti</p>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Khalti ID</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-white font-mono font-bold">9800000000</span>
+                                                            <button onClick={() => navigator.clipboard.writeText('9800000000')} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Amount</span>
+                                                        <span className="text-yellow-400 font-bold">Rs 200</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Name</span>
+                                                        <span className="text-white font-semibold">SuperApp Admin</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-zinc-500 text-xs">Open your Khalti app → Send Money → Enter the above details</p>
+                                            </>
+                                        )}
+                                        {boostMethod === 'bank' && (
+                                            <>
+                                                <p className="text-white font-bold">Bank Transfer</p>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Bank</span>
+                                                        <span className="text-white font-semibold">Nabil Bank</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Account No.</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-white font-mono font-bold">0123456789012</span>
+                                                            <button onClick={() => navigator.clipboard.writeText('0123456789012')} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Account Name</span>
+                                                        <span className="text-white font-semibold">SuperApp Pvt Ltd</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-zinc-400 text-sm">Amount</span>
+                                                        <span className="text-yellow-400 font-bold">Rs 200</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-zinc-500 text-xs">Transfer via connect IPS, mobile banking or visit any branch</p>
+                                            </>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setBoostStep(3)}
+                                        className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-xl transition text-sm">
+                                        I've Paid — Upload Proof <ChevronRight size={16}/>
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Step 3: Upload proof */}
+                            {boostStep === 3 && (
+                                <div className="space-y-4">
+                                    <p className="text-zinc-400 text-sm font-semibold">Upload Payment Screenshot</p>
+                                    <label className={`block w-full border-2 border-dashed rounded-xl cursor-pointer transition overflow-hidden ${boostProofPreview ? 'border-yellow-500/50' : 'border-zinc-700 hover:border-zinc-500'}`}>
+                                        {boostProofPreview ? (
+                                            <img src={boostProofPreview} className="w-full max-h-60 object-contain bg-zinc-900"/>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-10 gap-2">
+                                                <ImageIcon size={32} className="text-zinc-600"/>
+                                                <p className="text-zinc-500 text-sm">Tap to upload screenshot</p>
+                                                <p className="text-zinc-600 text-xs">JPG, PNG supported</p>
+                                            </div>
+                                        )}
+                                        <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                            const f = e.target.files[0];
+                                            if (f) { setBoostProof(f); setBoostProofPreview(URL.createObjectURL(f)); }
+                                        }}/>
+                                    </label>
+                                    {boostProofPreview && (
+                                        <button onClick={() => { setBoostProof(null); setBoostProofPreview(''); }}
+                                            className="text-xs text-zinc-500 hover:text-red-400 transition">✕ Remove image</button>
+                                    )}
+                                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-start gap-2">
+                                        <CheckCircle2 size={14} className="text-yellow-400 flex-shrink-0 mt-0.5"/>
+                                        <p className="text-zinc-400 text-xs">After submission, admin will verify your payment and activate the boost within 24 hours. Your listing will be pinned to the top for 7 days.</p>
+                                    </div>
+                                    <button onClick={submitBoostRequest} disabled={!boostProof || submittingBoost}
+                                        className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 text-black font-bold py-3.5 rounded-xl transition text-sm">
+                                        {submittingBoost ? 'Submitting...' : <><Zap size={16}/> Submit Boost Request</>}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             {/* ── EDIT LISTING MODAL ── */}
             {editListing && (
                 <div className="fixed inset-0 z-[120] bg-black/90 flex items-end sm:items-center justify-center" onClick={() => setEditListing(null)}>

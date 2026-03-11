@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Trash2, ShoppingBag, Search, X, AlertTriangle } from 'lucide-react';
+import { Shield, Trash2, ShoppingBag, Search, X, AlertTriangle, Zap, CheckCircle, XCircle, Clock, Eye } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -18,16 +18,20 @@ export default function AdminMarketplace() {
     const username = localStorage.getItem('username');
     const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || username === 'superadmin' || adminId === '1';
 
+    const [tab, setTab] = useState('listings'); // 'listings' | 'boosts'
     const [listings, setListings] = useState([]);
+    const [boostRequests, setBoostRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(null);
-    const [stats, setStats] = useState({ total: 0, categories: {} });
+    const [viewProof, setViewProof] = useState(null);
+    const [stats, setStats] = useState({ total: 0, categories: {}, pendingBoosts: 0 });
 
     useEffect(() => {
         if (!isAdmin) { navigate('/settings'); return; }
         fetchListings();
+        fetchBoostRequests();
     }, [search, category]);
 
     const fetchListings = async () => {
@@ -37,12 +41,21 @@ export default function AdminMarketplace() {
             const res = await fetch(`${BACKEND_URL}/api/admin/marketplace?${params}`);
             const data = await res.json();
             setListings(Array.isArray(data) ? data : []);
-            // Compute stats
             const cats = {};
             data.forEach(l => { cats[l.category] = (cats[l.category] || 0) + 1; });
-            setStats({ total: data.length, categories: cats });
+            setStats(s => ({ ...s, total: data.length, categories: cats }));
         } catch { setListings([]); }
         setLoading(false);
+    };
+
+    const fetchBoostRequests = async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/admin/boost-requests?adminId=${adminId}`);
+            const data = await res.json();
+            const requests = Array.isArray(data) ? data : [];
+            setBoostRequests(requests);
+            setStats(s => ({ ...s, pendingBoosts: requests.filter(r => r.status === 'pending').length }));
+        } catch { setBoostRequests([]); }
     };
 
     const deleteListing = async (id) => {
@@ -55,6 +68,18 @@ export default function AdminMarketplace() {
             setListings(prev => prev.filter(l => l.id !== id));
             setConfirmDelete(null);
         } catch { alert('Failed to delete'); }
+    };
+
+    const handleBoostRequest = async (id, action) => {
+        try {
+            await fetch(`${BACKEND_URL}/api/admin/boost-requests/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminId, action })
+            });
+            setBoostRequests(prev => prev.map(r => r.id === id ? { ...r, status: action === 'approve' ? 'approved' : 'rejected' } : r));
+            setStats(s => ({ ...s, pendingBoosts: Math.max(0, s.pendingBoosts - 1) }));
+        } catch { alert('Failed to process request'); }
     };
 
     const categories = ['Electronics', 'Vehicles', 'Fashion', 'Art', 'Books', 'Furniture', 'Sports', 'Other'];
@@ -82,102 +107,186 @@ export default function AdminMarketplace() {
 
             <div className="max-w-2xl mx-auto px-4 pt-5 space-y-4">
                 {/* Stats */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
                         <p className="text-2xl font-bold text-pink-400">{stats.total}</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">Total Listings</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Listings</p>
                     </div>
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
                         <p className="text-2xl font-bold text-blue-400">{Object.keys(stats.categories).length}</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">Categories Active</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Categories</p>
+                    </div>
+                    <div className={`border rounded-2xl p-3 text-center ${stats.pendingBoosts > 0 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-zinc-900 border-zinc-800'}`}>
+                        <p className={`text-2xl font-bold ${stats.pendingBoosts > 0 ? 'text-yellow-400' : 'text-zinc-500'}`}>{stats.pendingBoosts}</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Boost Pending</p>
                     </div>
                 </div>
 
-                {/* Category breakdown */}
-                {Object.keys(stats.categories).length > 0 && (
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
-                        <p className="text-xs text-zinc-500 uppercase font-bold mb-2">By Category</p>
-                        <div className="flex flex-wrap gap-2">
-                            {Object.entries(stats.categories).map(([cat, count]) => (
-                                <span key={cat} className="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-full">
-                                    {cat}: <span className="text-white font-bold">{count}</span>
-                                </span>
-                            ))}
+                {/* Tabs */}
+                <div className="flex gap-2 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
+                    <button onClick={() => setTab('listings')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${tab === 'listings' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
+                        All Listings
+                    </button>
+                    <button onClick={() => setTab('boosts')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 ${tab === 'boosts' ? 'bg-yellow-500/20 text-yellow-400' : 'text-zinc-500 hover:text-white'}`}>
+                        <Zap size={14}/> Boost Requests
+                        {stats.pendingBoosts > 0 && <span className="bg-yellow-400 text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{stats.pendingBoosts}</span>}
+                    </button>
+                </div>
+
+                {/* ── LISTINGS TAB ── */}
+                {tab === 'listings' && (
+                    <>
+                        {/* Category breakdown */}
+                        {Object.keys(stats.categories).length > 0 && (
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
+                                <p className="text-xs text-zinc-500 uppercase font-bold mb-2">By Category</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {Object.entries(stats.categories).map(([cat, count]) => (
+                                        <span key={cat} className="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-full">
+                                            {cat}: <span className="text-white font-bold">{count}</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Search & Filter */}
+                        <div className="flex gap-2">
+                            <div className="flex-1 flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
+                                <Search size={16} className="text-zinc-500 flex-shrink-0"/>
+                                <input value={search} onChange={e => setSearch(e.target.value)}
+                                    placeholder="Search listings..."
+                                    className="bg-transparent text-white text-sm outline-none w-full placeholder-zinc-600"/>
+                                {search && <button onClick={() => setSearch('')}><X size={14} className="text-zinc-500"/></button>}
+                            </div>
+                            <select value={category} onChange={e => setCategory(e.target.value)}
+                                className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white text-sm outline-none">
+                                <option value="">All</option>
+                                {categories.map(c => <option key={c} value={c.toLowerCase()}>{c}</option>)}
+                            </select>
                         </div>
-                    </div>
-                )}
 
-                {/* Search & Filter */}
-                <div className="flex gap-2">
-                    <div className="flex-1 flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
-                        <Search size={16} className="text-zinc-500 flex-shrink-0"/>
-                        <input value={search} onChange={e => setSearch(e.target.value)}
-                            placeholder="Search listings..."
-                            className="bg-transparent text-white text-sm outline-none w-full placeholder-zinc-600"/>
-                        {search && <button onClick={() => setSearch('')}><X size={14} className="text-zinc-500"/></button>}
-                    </div>
-                    <select value={category} onChange={e => setCategory(e.target.value)}
-                        className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white text-sm outline-none">
-                        <option value="">All</option>
-                        {categories.map(c => <option key={c} value={c.toLowerCase()}>{c}</option>)}
-                    </select>
-                </div>
-
-                {/* Listings */}
-                {loading ? (
-                    <div className="text-center py-10 text-zinc-500 animate-pulse">Loading...</div>
-                ) : listings.length === 0 ? (
-                    <div className="text-center py-10 text-zinc-500">No listings found</div>
-                ) : (
-                    <div className="space-y-3">
-                        {listings.map(listing => {
-                            const images = safeParseImages(listing.images);
-                            return (
-                                <div key={listing.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                                    <div className="flex gap-3 p-3">
-                                        {/* Image */}
-                                        <div className="w-20 h-20 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
-                                            {images[0] ? (
-                                                <img src={`${BACKEND_URL}${images[0]}`} className="w-full h-full object-cover"/>
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <ShoppingBag size={24} className="text-zinc-600"/>
+                        {loading ? (
+                            <div className="text-center py-10 text-zinc-500 animate-pulse">Loading...</div>
+                        ) : listings.length === 0 ? (
+                            <div className="text-center py-10 text-zinc-500">No listings found</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {listings.map(listing => {
+                                    const images = safeParseImages(listing.images);
+                                    return (
+                                        <div key={listing.id} className={`bg-zinc-900 border rounded-2xl overflow-hidden ${listing.is_boosted ? 'border-yellow-500/40' : 'border-zinc-800'}`}>
+                                            {listing.is_boosted && (
+                                                <div className="flex items-center gap-1.5 bg-yellow-500/20 px-3 py-1.5 border-b border-yellow-500/20">
+                                                    <Zap size={11} className="text-yellow-400"/><span className="text-yellow-400 text-xs font-bold">BOOSTED</span>
                                                 </div>
                                             )}
-                                        </div>
-                                        {/* Info */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <p className="text-white font-bold text-sm truncate">{listing.title}</p>
-                                                    <p className="text-pink-400 font-bold text-sm">NPR {Number(listing.price).toLocaleString()}</p>
+                                            <div className="flex gap-3 p-3">
+                                                <div className="w-20 h-20 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
+                                                    {images[0] ? <img src={images[0]} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={24} className="text-zinc-600"/></div>}
                                                 </div>
-                                                <button onClick={() => setConfirmDelete(listing)}
-                                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg p-1.5 transition flex-shrink-0">
-                                                    <Trash2 size={16}/>
-                                                </button>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div>
+                                                            <p className="text-white font-bold text-sm truncate">{listing.title}</p>
+                                                            <p className="text-pink-400 font-bold text-sm">NPR {listing.price}</p>
+                                                        </div>
+                                                        <button onClick={() => setConfirmDelete(listing)}
+                                                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg p-1.5 transition flex-shrink-0">
+                                                            <Trash2 size={16}/>
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                        <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{listing.category}</span>
+                                                        <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{listing.condition_type}</span>
+                                                        {listing.status === 'sold' && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Sold</span>}
+                                                    </div>
+                                                    <p className="text-zinc-500 text-xs mt-1">
+                                                        By <span className="text-zinc-300">{listing.username || `User #${listing.seller_id}`}</span>
+                                                        {listing.location && ` · ${listing.location}`}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{listing.category}</span>
-                                                <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{listing.condition_type}</span>
-                                            </div>
-                                            <p className="text-zinc-500 text-xs mt-1">
-                                                By <span className="text-zinc-300">{listing.username || `User #${listing.seller_id}`}</span>
-                                                {listing.location && ` · ${listing.location}`}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* ── BOOST REQUESTS TAB ── */}
+                {tab === 'boosts' && (
+                    <div className="space-y-3">
+                        {boostRequests.length === 0 ? (
+                            <div className="text-center py-16">
+                                <Zap size={40} className="text-zinc-700 mx-auto mb-3"/>
+                                <p className="text-zinc-500 font-semibold">No boost requests yet</p>
+                            </div>
+                        ) : (
+                            boostRequests.map(req => (
+                                <div key={req.id} className={`bg-zinc-900 border rounded-2xl overflow-hidden ${
+                                    req.status === 'pending' ? 'border-yellow-500/30' :
+                                    req.status === 'approved' ? 'border-green-500/30' : 'border-red-500/20'}`}>
+                                    {/* Status bar */}
+                                    <div className={`flex items-center gap-2 px-4 py-2 border-b ${
+                                        req.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20' :
+                                        req.status === 'approved' ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                                        {req.status === 'pending' && <><Clock size={12} className="text-yellow-400"/><span className="text-yellow-400 text-xs font-bold uppercase">Pending Review</span></>}
+                                        {req.status === 'approved' && <><CheckCircle size={12} className="text-green-400"/><span className="text-green-400 text-xs font-bold uppercase">Approved</span></>}
+                                        {req.status === 'rejected' && <><XCircle size={12} className="text-red-400"/><span className="text-red-400 text-xs font-bold uppercase">Rejected</span></>}
+                                        <span className="text-zinc-600 text-xs ml-auto">{new Date(req.created_at).toLocaleDateString()}</span>
+                                    </div>
+
+                                    <div className="p-4 space-y-3">
+                                        {/* Listing info */}
+                                        <div>
+                                            <p className="text-white font-bold text-sm">{req.listing_title}</p>
+                                            <p className="text-zinc-500 text-xs mt-0.5">
+                                                By <span className="text-zinc-300">{req.username}</span> · {req.payment_method?.toUpperCase()} · <span className="text-yellow-400 font-semibold">Rs 200</span>
                                             </p>
                                         </div>
+
+                                        {/* Payment proof */}
+                                        {req.proof_url && (
+                                            <button onClick={() => setViewProof(req.proof_url)}
+                                                className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 w-full">
+                                                <Eye size={14}/> View Payment Screenshot
+                                            </button>
+                                        )}
+
+                                        {/* Approve / Reject */}
+                                        {req.status === 'pending' && (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleBoostRequest(req.id, 'reject')}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/20 transition">
+                                                    <XCircle size={15}/> Reject
+                                                </button>
+                                                <button onClick={() => handleBoostRequest(req.id, 'approve')}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-bold hover:bg-green-500/20 transition">
+                                                    <CheckCircle size={15}/> Approve Boost
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                    {listing.description && (
-                                        <div className="px-3 pb-3">
-                                            <p className="text-zinc-500 text-xs line-clamp-2">{listing.description}</p>
-                                        </div>
-                                    )}
                                 </div>
-                            );
-                        })}
+                            ))
+                        )}
                     </div>
                 )}
             </div>
+
+            {/* View Proof Modal */}
+            {viewProof && (
+                <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setViewProof(null)}>
+                    <div className="relative max-w-sm w-full" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setViewProof(null)} className="absolute top-2 right-2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white z-10"><X size={18}/></button>
+                        <img src={`${BACKEND_URL}${viewProof}`} className="w-full rounded-2xl"/>
+                    </div>
+                </div>
+            )}
 
             {/* Confirm Delete Modal */}
             {confirmDelete && (
@@ -195,13 +304,9 @@ export default function AdminMarketplace() {
                         <p className="text-zinc-300 text-sm mb-4">"{confirmDelete.title}"</p>
                         <div className="flex gap-2">
                             <button onClick={() => setConfirmDelete(null)}
-                                className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-sm font-bold hover:bg-zinc-700 transition">
-                                Cancel
-                            </button>
+                                className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-sm font-bold hover:bg-zinc-700 transition">Cancel</button>
                             <button onClick={() => deleteListing(confirmDelete.id)}
-                                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition">
-                                Delete
-                            </button>
+                                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition">Delete</button>
                         </div>
                     </div>
                 </div>
