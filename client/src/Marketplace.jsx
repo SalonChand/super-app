@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+const BACKEND_URL = 'https://superapp-backend-6106.onrender.com'; // v2
 
 function safeParseImages(images) {
     if (!images) return [];
