@@ -766,7 +766,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                             <>
                                                 <p className="text-white font-bold">Pay via eSewa</p>
                                                 {paySettings?.esewa_qr && (
-                                                    <img src={{resolveUrl(paySettings.esewa_qr)}} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
+                                                    <img src={resolveUrl(paySettings.esewa_qr)} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
                                                 )}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
@@ -792,7 +792,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                             <>
                                                 <p className="text-white font-bold">Pay via Khalti</p>
                                                 {paySettings?.khalti_qr && (
-                                                    <img src={{resolveUrl(paySettings.khalti_qr)}} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
+                                                    <img src={resolveUrl(paySettings.khalti_qr)} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
                                                 )}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
@@ -818,7 +818,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                             <>
                                                 <p className="text-white font-bold">Bank Transfer</p>
                                                 {paySettings?.bank_qr && (
-                                                    <img src={{resolveUrl(paySettings.bank_qr)}} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
+                                                    <img src={resolveUrl(paySettings.bank_qr)} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
                                                 )}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
