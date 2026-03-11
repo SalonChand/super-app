@@ -76,6 +76,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     const [sellerView, setSellerView] = useState(null);
     const [sellerListings, setSellerListings] = useState([]);
     const [sellerLoading, setSellerLoading] = useState(false);
+    const [paySettings, setPaySettings] = useState(null);
 
     const [editListing, setEditListing] = useState(null);
     const [boostModal, setBoostModal] = useState(null); // listing to boost
@@ -117,6 +118,11 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
         } catch { setListings([]); }
         setLoading(false);
     };
+
+    useEffect(() => {
+        fetch(`${BACKEND_URL}/api/marketplace/payment-settings`)
+            .then(r => r.json()).then(d => { if (d && !d.error) setPaySettings(d); }).catch(() => {});
+    }, []);
 
     useEffect(() => { fetchListings(); }, [category, searchQ, sortBy, myListings, filterPriceMin, filterPriceMax, filterCondition, filterLocation]);
 
@@ -721,7 +727,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-yellow-400 font-bold text-lg">Rs 200</p>
-                                    <p className="text-zinc-500 text-xs">7 days boost</p>
+                                    <p className="text-zinc-500 text-xs">7 days · Rs {paySettings?.boost_price || 200}</p>
                                 </div>
                             </div>
 
@@ -752,21 +758,24 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                         {boostMethod === 'esewa' && (
                                             <>
                                                 <p className="text-white font-bold">Pay via eSewa</p>
+                                                {paySettings?.esewa_qr && (
+                                                    <img src={`${BACKEND_URL}${paySettings.esewa_qr}`} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
+                                                )}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-zinc-400 text-sm">eSewa ID</span>
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-white font-mono font-bold">9800000000</span>
-                                                            <button onClick={() => navigator.clipboard.writeText('9800000000')} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>
+                                                            <span className="text-white font-mono font-bold">{paySettings?.esewa_number || '—'}</span>
+                                                            {paySettings?.esewa_number && <button onClick={() => navigator.clipboard.writeText(paySettings.esewa_number)} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>}
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-zinc-400 text-sm">Amount</span>
-                                                        <span className="text-yellow-400 font-bold">Rs 200</span>
+                                                        <span className="text-zinc-400 text-sm">Name</span>
+                                                        <span className="text-white font-semibold">{paySettings?.esewa_name || '—'}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-zinc-400 text-sm">Name</span>
-                                                        <span className="text-white font-semibold">SuperApp Admin</span>
+                                                        <span className="text-zinc-400 text-sm">Amount</span>
+                                                        <span className="text-yellow-400 font-bold">Rs {paySettings?.boost_price || 200}</span>
                                                     </div>
                                                 </div>
                                                 <p className="text-zinc-500 text-xs">Open your eSewa app → Send Money → Enter the above details</p>
@@ -775,21 +784,24 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                         {boostMethod === 'khalti' && (
                                             <>
                                                 <p className="text-white font-bold">Pay via Khalti</p>
+                                                {paySettings?.khalti_qr && (
+                                                    <img src={`${BACKEND_URL}${paySettings.khalti_qr}`} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
+                                                )}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-zinc-400 text-sm">Khalti ID</span>
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-white font-mono font-bold">9800000000</span>
-                                                            <button onClick={() => navigator.clipboard.writeText('9800000000')} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>
+                                                            <span className="text-white font-mono font-bold">{paySettings?.khalti_number || '—'}</span>
+                                                            {paySettings?.khalti_number && <button onClick={() => navigator.clipboard.writeText(paySettings.khalti_number)} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>}
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-zinc-400 text-sm">Amount</span>
-                                                        <span className="text-yellow-400 font-bold">Rs 200</span>
+                                                        <span className="text-zinc-400 text-sm">Name</span>
+                                                        <span className="text-white font-semibold">{paySettings?.khalti_name || '—'}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-zinc-400 text-sm">Name</span>
-                                                        <span className="text-white font-semibold">SuperApp Admin</span>
+                                                        <span className="text-zinc-400 text-sm">Amount</span>
+                                                        <span className="text-yellow-400 font-bold">Rs {paySettings?.boost_price || 200}</span>
                                                     </div>
                                                 </div>
                                                 <p className="text-zinc-500 text-xs">Open your Khalti app → Send Money → Enter the above details</p>
@@ -798,25 +810,28 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                         {boostMethod === 'bank' && (
                                             <>
                                                 <p className="text-white font-bold">Bank Transfer</p>
+                                                {paySettings?.bank_qr && (
+                                                    <img src={`${BACKEND_URL}${paySettings.bank_qr}`} className="w-40 h-40 object-contain mx-auto rounded-xl bg-white p-2"/>
+                                                )}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-zinc-400 text-sm">Bank</span>
-                                                        <span className="text-white font-semibold">Nabil Bank</span>
+                                                        <span className="text-white font-semibold">{paySettings?.bank_name || '—'}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-zinc-400 text-sm">Account No.</span>
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-white font-mono font-bold">0123456789012</span>
-                                                            <button onClick={() => navigator.clipboard.writeText('0123456789012')} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>
+                                                            <span className="text-white font-mono font-bold">{paySettings?.bank_account || '—'}</span>
+                                                            {paySettings?.bank_account && <button onClick={() => navigator.clipboard.writeText(paySettings.bank_account)} className="text-zinc-500 hover:text-white"><Copy size={13}/></button>}
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-zinc-400 text-sm">Account Name</span>
-                                                        <span className="text-white font-semibold">SuperApp Pvt Ltd</span>
+                                                        <span className="text-white font-semibold">{paySettings?.bank_holder || '—'}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-zinc-400 text-sm">Amount</span>
-                                                        <span className="text-yellow-400 font-bold">Rs 200</span>
+                                                        <span className="text-yellow-400 font-bold">Rs {paySettings?.boost_price || 200}</span>
                                                     </div>
                                                 </div>
                                                 <p className="text-zinc-500 text-xs">Transfer via connect IPS, mobile banking or visit any branch</p>

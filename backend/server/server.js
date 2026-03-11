@@ -453,6 +453,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     // === MARKETPLACE UPGRADES ===
     await patch("ALTER TABLE marketplace MODIFY COLUMN price VARCHAR(50) DEFAULT '0'");
     await patch("ALTER TABLE marketplace ADD COLUMN is_boosted BOOLEAN DEFAULT FALSE");
+    await patch("CREATE TABLE IF NOT EXISTS payment_settings (id INT AUTO_INCREMENT PRIMARY KEY, esewa_number VARCHAR(20), esewa_name VARCHAR(100), esewa_qr VARCHAR(500), khalti_number VARCHAR(20), khalti_name VARCHAR(100), khalti_qr VARCHAR(500), bank_name VARCHAR(100), bank_account VARCHAR(50), bank_holder VARCHAR(100), bank_qr VARCHAR(500), boost_price VARCHAR(20) DEFAULT \'200\', updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+    await patch("INSERT IGNORE INTO payment_settings (id, boost_price) VALUES (1, \'200\')");
     await patch("ALTER TABLE marketplace ADD COLUMN boost_status VARCHAR(20) DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS boost_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, listing_id INT NOT NULL, listing_title VARCHAR(200), payment_method VARCHAR(50), proof_url VARCHAR(500), status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (listing_id) REFERENCES marketplace(id) ON DELETE CASCADE)");
     await patch("ALTER TABLE marketplace ADD COLUMN boosted_at DATETIME DEFAULT NULL");
@@ -720,6 +722,59 @@ app.put('/api/admin/boost-requests/:id', async (req, res) => {
             await pool.query("UPDATE boost_requests SET status = 'rejected' WHERE id = ?", [req.params.id]);
         }
         res.json({ message: `Request ${action}d` });
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+
+// Public: get payment settings (for sellers)
+app.get('/api/marketplace/payment-settings', async (req, res) => {
+    try {
+        const [rows] = await pool.query("SELECT * FROM payment_settings WHERE id = 1");
+        res.json(rows[0] || {});
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: get payment settings
+app.get('/api/admin/payment-settings', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query("SELECT * FROM payment_settings WHERE id = 1");
+        res.json(rows[0] || {});
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: save payment settings (with QR uploads)
+app.post('/api/admin/payment-settings', upload.fields([
+    { name: 'esewa_qr_file', maxCount: 1 },
+    { name: 'khalti_qr_file', maxCount: 1 },
+    { name: 'bank_qr_file', maxCount: 1 },
+]), async (req, res) => {
+    try {
+        const { adminId, esewa_number, esewa_name, khalti_number, khalti_name, bank_name, bank_account, bank_holder, boost_price } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+
+        // Get existing to preserve QR URLs if not replaced
+        const [existing] = await pool.query("SELECT * FROM payment_settings WHERE id = 1");
+        const curr = existing[0] || {};
+
+        const esewa_qr = req.files?.esewa_qr_file?.[0]?.path || req.body.esewa_qr || curr.esewa_qr || null;
+        const khalti_qr = req.files?.khalti_qr_file?.[0]?.path || req.body.khalti_qr || curr.khalti_qr || null;
+        const bank_qr = req.files?.bank_qr_file?.[0]?.path || req.body.bank_qr || curr.bank_qr || null;
+
+        await pool.query(
+            `INSERT INTO payment_settings (id, esewa_number, esewa_name, esewa_qr, khalti_number, khalti_name, khalti_qr, bank_name, bank_account, bank_holder, bank_qr, boost_price)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+             esewa_number=VALUES(esewa_number), esewa_name=VALUES(esewa_name), esewa_qr=VALUES(esewa_qr),
+             khalti_number=VALUES(khalti_number), khalti_name=VALUES(khalti_name), khalti_qr=VALUES(khalti_qr),
+             bank_name=VALUES(bank_name), bank_account=VALUES(bank_account), bank_holder=VALUES(bank_holder),
+             bank_qr=VALUES(bank_qr), boost_price=VALUES(boost_price)`,
+            [esewa_number||null, esewa_name||null, esewa_qr, khalti_number||null, khalti_name||null, khalti_qr, bank_name||null, bank_account||null, bank_holder||null, bank_qr, boost_price||'200']
+        );
+        res.json({ message: 'Payment settings saved' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
