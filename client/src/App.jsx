@@ -22,8 +22,8 @@ import AdminUsers from './AdminUsers';
 import AdminContent from './AdminContent';
 import AdminAnalytics from './AdminAnalytics';
 import AdminReports from './AdminReports';
-import AdminAppSettings from './AdminAppSettings';
-import AdminPowers from './AdminPowers';
+import AdminAppSettings from './AdminAppSettings';
+import AdminMarketplace from './AdminMarketplace';
 import Marketplace from './Marketplace';
 
 
@@ -554,8 +554,8 @@ function AppContent() {
             <Route path="/admin/content" element={<ProtectedRoute><AdminContent /></ProtectedRoute>} />
             <Route path="/admin/analytics" element={<ProtectedRoute><AdminAnalytics /></ProtectedRoute>} />
             <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
+            <Route path="/admin/marketplace" element={<ProtectedRoute><AdminMarketplace /></ProtectedRoute>} />
             <Route path="/admin/app-settings" element={<ProtectedRoute><AdminAppSettings /></ProtectedRoute>} />
-            <Route path="/admin/powers" element={<ProtectedRoute><AdminPowers /></ProtectedRoute>} />
           </Routes>
         </main>
 

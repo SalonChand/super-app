@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Users, BadgeCheck, BarChart2, MessageSquareX, Flag, Settings, ChevronRight, LogOut, Zap, Globe } from 'lucide-react';
+import { Shield, Users, BadgeCheck, BarChart2, MessageSquareX, Flag, Settings, ChevronRight, LogOut, Zap, Globe, ShoppingBag } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -28,6 +28,7 @@ export default function AdminDashboard() {
         { icon: Settings, label: 'App Settings', desc: 'Control platform-wide settings', route: '/admin/app-settings', color: 'from-purple-500/20 to-purple-600/5', border: 'border-purple-500/30', iconColor: 'text-purple-400', stat: null, statColor: '' },
         { icon: Zap, label: 'Admin Powers', desc: 'Broadcast, pin posts, silence & shadowban', route: '/admin/powers', color: 'from-yellow-500/20 to-red-500/5', border: 'border-yellow-500/30', iconColor: 'text-yellow-400', stat: null, statColor: '' },
         { icon: Globe, label: 'Communities', desc: 'Manage communities, members & posts', route: '/admin/communities', color: 'from-green-500/20 to-green-600/5', border: 'border-green-500/30', iconColor: 'text-green-400', stat: null, statColor: '' },
+        { icon: ShoppingBag, label: 'Marketplace', desc: 'View & remove listings, monitor activity', route: '/admin/marketplace', color: 'from-pink-500/20 to-pink-600/5', border: 'border-pink-500/30', iconColor: 'text-pink-400', stat: null, statColor: '' },
     ];
 
     if (!isAdmin) return null;

@@ -221,96 +221,6 @@ app.get('/api/admin/app-settings', async (req, res) => {
     } catch(e) { res.json({ allow_registration: true, maintenance_mode: false, max_post_length: 2000, app_name: 'SuperApp' }); }
 });
 
-
-// ===== ADMIN POWERS ENDPOINTS =====
-
-// Get all broadcasts
-app.get('/api/admin/broadcasts', async (req, res) => {
-    try {
-        const { adminId } = req.query;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        const [broadcasts] = await pool.query("SELECT * FROM broadcasts ORDER BY created_at DESC LIMIT 50");
-        res.json(broadcasts);
-    } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
-});
-
-// Send broadcast
-app.post('/api/admin/broadcast', async (req, res) => {
-    try {
-        const { adminId, title, message, type } = req.body;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        await pool.query("INSERT INTO broadcasts (admin_id, title, message, type) VALUES (?, ?, ?, ?)", [adminId, title, message, type || 'announcement']);
-        // Notify all users
-        const [users] = await pool.query("SELECT id FROM users WHERE id != ?", [adminId]);
-        for (const user of users) {
-            await pool.query("INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)", 
-                [user.id, adminId, 'broadcast', `${title}: ${message}`]).catch(()=>{});
-            io.to(user.id.toString()).emit('activity_updated');
-        }
-        res.json({ message: "Broadcast sent!" });
-    } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
-});
-
-// Delete broadcast
-app.delete('/api/admin/broadcasts/:id', async (req, res) => {
-    try {
-        const { adminId } = req.body;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        await pool.query("DELETE FROM broadcasts WHERE id = ?", [req.params.id]);
-        res.json({ message: "Deleted" });
-    } catch(e) { res.status(500).json({ error: "Server error" }); }
-});
-
-// Pin post
-app.post('/api/admin/posts/:postId/pin', async (req, res) => {
-    try {
-        const { adminId } = req.body;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        await pool.query("UPDATE posts SET is_pinned = 0");
-        await pool.query("UPDATE posts SET is_pinned = 1 WHERE id = ?", [req.params.postId]);
-        res.json({ message: "Post pinned!" });
-    } catch(e) { res.status(500).json({ error: "Server error" }); }
-});
-
-// Unpin post
-app.post('/api/admin/posts/:postId/unpin', async (req, res) => {
-    try {
-        const { adminId } = req.body;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        await pool.query("UPDATE posts SET is_pinned = 0 WHERE id = ?", [req.params.postId]);
-        res.json({ message: "Post unpinned!" });
-    } catch(e) { res.status(500).json({ error: "Server error" }); }
-});
-
-// Silence user
-app.post('/api/admin/users/:userId/silence', async (req, res) => {
-    try {
-        const { adminId, days } = req.body;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-        await pool.query("UPDATE users SET silenced_until = ? WHERE id = ?", [until, req.params.userId]);
-        res.json({ message: `User silenced for ${days} days` });
-    } catch(e) { res.status(500).json({ error: "Server error" }); }
-});
-
-// Shadowban user
-app.post('/api/admin/users/:userId/shadowban', async (req, res) => {
-    try {
-        const { adminId, shadowban } = req.body;
-        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
-        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
-        await pool.query("UPDATE users SET is_shadowbanned = ? WHERE id = ?", [shadowban ? 1 : 0, req.params.userId]);
-        res.json({ message: shadowban ? "User shadowbanned" : "Shadowban removed" });
-    } catch(e) { res.status(500).json({ error: "Server error" }); }
-});
-
-
 app.put('/api/admin/app-settings', async (req, res) => {
     try {
         const { adminId, settings } = req.body;
@@ -525,10 +435,6 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE posts ADD COLUMN is_draft BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE posts ADD COLUMN scheduled_at DATETIME DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE");
-        await patch("ALTER TABLE users ADD COLUMN silenced_until DATETIME DEFAULT NULL");
-        await patch("ALTER TABLE users ADD COLUMN is_shadowbanned BOOLEAN DEFAULT FALSE");
-        await patch("ALTER TABLE posts ADD COLUMN is_pinned BOOLEAN DEFAULT FALSE");
-        await patch(`CREATE TABLE IF NOT EXISTS broadcasts (id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT NOT NULL, title VARCHAR(200) NOT NULL, message TEXT NOT NULL, type VARCHAR(50) DEFAULT 'announcement', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE)`);
     await patch("ALTER TABLE users ADD COLUMN verify_type VARCHAR(20) DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN is_active TINYINT(1) DEFAULT 1");
     await patch("ALTER TABLE verification_requests ADD COLUMN verify_type VARCHAR(20) DEFAULT 'blue'");
@@ -691,6 +597,34 @@ app.post('/api/marketplace', upload.array('images', 5), async (req, res) => {
         );
         res.json({ id: result.insertId, message: 'Listing created' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+
+// Admin marketplace - view all listings
+app.get('/api/admin/marketplace', async (req, res) => {
+    try {
+        const { adminId, q, category } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
+        let sql = `SELECT m.*, COALESCE(u.display_name, u.username) as username FROM marketplace m JOIN users u ON m.seller_id = u.id WHERE 1=1`;
+        const params = [];
+        if (q) { sql += ` AND (m.title LIKE ? OR m.description LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
+        if (category) { sql += ` AND m.category = ?`; params.push(category); }
+        sql += ` ORDER BY m.created_at DESC`;
+        const [listings] = await pool.query(sql, params);
+        res.json(listings);
+    } catch(e) { console.error(e); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin delete any marketplace listing
+app.delete('/api/admin/marketplace/:id', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: "Unauthorized" });
+        await pool.query("DELETE FROM marketplace WHERE id = ?", [req.params.id]);
+        res.json({ message: "Listing deleted" });
+    } catch(e) { res.status(500).json({ error: "Server error" }); }
 });
 
 app.delete('/api/marketplace/:id', async (req, res) => {
