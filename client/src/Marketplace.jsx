@@ -40,7 +40,7 @@ function VerifiedBadge({ isVerified, verifyType }) {
 }
 
 function formatPrice(p) {
-    if (!p || p === 0) return 'Free';
+    if (!p || Number(p) === 0) return 'Free';
     return `NPR ${Number(p).toLocaleString()}`;
 }
 
