@@ -458,6 +458,10 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE marketplace ADD COLUMN boost_status VARCHAR(20) DEFAULT NULL");
     await patch("CREATE TABLE IF NOT EXISTS boost_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, listing_id INT NOT NULL, listing_title VARCHAR(200), payment_method VARCHAR(50), proof_url VARCHAR(500), status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (listing_id) REFERENCES marketplace(id) ON DELETE CASCADE)");
     await patch("ALTER TABLE marketplace ADD COLUMN boosted_at DATETIME DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN silenced_until DATETIME DEFAULT NULL");
+    await patch("ALTER TABLE users ADD COLUMN shadowbanned BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE posts ADD COLUMN is_pinned_global BOOLEAN DEFAULT FALSE");
+    await patch("CREATE TABLE IF NOT EXISTS broadcasts (id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT, title VARCHAR(200), message TEXT, type VARCHAR(20) DEFAULT 'info', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -639,6 +643,129 @@ app.put('/api/marketplace/:id/sold', async (req, res) => {
         if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
         await pool.query("UPDATE marketplace SET status = 'sold' WHERE id = ?", [req.params.id]);
         res.json({ message: 'Marked as sold' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+
+// ══════════════════════════════════════════════
+// ADMIN POWERS ENDPOINTS
+// ══════════════════════════════════════════════
+
+// Get all users (admin)
+app.get('/api/admin/all-users', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(
+            `SELECT id, username, COALESCE(display_name, username) as display_name, profile_pic_url,
+             silenced_until, shadowbanned, role,
+             (SELECT COUNT(*) FROM posts WHERE user_id = users.id) as post_count
+             FROM users WHERE username != 'superadmin' ORDER BY created_at DESC`
+        );
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Silence a user
+app.post('/api/admin/users/:userId/silence', async (req, res) => {
+    try {
+        const { adminId, days } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const silencedUntil = days > 0 ? new Date(Date.now() + days * 86400000) : null;
+        await pool.query("UPDATE users SET silenced_until = ? WHERE id = ?", [silencedUntil, req.params.userId]);
+        res.json({ message: days > 0 ? `User silenced for ${days} days` : 'Silence removed' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Shadowban a user
+app.post('/api/admin/users/:userId/shadowban', async (req, res) => {
+    try {
+        const { adminId, shadowban } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE users SET shadowbanned = ? WHERE id = ?", [shadowban ? 1 : 0, req.params.userId]);
+        res.json({ message: shadowban ? 'User shadowbanned' : 'Shadowban removed' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Send broadcast
+app.post('/api/admin/broadcast', async (req, res) => {
+    try {
+        const { adminId, title, message, type } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query(
+            "INSERT INTO broadcasts (admin_id, title, message, type) VALUES (?,?,?,?)",
+            [adminId, title, message, type || 'info']
+        );
+        // Create notification for all users
+        const [users] = await pool.query("SELECT id FROM users WHERE id != ?", [adminId]);
+        for (const user of users) {
+            await pool.query(
+                "INSERT INTO notifications (user_id, type, content, from_user_id) VALUES (?, 'broadcast', ?, ?)",
+                [user.id, `${title}: ${message}`, adminId]
+            ).catch(() => {});
+        }
+        res.json({ message: 'Broadcast sent' });
+    } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get broadcasts
+app.get('/api/admin/broadcasts', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query("SELECT * FROM broadcasts ORDER BY created_at DESC LIMIT 20");
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Delete broadcast
+app.delete('/api/admin/broadcasts/:id', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("DELETE FROM broadcasts WHERE id = ?", [req.params.id]);
+        res.json({ message: 'Deleted' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Pin post globally
+app.post('/api/admin/posts/:postId/pin', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE posts SET is_pinned_global = 0");
+        await pool.query("UPDATE posts SET is_pinned_global = 1 WHERE id = ?", [req.params.postId]);
+        res.json({ message: 'Post pinned globally' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Unpin post globally
+app.post('/api/admin/posts/:postId/unpin', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE posts SET is_pinned_global = 0 WHERE id = ?", [req.params.postId]);
+        res.json({ message: 'Post unpinned' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get globally pinned post
+app.get('/api/admin/pinned-post', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT p.*, u.username, u.profile_pic_url FROM posts p
+             JOIN users u ON p.user_id = u.id
+             WHERE p.is_pinned_global = 1 LIMIT 1`
+        );
+        res.json(rows[0] || null);
     } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 

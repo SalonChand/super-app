@@ -66,9 +66,8 @@ export default function AdminPowers() {
 
     const loadPinnedPost = async () => {
         try {
-            const res = await axios.get(`${BACKEND_URL}/api/posts?userId=${adminId}`);
-            const pinned = (res.data || []).find(p => p.is_pinned_global);
-            setPinnedPost(pinned || null);
+            const res = await axios.get(`${BACKEND_URL}/api/admin/pinned-post`);
+            setPinnedPost(res.data || null);
         } catch(e) {}
     };
 
@@ -76,7 +75,7 @@ export default function AdminPowers() {
         if (users.length > 0) return;
         setUsersLoading(true);
         try {
-            const res = await axios.get(`${BACKEND_URL}/api/admin/users?adminId=${adminId}`);
+            const res = await axios.get(`${BACKEND_URL}/api/admin/all-users?adminId=${adminId}`);
             setUsers(res.data || []);
         } catch(e) {}
         setUsersLoading(false);
