@@ -389,6 +389,6 @@ export default function AdminPowers() {
 
                 </div>
             </div>
-        </div>
+        </div></div>
     );
 }

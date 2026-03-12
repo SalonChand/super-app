@@ -15,7 +15,8 @@ export default function AdminCommunities() {
     const adminId = localStorage.getItem('userId');
     const userRole = localStorage.getItem('userRole');
     const loginUsername = localStorage.getItem('loginUsername');
-    const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || adminId === '1';
+    const username = localStorage.getItem('username');
+    const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || username === 'superadmin' || adminId === '1';
 
     const [communities, setCommunities] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -140,7 +141,7 @@ export default function AdminCommunities() {
     if (!isAdmin) return <div className="min-h-screen bg-black flex items-center justify-center"><p className="text-red-400">Access Denied</p></div>;
 
     return (
-        <div className="min-h-screen bg-black pb-24">
+        <div className="flex flex-col h-[calc(100dvh-70px)] sm:h-screen bg-black overflow-hidden">
             {/* Header */}
             <div className="sticky top-0 z-30 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800 px-4 py-3 flex items-center gap-3">
                 {selected

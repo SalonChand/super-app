@@ -1377,6 +1377,115 @@ app.get('/api/reels/user/:userId', async (req, res) => { try { const currentUser
 app.post('/api/reels/:id/like', async (req, res) => { try { const reelId = req.params.id; const { userId } = req.body; const[existing] = await pool.query('SELECT * FROM reel_likes WHERE reel_id = ? AND user_id = ?',[reelId, userId]); if (existing.length > 0) { await pool.query('DELETE FROM reel_likes WHERE reel_id = ? AND user_id = ?',[reelId, userId]); res.json({ liked: false }); } else { await pool.query('INSERT INTO reel_likes (reel_id, user_id) VALUES (?, ?)', [reelId, userId]); res.json({ liked: true }); } } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); } });
 
 // COMMUNITIES
+
+// ══════════════════════════════════════════════
+// ADMIN COMMUNITIES ENDPOINTS
+// ══════════════════════════════════════════════
+
+// Get all communities (admin)
+app.get('/api/admin/communities', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(`
+            SELECT c.*, u.username as creator_name,
+            (SELECT COUNT(*) FROM community_members WHERE community_id = c.id) AS member_count,
+            (SELECT COUNT(*) FROM community_posts WHERE community_id = c.id) AS post_count
+            FROM communities c JOIN users u ON c.creator_id = u.id
+            ORDER BY member_count DESC`);
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get community members (admin)
+app.get('/api/admin/communities/:id/members', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(
+            `SELECT u.id, COALESCE(u.display_name, u.username) as username, u.profile_pic_url, cm.role, cm.joined_at
+             FROM community_members cm JOIN users u ON cm.user_id = u.id
+             WHERE cm.community_id = ? ORDER BY cm.role DESC, cm.joined_at ASC`,
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get community posts (admin)
+app.get('/api/admin/communities/:id/posts', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(
+            `SELECT cp.*, u.username, u.profile_pic_url,
+             (SELECT COUNT(*) FROM community_post_likes WHERE post_id = cp.id) AS like_count
+             FROM community_posts cp JOIN users u ON cp.user_id = u.id
+             WHERE cp.community_id = ? ORDER BY cp.created_at DESC LIMIT 50`,
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Edit community (admin)
+app.put('/api/admin/communities/:id', async (req, res) => {
+    try {
+        const { adminId, name, description } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE communities SET name = ?, description = ? WHERE id = ?", [name, description, req.params.id]);
+        res.json({ message: 'Community updated' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Delete community (admin)
+app.delete('/api/admin/communities/:id', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("DELETE FROM communities WHERE id = ?", [req.params.id]);
+        res.json({ message: 'Community deleted' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Delete community post (admin)
+app.delete('/api/admin/communities/:id/posts/:postId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("DELETE FROM community_posts WHERE id = ? AND community_id = ?", [req.params.postId, req.params.id]);
+        res.json({ message: 'Post deleted' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Remove community member (admin)
+app.delete('/api/admin/communities/:id/members/:userId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("DELETE FROM community_members WHERE community_id = ? AND user_id = ?", [req.params.id, req.params.userId]);
+        res.json({ message: 'Member removed' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Change member role (admin)
+app.post('/api/admin/communities/:id/members/:userId/role', async (req, res) => {
+    try {
+        const { adminId, role } = req.body;
+        const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
+        if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query("UPDATE community_members SET role = ? WHERE community_id = ? AND user_id = ?", [role, req.params.id, req.params.userId]);
+        res.json({ message: 'Role updated' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 app.post('/api/communities', async (req, res) => { try { const { name, description, creator_id } = req.body; const[comm] = await pool.query('INSERT INTO communities (name, description, creator_id) VALUES (?, ?, ?)',[name, description, creator_id]); await pool.query('INSERT INTO community_members (community_id, user_id, role) VALUES (?, ?, "admin")',[comm.insertId, creator_id]); res.status(201).json({ message: "Community created!" }); } catch (err) { res.status(500).json({ error: "Community name taken." }); } });
 app.get('/api/communities', async (req, res) => { try { const currentUserId = req.query.userId || 0; const[communities] = await pool.query(`SELECT c.*, u.username as creator_name, (SELECT COUNT(*) FROM community_posts WHERE community_id = c.id) AS post_count, (SELECT COUNT(*) FROM community_members WHERE community_id = c.id) AS member_count, (SELECT COUNT(*) FROM community_members WHERE community_id = c.id AND user_id = ?) AS is_member FROM communities c JOIN users u ON c.creator_id = u.id ORDER BY member_count DESC`, [currentUserId]); res.json(communities); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.post('/api/communities/:id/join', async (req, res) => { try { await pool.query('INSERT IGNORE INTO community_members (community_id, user_id) VALUES (?, ?)',[req.params.id, req.body.userId]); res.json({ message: "Joined!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
