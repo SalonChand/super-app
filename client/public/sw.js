@@ -1,37 +1,25 @@
 // ============================================================
-//  SuperApp Service Worker — Push Notifications + PWA Cache
+//  SuperApp Service Worker — Push Notifications (no caching)
+//  No static caching = always loads fresh code on every deploy
 // ============================================================
 
-const CACHE_NAME = 'superapp-v1';
-const STATIC_ASSETS = ['/', '/index.html', '/logo.png'];
+// ── Install & Activate: skip waiting, claim clients immediately ──
+self.addEventListener('install', () => self.skipWaiting());
 
-// ── Install ──────────────────────────────────────────────────
-self.addEventListener('install', (e) => {
-    e.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS).catch(() => {}))
-    );
-    self.skipWaiting();
-});
-
-// ── Activate ─────────────────────────────────────────────────
 self.addEventListener('activate', (e) => {
+    // Clear ALL old caches on every deploy
     e.waitUntil(
-        caches.keys().then(keys =>
-            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-        )
-    );
-    self.clients.claim();
-});
-
-// ── Fetch (basic cache-first for static, network-first for API) ──
-self.addEventListener('fetch', (e) => {
-    if (e.request.url.includes('/api/')) return; // never cache API calls
-    e.respondWith(
-        caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => cached))
+        caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+        .then(() => self.clients.claim())
     );
 });
 
-// ── Push Notification Handler ─────────────────────────────────
+// ── Force update when main.jsx sends SKIP_WAITING ────────────
+self.addEventListener('message', (e) => {
+    if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+
 self.addEventListener('push', (e) => {
     if (!e.data) return;
 
