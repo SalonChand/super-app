@@ -512,9 +512,47 @@ app.post('/api/users/:id/display-name', async (req, res) => {
 });
 
 app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" });
+app.post('/api/login', async (req, res) => {
+    try {
+        const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [req.body.email]);
+        if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash)))
+            return res.status(401).json({ error: "Invalid credentials" });
         const u = users[0];
         if (u.is_active === 0) return res.status(403).json({ error: "This account has been deactivated by an administrator." });
+
+        // 2FA enforcement: if enabled, require totp_code in body
+        if (u.two_factor_enabled && u.two_factor_secret) {
+            if (!req.body.totp_code) {
+                // Signal to client that 2FA is required (don't issue token yet)
+                return res.status(200).json({ requires_2fa: true, userId: u.id });
+            }
+            // Validate TOTP code (same RFC 6238 logic as verify endpoint)
+            const crypto = require('crypto');
+            const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            function base32Decode(str) {
+                let bits = 0, value = 0; const output = [];
+                for (const char of str.toUpperCase().replace(/=+$/, '')) {
+                    const idx = BASE32_CHARS.indexOf(char); if (idx === -1) continue;
+                    value = (value << 5) | idx; bits += 5;
+                    if (bits >= 8) { bits -= 8; output.push((value >> bits) & 0xff); }
+                } return Buffer.from(output);
+            }
+            function generateTOTP(secretBuf, counter) {
+                const buf = Buffer.alloc(8);
+                for (let i = 7; i >= 0; i--) { buf[i] = counter & 0xff; counter = Math.floor(counter / 256); }
+                const hmac = crypto.createHmac('sha1', secretBuf).update(buf).digest();
+                const offset = hmac[hmac.length - 1] & 0x0f;
+                const code = ((hmac[offset] & 0x7f) << 24) | (hmac[offset+1] << 16) | (hmac[offset+2] << 8) | hmac[offset+3];
+                return (code % 1000000).toString().padStart(6, '0');
+            }
+            const secretBuf = base32Decode(u.two_factor_secret);
+            const t = Math.floor(Date.now() / 1000 / 30);
+            const validCodes = [t-1, t, t+1].map(ts => generateTOTP(secretBuf, ts));
+            if (!validCodes.includes(req.body.totp_code.toString().trim())) {
+                return res.status(401).json({ error: "Invalid 2FA code. Please try again." });
+            }
+        }
+
         let role = 'user'; try { role = u.role || 'user'; } catch(e) {}
         if (u.username === 'superadmin') role = 'superadmin';
         const token = jwt.sign({ id: u.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -1572,8 +1610,67 @@ app.get('/api/users/:id/dashboard', async (req, res) => {
 });
 
 // ===== 2FA =====
-app.post('/api/users/:id/2fa/setup', async (req, res) => { try { const secret = Math.random().toString(36).substring(2, 18).toUpperCase(); await pool.query('UPDATE users SET two_factor_secret = ?, two_factor_enabled = FALSE WHERE id = ?', [secret, req.params.id]); res.json({ secret, qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/SuperApp:${req.params.id}?secret=${secret}%26issuer=SuperApp` }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
-app.post('/api/users/:id/2fa/verify', async (req, res) => { try { const { code } = req.body; const [users] = await pool.query('SELECT two_factor_secret FROM users WHERE id = ?', [req.params.id]); if (!users[0]?.two_factor_secret) return res.status(400).json({ error: 'No secret set.' }); const secret = users[0].two_factor_secret; const t = Math.floor(Date.now() / 30000); const validCodes = [t-1, t, t+1].map(ts => (parseInt(secret.charCodeAt(0) * 7 + ts * 31337) % 1000000).toString().padStart(6, '0')); if (validCodes.includes(code.toString())) { await pool.query('UPDATE users SET two_factor_enabled = TRUE WHERE id = ?', [req.params.id]); res.json({ success: true }); } else { res.status(400).json({ error: 'Invalid code.' }); } } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
+app.post('/api/users/:id/2fa/setup', async (req, res) => {
+    try {
+        // Generate a proper Base32 secret (compatible with Google Authenticator / Authy)
+        const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        let secret = '';
+        const randomBytes = require('crypto').randomBytes(20);
+        for (let i = 0; i < 32; i++) {
+            secret += BASE32_CHARS[randomBytes[i % 20] % 32];
+        }
+        // Fetch username for a friendlier QR label
+        const [users] = await pool.query('SELECT username FROM users WHERE id = ?', [req.params.id]);
+        const username = users[0]?.username || req.params.id;
+        await pool.query('UPDATE users SET two_factor_secret = ?, two_factor_enabled = FALSE WHERE id = ?', [secret, req.params.id]);
+        const otpauthUrl = `otpauth://totp/SuperApp:${encodeURIComponent(username)}?secret=${secret}&issuer=SuperApp&algorithm=SHA1&digits=6&period=30`;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`;
+        res.json({ secret, qrCodeUrl });
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
+app.post('/api/users/:id/2fa/verify', async (req, res) => {
+    try {
+        const { code } = req.body;
+        const [users] = await pool.query('SELECT two_factor_secret FROM users WHERE id = ?', [req.params.id]);
+        if (!users[0]?.two_factor_secret) return res.status(400).json({ error: 'No secret set.' });
+        const secret = users[0].two_factor_secret;
+
+        // RFC 6238 compliant TOTP verification
+        const crypto = require('crypto');
+        // Decode Base32 secret to buffer
+        const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        function base32Decode(str) {
+            let bits = 0, value = 0;
+            const output = [];
+            for (const char of str.toUpperCase().replace(/=+$/, '')) {
+                const idx = BASE32_CHARS.indexOf(char);
+                if (idx === -1) continue;
+                value = (value << 5) | idx;
+                bits += 5;
+                if (bits >= 8) { bits -= 8; output.push((value >> bits) & 0xff); }
+            }
+            return Buffer.from(output);
+        }
+        function generateTOTP(secretBuf, counter) {
+            const buf = Buffer.alloc(8);
+            for (let i = 7; i >= 0; i--) { buf[i] = counter & 0xff; counter = Math.floor(counter / 256); }
+            const hmac = crypto.createHmac('sha1', secretBuf).update(buf).digest();
+            const offset = hmac[hmac.length - 1] & 0x0f;
+            const code = ((hmac[offset] & 0x7f) << 24) | (hmac[offset+1] << 16) | (hmac[offset+2] << 8) | hmac[offset+3];
+            return (code % 1000000).toString().padStart(6, '0');
+        }
+        const secretBuf = base32Decode(secret);
+        const t = Math.floor(Date.now() / 1000 / 30);
+        // Allow 1 step drift either side for clock skew
+        const validCodes = [t-1, t, t+1].map(ts => generateTOTP(secretBuf, ts));
+        if (validCodes.includes(code.toString().trim())) {
+            await pool.query('UPDATE users SET two_factor_enabled = TRUE WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } else {
+            res.status(400).json({ error: 'Invalid code. Check your authenticator app and try again.' });
+        }
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
 app.post('/api/users/:id/2fa/disable', async (req, res) => { try { await pool.query('UPDATE users SET two_factor_enabled = FALSE, two_factor_secret = NULL WHERE id = ?', [req.params.id]); res.json({ success: true }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
 app.get('/api/users/:id/2fa/status', async (req, res) => { try { const [u] = await pool.query('SELECT two_factor_enabled FROM users WHERE id = ?', [req.params.id]); res.json({ enabled: !!u[0]?.two_factor_enabled }); } catch(e) { res.status(500).json({ error: 'Server error.' }); } });
 

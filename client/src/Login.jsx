@@ -1,29 +1,93 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck } from 'lucide-react';
 
 function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
+    const [requires2FA, setRequires2FA] = useState(false);
+    const [pendingUserId, setPendingUserId] = useState(null);
+    const [totpCode, setTotpCode] = useState('');
+    const [totpLoading, setTotpLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            // 🔥 Dynamic API Call!
             const response = await axios.post('/api/login', { email, password });
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('userId', response.data.user.id);
-            localStorage.setItem('username', response.data.user.username);
-            localStorage.setItem('loginUsername', response.data.user.loginUsername || response.data.user.username);
-            localStorage.setItem('userRole', response.data.user.role || 'user');
-            window.location.href = '/';
+            // Server signals 2FA is required before issuing token
+            if (response.data.requires_2fa) {
+                setPendingUserId(response.data.userId);
+                setRequires2FA(true);
+                setMessage('');
+                return;
+            }
+            finishLogin(response.data);
         } catch (error) {
             setMessage(error.response?.data?.error || "Server error");
         }
     };
+
+    const handleTotpSubmit = async (e) => {
+        e.preventDefault();
+        setTotpLoading(true);
+        try {
+            const response = await axios.post('/api/login', { email, password, totp_code: totpCode });
+            finishLogin(response.data);
+        } catch (error) {
+            setMessage(error.response?.data?.error || "Invalid 2FA code");
+        }
+        setTotpLoading(false);
+    };
+
+    const finishLogin = (data) => {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userId', data.user.id);
+        localStorage.setItem('username', data.user.username);
+        localStorage.setItem('loginUsername', data.user.loginUsername || data.user.username);
+        localStorage.setItem('userRole', data.user.role || 'user');
+        window.location.href = '/';
+    };
+
+    if (requires2FA) {
+        return (
+            <div className="flex items-center justify-center min-h-[80vh] px-4 animate-fade-in">
+                <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+                    <div className="flex flex-col items-center mb-8">
+                        <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mb-4">
+                            <ShieldCheck size={24} className="text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">Two-Factor Auth</h2>
+                        <p className="text-zinc-500 mt-2 text-center text-sm">Open your authenticator app and enter the 6-digit code.</p>
+                    </div>
+                    <form onSubmit={handleTotpSubmit} className="flex flex-col gap-4">
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            placeholder="000000"
+                            value={totpCode}
+                            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                            required
+                            autoFocus
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-white text-center text-2xl tracking-widest placeholder-zinc-600 focus:outline-none focus:border-green-500 transition-colors"
+                        />
+                        <button
+                            type="submit"
+                            disabled={totpCode.length !== 6 || totpLoading}
+                            className="w-full bg-green-600 text-white font-bold text-lg py-4 rounded-xl mt-2 hover:bg-green-500 transition-colors shadow-lg shadow-green-500/30 disabled:opacity-50"
+                        >
+                            {totpLoading ? 'Verifying...' : 'Verify & Sign In'}
+                        </button>
+                    </form>
+                    {message && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-center text-sm font-medium">{message}</div>}
+                    <button onClick={() => { setRequires2FA(false); setMessage(''); setTotpCode(''); }} className="w-full text-center text-zinc-500 mt-4 text-sm hover:text-zinc-300 transition">← Back to login</button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex items-center justify-center min-h-[80vh] px-4 animate-fade-in">
