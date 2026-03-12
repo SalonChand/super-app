@@ -717,16 +717,12 @@ function Feed({ onlineUsers = new Set() }) {
                                 <p className="text-zinc-100 text-[15px] leading-normal break-words whitespace-pre-wrap mb-3">{renderPostText(post.content)}</p>
                             )}
 
-                            {/* Carousel or single image */}
+                            {/* Collage or single image */}
                             {(() => {
                                 const imgs = (() => { try { return post.images ? JSON.parse(post.images) : null; } catch(e) { return null; } })();
-                                const allImgs = imgs && imgs.length > 1 ? imgs : (post.image_url ? [post.image_url] : null);
+                                const allImgs = (imgs && imgs.length > 0) ? imgs : (post.image_url ? [post.image_url] : null);
                                 if (!allImgs) return null;
-                                if (allImgs.length === 1) {
-                                    return <div className="w-full flex justify-center mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden"><img onClick={() => setViewingPostImage(allImgs[0])} src={allImgs[0]} className="max-h-[500px] w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl" /></div>;
-                                }
-                                // Multi-image carousel
-                                return <CarouselPost images={allImgs} onImageClick={setViewingPostImage} />;
+                                return <CollagePost images={allImgs} onImageClick={setViewingPostImage} />;
                             })()}
                             
                             <div className="flex justify-between items-center text-zinc-500 mt-2 max-w-sm pr-10">

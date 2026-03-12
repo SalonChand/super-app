@@ -96,36 +96,79 @@ function PeoplePicker({ title, subtitle, friends, selected, multiSelect, onToggl
     );
 }
 
-// ── Carousel image preview ───────────────────────────────────────────────────
+// ── Collage image preview ─────────────────────────────────────────────────────
 function ImagePreview({ urls, onRemove }) {
-    const [idx, setIdx] = useState(0);
+    const [viewIdx, setViewIdx] = useState(null);
     if (!urls.length) return null;
-    return (
-        <div className="relative rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 select-none">
-            <img src={urls[idx]} className="w-full max-h-80 object-contain" alt="" />
-            {urls.length > 1 && idx > 0 && (
-                <button onClick={() => setIdx(i => i - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm transition">
-                    <ChevronLeft size={18} />
-                </button>
-            )}
-            {urls.length > 1 && idx < urls.length - 1 && (
-                <button onClick={() => setIdx(i => i + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm transition">
-                    <ChevronRight size={18} />
-                </button>
-            )}
-            <button onClick={() => { onRemove(idx); setIdx(i => Math.max(0, i - 1)); }}
-                className="absolute top-2.5 right-2.5 bg-black/70 hover:bg-black text-white p-1.5 rounded-full backdrop-blur-sm transition">
-                <X size={15} />
+
+    const n = urls.length;
+
+    // Single image
+    if (n === 1) return (
+        <div className="relative rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
+            <img src={urls[0]} className="w-full max-h-80 object-cover" alt=""/>
+            <button onClick={() => onRemove(0)} className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1.5 rounded-full transition">
+                <X size={15}/>
             </button>
-            {urls.length > 1 && (
-                <>
-                    <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5">
-                        {urls.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === idx ? 'bg-white scale-125' : 'bg-white/40'}`} />)}
+        </div>
+    );
+
+    // Collage grid
+    const gridClass = n === 2 ? 'grid grid-cols-2 gap-0.5' : n === 3 ? 'grid grid-cols-3 gap-0.5' : 'grid grid-cols-2 gap-0.5';
+    const aspectRatio = n === 2 ? '1' : n === 3 ? '0.85' : '1';
+
+    return (
+        <div className="rounded-2xl overflow-hidden border border-zinc-800">
+            <div className={gridClass}>
+                {urls.slice(0, 4).map((url, i) => {
+                    const isOverlay = i === 3 && n > 4;
+                    return (
+                        <div key={i} className="relative overflow-hidden bg-zinc-900 cursor-pointer"
+                            style={{ aspectRatio }}
+                            onClick={() => setViewIdx(i)}>
+                            <img src={url} className="w-full h-full object-cover hover:opacity-90 transition" alt=""/>
+                            {isOverlay && (
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                    <span className="text-white font-bold text-3xl">+{n - 4}</span>
+                                </div>
+                            )}
+                            <button onClick={e => { e.stopPropagation(); onRemove(i); }}
+                                className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-black text-white p-1 rounded-full transition z-10">
+                                <X size={13}/>
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
+            {n > 4 && <p className="text-zinc-500 text-xs text-center py-2 bg-zinc-900">{n} photos · tap to view</p>}
+
+            {/* Fullscreen viewer */}
+            {viewIdx !== null && (
+                <div className="fixed inset-0 z-[300] bg-black/97 flex items-center justify-center" onClick={() => setViewIdx(null)}>
+                    <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={() => setViewIdx(null)}>
+                        <X size={20}/>
+                    </button>
+                    {viewIdx > 0 && (
+                        <button className="absolute left-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10"
+                            onClick={e => { e.stopPropagation(); setViewIdx(i => i - 1); }}>
+                            <ChevronLeft size={22}/>
+                        </button>
+                    )}
+                    {viewIdx < urls.length - 1 && (
+                        <button className="absolute right-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10"
+                            onClick={e => { e.stopPropagation(); setViewIdx(i => i + 1); }}>
+                            <ChevronRight size={22}/>
+                        </button>
+                    )}
+                    <img src={urls[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl"
+                        onClick={e => e.stopPropagation()} alt=""/>
+                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+                        {urls.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/40'}`}/>)}
                     </div>
-                    <div className="absolute top-2.5 left-2.5 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm font-medium">
-                        {idx + 1} / {urls.length}
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                        {viewIdx + 1} / {urls.length}
                     </div>
-                </>
+                </div>
             )}
         </div>
     );
@@ -344,8 +387,8 @@ export default function CreatePost({ themeColor = '#3b82f6' }) {
                     <button onClick={() => setShowTagPicker(true)}
                         className="flex items-center gap-2 px-3 py-2.5 rounded-2xl hover:bg-zinc-900 transition group">
                         <Users size={20} className={taggedFriends.length > 0 ? '' : 'text-zinc-500 group-hover:text-white'} style={taggedFriends.length > 0 ? { color: themeColor } : {}} />
-                        <span className="text-sm font-medium" style={taggedFriends.length > 0 ? { color: themeColor } : { color: '' }}
-                            className={taggedFriends.length > 0 ? 'text-sm font-medium' : 'text-sm font-medium text-zinc-500 group-hover:text-white'}>
+                        <span className={taggedFriends.length > 0 ? 'text-sm font-medium' : 'text-sm font-medium text-zinc-500 group-hover:text-white'}
+                            style={taggedFriends.length > 0 ? { color: themeColor } : {}}>
                             Tag{taggedFriends.length > 0 ? ` (${taggedFriends.length})` : ''}
                         </span>
                     </button>
