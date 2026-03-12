@@ -48,16 +48,17 @@ function isAtRisk(lastInteraction) {
 function SendSnapModal({ friend, onClose, onSent }) {
     const [message, setMessage] = useState('');
     const [sending, setSending] = useState(false);
-    const [recording, setRecording] = useState(false);
+    const [phase, setPhase] = useState('idle'); // idle | recording | preview
+    const [timeLeft, setTimeLeft] = useState(10);
     const [videoBlob, setVideoBlob] = useState(null);
     const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
-    const [cameraStream, setCameraStream] = useState(null);
-    const [timeLeft, setTimeLeft] = useState(10);
     const videoRef = useRef(null);
     const previewRef = useRef(null);
     const recorderRef = useRef(null);
+    const streamRef = useRef(null);
     const timerRef = useRef(null);
     const chunksRef = useRef([]);
+    const mimeRef = useRef('');
     const userId = localStorage.getItem('userId');
 
     const quickMessages = [
@@ -68,48 +69,64 @@ function SendSnapModal({ friend, onClose, onSent }) {
         '💪 We got this!',
     ];
 
-    // Clean up on unmount
     useEffect(() => {
         return () => {
-            stopCamera();
+            clearInterval(timerRef.current);
+            if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
             if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
         };
     }, []);
 
-    const stopCamera = () => {
-        clearInterval(timerRef.current);
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-            recorderRef.current.stop();
+    // Once phase becomes 'recording', attach stream to video element
+    useEffect(() => {
+        if (phase === 'recording' && videoRef.current && streamRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+            videoRef.current.muted = true;
+            videoRef.current.play().catch(() => {});
         }
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(t => t.stop());
-            setCameraStream(null);
+    }, [phase]);
+
+    // Once phase becomes 'preview', set preview src
+    useEffect(() => {
+        if (phase === 'preview' && previewRef.current && videoPreviewUrl) {
+            previewRef.current.src = videoPreviewUrl;
+            previewRef.current.play().catch(() => {});
         }
-        setRecording(false);
-    };
+    }, [phase, videoPreviewUrl]);
 
     const startRecording = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
-            setCameraStream(stream);
-            if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: true
+            });
+            streamRef.current = stream;
+
+            // Pick best supported mime type
+            const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4', '']
+                .find(t => t === '' || MediaRecorder.isTypeSupported(t));
+            mimeRef.current = mime;
 
             chunksRef.current = [];
-            const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm' });
+            const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
             recorderRef.current = recorder;
-            recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+
+            recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
             recorder.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                // Stop all tracks AFTER recorder finishes
+                stream.getTracks().forEach(t => t.stop());
+                const actualType = mimeRef.current || 'video/webm';
+                const blob = new Blob(chunksRef.current, { type: actualType });
                 const url = URL.createObjectURL(blob);
                 setVideoBlob(blob);
                 setVideoPreviewUrl(url);
-                if (previewRef.current) { previewRef.current.src = url; previewRef.current.play(); }
+                setPhase('preview');
             };
-            recorder.start();
-            setRecording(true);
+
+            recorder.start(100); // collect data every 100ms
+            setPhase('recording');
             setTimeLeft(10);
 
-            // Auto-stop after 10s
             let t = 10;
             timerRef.current = setInterval(() => {
                 t--;
@@ -117,21 +134,22 @@ function SendSnapModal({ friend, onClose, onSent }) {
                 if (t <= 0) stopRecording();
             }, 1000);
         } catch (e) {
-            alert('Could not access camera. Please allow camera permission.');
+            alert('Camera access denied. Please allow camera & microphone permission and try again.');
         }
     };
 
     const stopRecording = () => {
         clearInterval(timerRef.current);
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
-        if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); setCameraStream(null); }
-        setRecording(false);
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+            recorderRef.current.stop(); // onstop will fire async and set phase='preview'
+        }
     };
 
     const discardVideo = () => {
         if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
         setVideoBlob(null);
         setVideoPreviewUrl(null);
+        setPhase('idle');
     };
 
     const send = async (msg) => {
@@ -141,7 +159,8 @@ function SendSnapModal({ friend, onClose, onSent }) {
             formData.append('fromUserId', userId);
             formData.append('toUserId', friend.friend_id);
             if (videoBlob) {
-                formData.append('media', videoBlob, 'snap.webm');
+                const ext = mimeRef.current.includes('mp4') ? 'mp4' : 'webm';
+                formData.append('media', videoBlob, `snap.${ext}`);
             } else {
                 formData.append('message', msg || message || '🔥 Streak snap!');
             }
@@ -188,41 +207,37 @@ function SendSnapModal({ friend, onClose, onSent }) {
                         </div>
                     </div>
 
-                    {/* ── Video section ── */}
-                    {!videoBlob ? (
-                        <div className="space-y-2">
-                            {/* Camera viewfinder (shown while recording) */}
-                            {cameraStream && (
-                                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3]">
-                                    <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover"/>
-                                    {recording && (
-                                        <>
-                                            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 rounded-full px-2.5 py-1">
-                                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
-                                                <span className="text-white text-xs font-bold">{timeLeft}s</span>
-                                            </div>
-                                            <button onClick={stopRecording}
-                                                className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-red-500 hover:bg-red-400 text-white font-bold px-5 py-2 rounded-full text-sm transition">
-                                                Stop
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            )}
+                    {/* ── IDLE: show record button ── */}
+                    {phase === 'idle' && (
+                        <button onClick={startRecording}
+                            className="w-full flex items-center justify-center gap-2 py-3.5 bg-zinc-900 border border-zinc-700 hover:border-orange-500/50 hover:bg-orange-500/5 rounded-2xl text-white font-bold text-sm transition">
+                            <Video size={18} className="text-orange-400"/> Record a 10s Video Snap
+                        </button>
+                    )}
 
-                            {/* Record button */}
-                            {!cameraStream && (
-                                <button onClick={startRecording}
-                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-zinc-900 border border-zinc-700 hover:border-orange-500/50 hover:bg-orange-500/5 rounded-2xl text-white font-bold text-sm transition">
-                                    <Video size={18} className="text-orange-400"/> Record a 10s Video Snap
-                                </button>
-                            )}
+                    {/* ── RECORDING: live camera viewfinder ── */}
+                    {phase === 'recording' && (
+                        <div className="relative rounded-2xl overflow-hidden bg-zinc-900 aspect-[3/4]">
+                            <video ref={videoRef} autoPlay muted playsInline
+                                className="w-full h-full object-cover"
+                                style={{ transform: 'scaleX(-1)' }}/>
+                            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 rounded-full px-2.5 py-1">
+                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
+                                <span className="text-white text-xs font-bold">{timeLeft}s</span>
+                            </div>
+                            <button onClick={stopRecording}
+                                className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2.5 rounded-full text-sm transition">
+                                Stop
+                            </button>
                         </div>
-                    ) : (
-                        /* Video preview after recording */
+                    )}
+
+                    {/* ── PREVIEW: show recorded video ── */}
+                    {phase === 'preview' && (
                         <div className="space-y-2">
-                            <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3]">
-                                <video ref={previewRef} src={videoPreviewUrl} autoPlay loop playsInline className="w-full h-full object-cover"/>
+                            <div className="relative rounded-2xl overflow-hidden bg-zinc-900 aspect-[3/4]">
+                                <video ref={previewRef} autoPlay loop playsInline controls
+                                    className="w-full h-full object-cover"/>
                                 <div className="absolute top-3 left-3 bg-orange-500/80 rounded-full px-2.5 py-1">
                                     <span className="text-white text-xs font-bold">📹 Preview</span>
                                 </div>
@@ -234,22 +249,22 @@ function SendSnapModal({ friend, onClose, onSent }) {
                                 </button>
                                 <button onClick={() => send()} disabled={sending}
                                     className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-bold transition disabled:opacity-50 flex items-center justify-center gap-2">
-                                    {sending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Send size={14}/> Send Video</>}
+                                    {sending
+                                        ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                                        : <><Send size={14}/> Send Video</>}
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Divider */}
-                    {!videoBlob && (
+                    {/* ── Text snaps (hidden during recording/preview) ── */}
+                    {phase !== 'recording' && (
                         <>
                             <div className="flex items-center gap-2">
                                 <div className="flex-1 h-px bg-zinc-800"/>
                                 <span className="text-zinc-600 text-xs">or send a text snap</span>
                                 <div className="flex-1 h-px bg-zinc-800"/>
                             </div>
-
-                            {/* Quick messages */}
                             <div className="flex flex-col gap-2">
                                 {quickMessages.map((msg, i) => (
                                     <button key={i} onClick={() => send(msg)} disabled={sending}
@@ -258,8 +273,6 @@ function SendSnapModal({ friend, onClose, onSent }) {
                                     </button>
                                 ))}
                             </div>
-
-                            {/* Custom text */}
                             <div className="flex gap-2 pt-1">
                                 <input value={message} onChange={e => setMessage(e.target.value)}
                                     placeholder="Or type a custom message..."
@@ -277,7 +290,6 @@ function SendSnapModal({ friend, onClose, onSent }) {
         </div>
     );
 }
-
 // ─── Main Streaks Page ─────────────────────────────────────────────────────
 export default function Streaks({ themeColor }) {
     const userId = localStorage.getItem('userId');
