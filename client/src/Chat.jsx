@@ -16,7 +16,7 @@ if (!window._superAppSocket) {
         window._superAppSocket.on('connect_error', () => {});
         window._superAppSocket.on('error', () => {});
     } catch(e) {
-        window._superAppSocket = { emit: () => {}, on: () => {}, off: () => {} };
+        window._superAppSocket = { emit: () => {}, on: () => {}, on: () => {}, off: () => {} };
     }
 }
 const socket = window._superAppSocket;
@@ -68,6 +68,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [showChatSettings, setShowChatSettings] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -126,7 +127,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             });
             setFriends(uniqueFriends);
             setRequests(requestsRes.data);
-        } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
+        } catch (err) { console.error(err); } finally { setIsRefreshing(false); setInitialLoading(false); }
     };
 
     useEffect(() => {
@@ -905,7 +906,20 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 <div>
                     {activeFolder !== 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">📁 {activeFolder}</h3>}
                     {activeFolder === 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>}
-                    {friendsInActiveFolder.length === 0 ? (
+                    {initialLoading ? (
+                        <div className="space-y-1">
+                            {[...Array(7)].map((_, i) => (
+                                <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
+                                    <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-3 bg-zinc-800 rounded-full animate-pulse w-28"/>
+                                        <div className="h-2.5 bg-zinc-800/60 rounded-full animate-pulse w-40"/>
+                                    </div>
+                                    <div className="h-2 w-8 bg-zinc-800/50 rounded-full animate-pulse"/>
+                                </div>
+                            ))}
+                        </div>
+                    ) : friendsInActiveFolder.length === 0 ? (
                         <p className="text-zinc-500 p-4 border border-zinc-800 rounded-xl bg-zinc-900/50">
                             {activeFolder === 'all' ? <span>No friends yet. Head to the <span className="font-bold text-white">Friends tab</span>.</span> : 'No chats in this folder. Right-click a chat to assign it.'}
                         </p>

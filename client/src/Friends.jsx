@@ -18,12 +18,15 @@ function Friends() {
     const [pendingRequests, setPendingRequests] = useState([]);
     const [sentRequests, setSentRequests] = useState([]);
     const [exploreUsers, setExploreUsers] = useState([]);
+    const [initialLoading, setInitialLoading] = useState(true);
 
     const loadFriendsData = () => {
         if (!currentUserId) return;
-        axios.get(`${BACKEND_URL}/api/friends/pending/${currentUserId}`).then(res => setPendingRequests(res.data)).catch(console.error);
-        axios.get(`${BACKEND_URL}/api/friends/sent/${currentUserId}`).then(res => setSentRequests(res.data)).catch(console.error);
-        axios.get(`${BACKEND_URL}/api/friends/explore/${currentUserId}`).then(res => setExploreUsers(res.data)).catch(console.error);
+        Promise.all([
+            axios.get(`${BACKEND_URL}/api/friends/pending/${currentUserId}`).then(res => setPendingRequests(res.data)).catch(console.error),
+            axios.get(`${BACKEND_URL}/api/friends/sent/${currentUserId}`).then(res => setSentRequests(res.data)).catch(console.error),
+            axios.get(`${BACKEND_URL}/api/friends/explore/${currentUserId}`).then(res => setExploreUsers(res.data)).catch(console.error),
+        ]).finally(() => setInitialLoading(false));
     };
 
     useEffect(() => { loadFriendsData(); }, []);
@@ -66,6 +69,48 @@ function Friends() {
             </div>
             <div className="p-4 space-y-8">
 
+                {initialLoading ? (
+                    /* ── Full page skeleton ── */
+                    <>
+                        {/* Requests skeleton */}
+                        <div>
+                            <div className="h-3 w-32 bg-zinc-800 rounded-full animate-pulse mb-4"/>
+                            <div className="space-y-3">
+                                {[...Array(2)].map((_, i) => (
+                                    <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                                            <div className="space-y-2">
+                                                <div className="h-3 w-24 bg-zinc-800 rounded-full animate-pulse"/>
+                                                <div className="h-2.5 w-20 bg-zinc-800/60 rounded-full animate-pulse"/>
+                                            </div>
+                                        </div>
+                                        <div className="h-8 w-20 bg-zinc-800 rounded-full animate-pulse"/>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Explore skeleton */}
+                        <div>
+                            <div className="h-3 w-40 bg-zinc-800 rounded-full animate-pulse mb-4"/>
+                            <div className="space-y-3">
+                                {[...Array(5)].map((_, i) => (
+                                    <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                                            <div className="space-y-2">
+                                                <div className="h-3 w-28 bg-zinc-800 rounded-full animate-pulse"/>
+                                                <div className="h-2.5 w-16 bg-zinc-800/60 rounded-full animate-pulse"/>
+                                            </div>
+                                        </div>
+                                        <div className="h-8 w-16 bg-zinc-800 rounded-full animate-pulse"/>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
                 {/* Incoming Requests */}
                 {pendingRequests.length > 0 && (
                     <div>
@@ -142,6 +187,8 @@ function Friends() {
                         </div>
                     )}
                 </div>
+                    </>
+                )}
 
             </div>
         </div>

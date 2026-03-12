@@ -139,6 +139,7 @@ function Feed({ onlineUsers = new Set() }) {
     const isDrawing = useRef(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [feedPage, setFeedPage] = useState(0);
     const [hasMorePosts, setHasMorePosts] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -202,6 +203,7 @@ function Feed({ onlineUsers = new Set() }) {
             }
         } catch (err) { console.error('Friends error:', err); }
         setIsRefreshing(false);
+        setInitialLoading(false);
     };
     const loadMorePosts = async () => {
         if (loadingMore || !hasMorePosts) return;
@@ -698,6 +700,41 @@ function Feed({ onlineUsers = new Set() }) {
                     </div>
                 )}
 
+                {initialLoading ? (
+                    /* ── Skeleton: stories row ── */
+                    <>
+                        <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-zinc-800 no-scrollbar">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                                    <div className="w-14 h-14 rounded-full bg-zinc-800 animate-pulse"/>
+                                    <div className="w-10 h-2 rounded-full bg-zinc-800 animate-pulse"/>
+                                </div>
+                            ))}
+                        </div>
+                        {/* ── Skeleton: posts ── */}
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="p-4 border-b border-zinc-800 flex gap-4">
+                                <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                                <div className="flex-1 space-y-2 pt-1">
+                                    <div className="flex gap-2 items-center">
+                                        <div className="h-3 w-28 bg-zinc-800 rounded-full animate-pulse"/>
+                                        <div className="h-3 w-16 bg-zinc-800/60 rounded-full animate-pulse"/>
+                                    </div>
+                                    <div className="h-3 w-full bg-zinc-800 rounded-full animate-pulse"/>
+                                    <div className="h-3 w-4/5 bg-zinc-800 rounded-full animate-pulse"/>
+                                    <div className="h-3 w-2/3 bg-zinc-800/60 rounded-full animate-pulse"/>
+                                    <div className="h-48 w-full bg-zinc-800/50 rounded-2xl animate-pulse mt-2"/>
+                                    <div className="flex gap-4 pt-1">
+                                        <div className="h-3 w-12 bg-zinc-800 rounded-full animate-pulse"/>
+                                        <div className="h-3 w-12 bg-zinc-800 rounded-full animate-pulse"/>
+                                        <div className="h-3 w-12 bg-zinc-800 rounded-full animate-pulse"/>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                ) : (
+                    <>
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
                     <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
@@ -808,6 +845,8 @@ function Feed({ onlineUsers = new Set() }) {
                 )}
                 {!hasMorePosts && posts.length > 0 && (
                     <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
+                )}
+                    </>
                 )}
             </div>
         </div>
