@@ -1216,10 +1216,6 @@ function AppContent() {
 
                   </Link> 
 
-                  <Link to="/streaks" className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/streaks' ? '#f97316' : '#a1a1aa' }}>
-                      <Flame size={22} />
-                  </Link>
-
                   <Link to={`/profile/${currentUserId}`} className="p-1.5 flex items-center justify-center">
 
                     {currentUser?.profile_pic_url ? ( 
