@@ -90,7 +90,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const title = titles[t] || titles.blue;
     const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
     const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
-    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
+    return <BadgeCheck size={size} className={`inline-block align-middle flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={{...style, verticalAlign: 'middle', marginLeft: '2px', marginBottom: '1px'}}/>;
 }
 
 function Feed({ onlineUsers = new Set() }) {
@@ -480,7 +480,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
                                     {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-white text-xs font-bold">{viewingStory.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
-                                <span className="text-white text-sm font-bold flex items-center gap-1">{viewingStory.username}<VerifiedBadge isVerified={!!viewingStory.is_verified} verifyType={viewingStory.verify_type} size={14}/></span>
+                                <span className="text-white text-sm font-bold inline-flex items-center gap-1 flex-wrap">{viewingStory.username}<VerifiedBadge isVerified={!!viewingStory.is_verified} verifyType={viewingStory.verify_type} size={14}/></span>
                             </Link>
                             <div className="flex items-center gap-2">
                                 {/* Edit/Delete menu for own stories */}
@@ -819,7 +819,7 @@ function Feed({ onlineUsers = new Set() }) {
                             
                             {/* Comments and Likes panels remain exactly the same below... */}
                             {activeLikesPostId === post.id && (
-                                <div className="mt-3 pt-3 border-t border-zinc-800 animate-fade-in"><h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Liked by</h4><div className="flex flex-wrap gap-2">{likesData[post.id]?.length === 0 && <p className="text-sm text-zinc-500">No likes yet.</p>}{likesData[post.id]?.map(user => (<Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800 hover:bg-zinc-800 transition">{user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-white">{user.username.charAt(0).toUpperCase()}</div>}<span className="text-sm text-zinc-300 flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={12}/></span></Link>))}</div></div>
+                                <div className="mt-3 pt-3 border-t border-zinc-800 animate-fade-in"><h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Liked by</h4><div className="flex flex-wrap gap-2">{likesData[post.id]?.length === 0 && <p className="text-sm text-zinc-500">No likes yet.</p>}{likesData[post.id]?.map(user => (<Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800 hover:bg-zinc-800 transition">{user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-white">{user.username.charAt(0).toUpperCase()}</div>}<span className="text-sm text-zinc-300 inline-flex items-center gap-1 flex-wrap">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={12}/></span></Link>))}</div></div>
                             )}
 
                             {activeCommentPostId === post.id && (

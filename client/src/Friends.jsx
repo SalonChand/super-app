@@ -9,7 +9,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const t = verifyType || 'blue';
     const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
     const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
-    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={titles[t] || titles.blue} style={style}/>;
+    return <BadgeCheck size={size} className={`inline-block align-middle flex-shrink-0 ${colors[t] || colors.blue}`} title={titles[t] || titles.blue} style={{...style, verticalAlign: 'middle', marginLeft: '2px', marginBottom: '1px'}}/>;
 }
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -123,7 +123,7 @@ function Friends() {
                                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-500" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-white flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></h4>
+                                            <h4 className="font-bold text-white">{user.username}<span className="inline-flex items-center align-middle ml-1"><VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></span></h4>
                                             <p className="text-xs text-zinc-500">Wants to connect</p>
                                         </div>
                                     </Link>
@@ -148,7 +148,7 @@ function Friends() {
                                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-500" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-white flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></h4>
+                                            <h4 className="font-bold text-white">{user.username}<span className="inline-flex items-center align-middle ml-1"><VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></span></h4>
                                             <p className="text-xs text-zinc-500 flex items-center gap-1"><Clock size={11} /> Request pending</p>
                                         </div>
                                     </Link>
@@ -175,7 +175,7 @@ function Friends() {
                                             {user.profile_pic_url ? <img src={user.profile_pic_url} className="w-full h-full object-cover" /> : <User className="text-zinc-500" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-white flex items-center gap-1">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></h4>
+                                            <h4 className="font-bold text-white">{user.username}<span className="inline-flex items-center align-middle ml-1"><VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={14}/></span></h4>
                                             <p className="text-xs text-zinc-500">New to network</p>
                                         </div>
                                     </Link>
