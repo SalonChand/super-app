@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, AlertTriangle, ChevronRight, X, Check, Users, Video } from 'lucide-react';
+import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, AlertTriangle, ChevronRight, X, Check, Users, Video, RefreshCw } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -52,6 +52,7 @@ function SendSnapModal({ friend, onClose, onSent }) {
     const [timeLeft, setTimeLeft] = useState(10);
     const [videoBlob, setVideoBlob] = useState(null);
     const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
+    const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
     const videoRef = useRef(null);
     const previewRef = useRef(null);
     const recorderRef = useRef(null);
@@ -59,6 +60,7 @@ function SendSnapModal({ friend, onClose, onSent }) {
     const timerRef = useRef(null);
     const chunksRef = useRef([]);
     const mimeRef = useRef('');
+    const facingRef = useRef('user');
     const userId = localStorage.getItem('userId');
 
     const quickMessages = [
@@ -94,10 +96,13 @@ function SendSnapModal({ friend, onClose, onSent }) {
         }
     }, [phase, videoPreviewUrl]);
 
-    const startRecording = async () => {
+    const startRecording = async (facing = facingRef.current) => {
         try {
+            // Stop existing stream if any
+            if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: true
             });
             streamRef.current = stream;
@@ -113,7 +118,6 @@ function SendSnapModal({ friend, onClose, onSent }) {
 
             recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
             recorder.onstop = () => {
-                // Stop all tracks AFTER recorder finishes
                 stream.getTracks().forEach(t => t.stop());
                 const actualType = mimeRef.current || 'video/webm';
                 const blob = new Blob(chunksRef.current, { type: actualType });
@@ -123,7 +127,7 @@ function SendSnapModal({ friend, onClose, onSent }) {
                 setPhase('preview');
             };
 
-            recorder.start(100); // collect data every 100ms
+            recorder.start(100);
             setPhase('recording');
             setTimeLeft(10);
 
@@ -136,6 +140,23 @@ function SendSnapModal({ friend, onClose, onSent }) {
         } catch (e) {
             alert('Camera access denied. Please allow camera & microphone permission and try again.');
         }
+    };
+
+    const flipCamera = async () => {
+        const newFacing = facingRef.current === 'user' ? 'environment' : 'user';
+        facingRef.current = newFacing;
+        setFacingMode(newFacing);
+
+        // Stop recorder cleanly without triggering preview
+        clearInterval(timerRef.current);
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+            recorderRef.current.onstop = null; // prevent preview from triggering
+            recorderRef.current.stop();
+        }
+        chunksRef.current = [];
+
+        // Restart with new camera
+        await startRecording(newFacing);
     };
 
     const stopRecording = () => {
@@ -220,11 +241,18 @@ function SendSnapModal({ friend, onClose, onSent }) {
                         <div className="relative rounded-2xl overflow-hidden bg-zinc-900 aspect-[3/4]">
                             <video ref={videoRef} autoPlay muted playsInline
                                 className="w-full h-full object-cover"
-                                style={{ transform: 'scaleX(-1)' }}/>
+                                style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}/>
+                            {/* Timer */}
                             <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 rounded-full px-2.5 py-1">
                                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
                                 <span className="text-white text-xs font-bold">{timeLeft}s</span>
                             </div>
+                            {/* Flip camera button */}
+                            <button onClick={flipCamera}
+                                className="absolute top-3 right-3 w-9 h-9 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition">
+                                <RefreshCw size={16} className="text-white"/>
+                            </button>
+                            {/* Stop button */}
                             <button onClick={stopRecording}
                                 className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2.5 rounded-full text-sm transition">
                                 Stop

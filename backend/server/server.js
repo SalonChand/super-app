@@ -26,7 +26,7 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: { folder: 'superapp_media', resource_type: 'auto' },
+    params: { folder: 'superapp_media', resource_type: 'auto', allowed_formats: ['jpg','jpeg','png','gif','webp','mp4','webm','mov'] },
 });
 const upload = multer({ storage: storage });
 
@@ -1753,8 +1753,10 @@ app.post('/api/streaks/snap', upload.single('media'), async (req, res) => {
         let newCount = streak.streak_count;
 
         if (lastReset !== todayStr) {
-            const hoursSinceLast = (Date.now() - new Date(streak.last_interaction).getTime()) / (1000 * 60 * 60);
-            if (hoursSinceLast > 48 && streak.streak_count > 0) newCount = 0;
+            if (streak.last_interaction) {
+                const hoursSinceLast = (Date.now() - new Date(streak.last_interaction).getTime()) / (1000 * 60 * 60);
+                if (hoursSinceLast > 48 && streak.streak_count > 0) newCount = 0;
+            }
             await pool.query('UPDATE streaks SET user1_sent_today=FALSE, user2_sent_today=FALSE, last_reset=? WHERE id=?', [todayStr, streak.id]);
             const [fresh] = await pool.query('SELECT * FROM streaks WHERE id=?', [streak.id]);
             streak = { ...streak, ...fresh[0] };
