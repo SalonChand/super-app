@@ -618,8 +618,15 @@ function Feed({ onlineUsers = new Set() }) {
                     <span className="text-xs text-zinc-500 truncate w-14 text-center">Your Story</span>
                 </div>
                 <input ref={storyInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={startStoryDraft} />
-                {/* Story bubbles */}
-                {uniqueStories.map(story => (
+                {/* Story bubbles — skeleton while loading, real after */}
+                {initialLoading ? (
+                    [...Array(6)].map((_, i) => (
+                        <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                            <div className="w-14 h-14 rounded-full bg-zinc-800 animate-pulse"/>
+                            <div className="w-10 h-2 rounded-full bg-zinc-800 animate-pulse"/>
+                        </div>
+                    ))
+                ) : uniqueStories.map(story => (
                     <div key={story.user_id} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => openStoryViewer(story.user_id)}>
                         <div className="relative">
                             <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${story.user_has_viewed ? 'border-zinc-600' : 'border-blue-500'} p-0.5`}>
@@ -701,17 +708,8 @@ function Feed({ onlineUsers = new Set() }) {
                 )}
 
                 {initialLoading ? (
-                    /* ── Skeleton: stories row ── */
+                    /* ── Skeleton: posts only ── */
                     <>
-                        <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-zinc-800 no-scrollbar">
-                            {[...Array(6)].map((_, i) => (
-                                <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                                    <div className="w-14 h-14 rounded-full bg-zinc-800 animate-pulse"/>
-                                    <div className="w-10 h-2 rounded-full bg-zinc-800 animate-pulse"/>
-                                </div>
-                            ))}
-                        </div>
-                        {/* ── Skeleton: posts ── */}
                         {[...Array(4)].map((_, i) => (
                             <div key={i} className="p-4 border-b border-zinc-800 flex gap-4">
                                 <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
