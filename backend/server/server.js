@@ -462,6 +462,7 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN shadowbanned BOOLEAN DEFAULT FALSE");
     await patch("ALTER TABLE posts ADD COLUMN is_pinned_global BOOLEAN DEFAULT FALSE");
     await patch("CREATE TABLE IF NOT EXISTS broadcasts (id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT, title VARCHAR(200), message TEXT, type VARCHAR(20) DEFAULT 'info', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+    await patch("CREATE TABLE IF NOT EXISTS renewal_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, listing_id INT NOT NULL, listing_title VARCHAR(200), reason TEXT, duration_days INT DEFAULT 30, contact VARCHAR(200), status VARCHAR(20) DEFAULT 'pending', admin_note VARCHAR(500) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (listing_id) REFERENCES marketplace(id) ON DELETE CASCADE)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
@@ -777,12 +778,62 @@ app.put('/api/marketplace/:id/boost', async (req, res) => {
 
 // Renew listing (reset created_at to now so it appears fresh)
 app.put('/api/marketplace/:id/renew', async (req, res) => {
+    // Direct renew disabled - must go through renewal request flow
+    return res.status(403).json({ error: 'Please submit a renewal request for admin approval.' });
+});
+
+// Submit renewal request
+app.post('/api/marketplace/renewal-request', async (req, res) => {
     try {
-        const { userId } = req.body;
-        const [rows] = await pool.query('SELECT seller_id FROM marketplace WHERE id = ?', [req.params.id]);
+        const { userId, listingId, reason, durationDays, contact } = req.body;
+        if (!userId || !listingId || !reason) return res.status(400).json({ error: 'Missing required fields' });
+        const [rows] = await pool.query('SELECT seller_id, title, status FROM marketplace WHERE id = ?', [listingId]);
         if (!rows[0] || String(rows[0].seller_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
-        await pool.query("UPDATE marketplace SET created_at = NOW(), status = 'active' WHERE id = ?", [req.params.id]);
-        res.json({ message: 'Listing renewed' });
+        // Check no pending request already exists
+        const [existing] = await pool.query("SELECT id FROM renewal_requests WHERE listing_id = ? AND status = 'pending'", [listingId]);
+        if (existing.length > 0) return res.status(400).json({ error: 'A renewal request is already pending for this listing.' });
+        await pool.query(
+            "INSERT INTO renewal_requests (user_id, listing_id, listing_title, reason, duration_days, contact) VALUES (?,?,?,?,?,?)",
+            [userId, listingId, rows[0].title, reason, durationDays || 30, contact || '']
+        );
+        res.json({ message: 'Renewal request submitted! Admin will review within 24 hours.' });
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: get all renewal requests
+app.get('/api/admin/renewal-requests', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT rr.*, COALESCE(u.display_name, u.username) as seller_name, u.profile_pic_url,
+                m.title as current_title, m.status as listing_status, m.created_at as listing_created
+            FROM renewal_requests rr
+            JOIN users u ON rr.user_id = u.id
+            LEFT JOIN marketplace m ON rr.listing_id = m.id
+            ORDER BY rr.created_at DESC`);
+        res.json(rows);
+    } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: approve or reject renewal request
+app.put('/api/admin/renewal-requests/:id', async (req, res) => {
+    try {
+        const { action, adminNote } = req.body;
+        const [reqs] = await pool.query('SELECT * FROM renewal_requests WHERE id = ?', [req.params.id]);
+        if (!reqs[0]) return res.status(404).json({ error: 'Request not found' });
+        const r = reqs[0];
+        if (action === 'approve') {
+            const days = r.duration_days || 30;
+            await pool.query(`UPDATE marketplace SET created_at = NOW(), status = 'active', expires_at = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE id = ?`, [days, r.listing_id]);
+            await pool.query("UPDATE renewal_requests SET status = 'approved', admin_note = ? WHERE id = ?", [adminNote || '', req.params.id]);
+            // Notify seller
+            await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?,1,?,?)',
+                [r.user_id, 'renewal_approved', `Your renewal request for "${r.listing_title}" was approved for ${days} days!`]).catch(()=>{});
+        } else {
+            await pool.query("UPDATE renewal_requests SET status = 'rejected', admin_note = ? WHERE id = ?", [adminNote || '', req.params.id]);
+            await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?,1,?,?)',
+                [r.user_id, 'renewal_rejected', `Your renewal request for "${r.listing_title}" was rejected. ${adminNote || ''}`]).catch(()=>{});
+        }
+        res.json({ message: `Request ${action}d` });
     } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -1024,7 +1075,7 @@ app.post('/api/posts', upload.array('images', 10), async (req, res) => {
         if (req.files && req.files.length > 0) {
             const urls = req.files.map(f => f.path);
             image_url = urls[0];
-            images_json = JSON.stringify(urls); // always store all images (even single)
+            if (urls.length > 1) images_json = JSON.stringify(urls);
         }
         const { user_id, content, scheduled_at, is_draft, visibility, tagged_users } = req.body;
         const safeContent = content || '';

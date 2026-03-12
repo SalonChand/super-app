@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Trash2, ShoppingBag, Search, X, AlertTriangle, Zap, CheckCircle, XCircle, Clock, Eye, Upload, Save } from 'lucide-react';
+import { Shield, Trash2, ShoppingBag, Search, X, AlertTriangle, Zap, CheckCircle, XCircle, Clock, Eye, Upload, Save, RefreshCw } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -21,12 +21,13 @@ export default function AdminMarketplace() {
     const [tab, setTab] = useState('listings');
     const [listings, setListings] = useState([]);
     const [boostRequests, setBoostRequests] = useState([]);
+    const [renewalRequests, setRenewalRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [viewProof, setViewProof] = useState(null);
-    const [stats, setStats] = useState({ total: 0, categories: {}, pendingBoosts: 0 });
+    const [stats, setStats] = useState({ total: 0, categories: {}, pendingBoosts: 0, pendingRenewals: 0 });
 
     // Payment settings state
     const [paySettings, setPaySettings] = useState({
@@ -44,6 +45,7 @@ export default function AdminMarketplace() {
         if (!isAdmin) { navigate('/settings'); return; }
         fetchListings();
         fetchBoostRequests();
+        fetchRenewalRequests();
         fetchPaySettings();
     }, [search, category]);
 
@@ -69,6 +71,28 @@ export default function AdminMarketplace() {
             setBoostRequests(requests);
             setStats(s => ({ ...s, pendingBoosts: requests.filter(r => r.status === 'pending').length }));
         } catch { setBoostRequests([]); }
+    };
+
+    const fetchRenewalRequests = async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/admin/renewal-requests?adminId=${adminId}`);
+            const data = await res.json();
+            const requests = Array.isArray(data) ? data : [];
+            setRenewalRequests(requests);
+            setStats(s => ({ ...s, pendingRenewals: requests.filter(r => r.status === 'pending').length }));
+        } catch { setRenewalRequests([]); }
+    };
+
+    const handleRenewalRequest = async (id, action, adminNote = '') => {
+        try {
+            await fetch(`${BACKEND_URL}/api/admin/renewal-requests/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, adminNote }),
+            });
+            setRenewalRequests(prev => prev.map(r => r.id === id ? { ...r, status: action === 'approve' ? 'approved' : 'rejected' } : r));
+            setStats(s => ({ ...s, pendingRenewals: Math.max(0, s.pendingRenewals - 1) }));
+        } catch { alert('Action failed'); }
     };
 
     const fetchPaySettings = async () => {
@@ -184,6 +208,10 @@ export default function AdminMarketplace() {
                         <p className={`text-2xl font-bold ${stats.pendingBoosts > 0 ? 'text-yellow-400' : 'text-zinc-500'}`}>{stats.pendingBoosts}</p>
                         <p className="text-zinc-500 text-xs mt-0.5">Boost Pending</p>
                     </div>
+                    <div className={`border rounded-2xl p-3 text-center ${stats.pendingRenewals > 0 ? 'bg-blue-500/10 border-blue-500/30' : 'bg-zinc-900 border-zinc-800'}`}>
+                        <p className={`text-2xl font-bold ${stats.pendingRenewals > 0 ? 'text-blue-400' : 'text-zinc-500'}`}>{stats.pendingRenewals}</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Renewals Pending</p>
+                    </div>
                 </div>
 
                 {/* Tabs */}
@@ -191,6 +219,7 @@ export default function AdminMarketplace() {
                     {[
                         { id: 'listings', label: 'Listings' },
                         { id: 'boosts', label: 'Boosts', badge: stats.pendingBoosts },
+                        { id: 'renewals', label: 'Renewals', badge: stats.pendingRenewals },
                         { id: 'payment', label: 'Payment' },
                     ].map(t => (
                         <button key={t.id} onClick={() => setTab(t.id)}
@@ -198,10 +227,11 @@ export default function AdminMarketplace() {
                                 tab === t.id
                                     ? t.id === 'payment' ? 'bg-green-500/20 text-green-400'
                                     : t.id === 'boosts' ? 'bg-yellow-500/20 text-yellow-400'
+                                    : t.id === 'renewals' ? 'bg-blue-500/20 text-blue-400'
                                     : 'bg-zinc-700 text-white'
                                 : 'text-zinc-500 hover:text-white'}`}>
                             {t.label}
-                            {t.badge > 0 && <span className="bg-yellow-400 text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{t.badge}</span>}
+                            {t.badge > 0 && <span className={`text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${t.id === 'renewals' ? 'bg-blue-400' : 'bg-yellow-400'}`}>{t.badge}</span>}
                         </button>
                     ))}
                 </div>
@@ -321,6 +351,90 @@ export default function AdminMarketplace() {
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* ── RENEWALS TAB ── */}
+                {tab === 'renewals' && (
+                    <div className="space-y-3">
+                        {renewalRequests.length === 0 && (
+                            <div className="text-center py-12 text-zinc-600">
+                                <div className="text-4xl mb-2">🔄</div>
+                                <p className="text-sm">No renewal requests yet</p>
+                            </div>
+                        )}
+                        {renewalRequests.map(req => (
+                            <div key={req.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
+                                {/* Header */}
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0 flex items-center justify-center">
+                                            {req.profile_pic_url
+                                                ? <img src={req.profile_pic_url} className="w-full h-full object-cover" alt=""/>
+                                                : <span className="text-white text-sm font-bold">{req.seller_name?.charAt(0).toUpperCase()}</span>}
+                                        </div>
+                                        <div>
+                                            <p className="text-white font-semibold text-sm">{req.seller_name}</p>
+                                            <p className="text-zinc-500 text-xs">{new Date(req.created_at).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                                        req.status === 'pending' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                        req.status === 'approved' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                        'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                                        {req.status === 'pending' ? '⏳ Pending' : req.status === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                                    </span>
+                                </div>
+
+                                {/* Listing info */}
+                                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl px-3 py-2.5">
+                                    <p className="text-white font-semibold text-sm truncate">{req.listing_title}</p>
+                                    <p className="text-zinc-500 text-xs mt-0.5">Listing ID #{req.listing_id} · Status: <span className="text-zinc-300">{req.listing_status || 'unknown'}</span></p>
+                                </div>
+
+                                {/* Reason */}
+                                <div>
+                                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Reason</p>
+                                    <p className="text-zinc-200 text-sm leading-relaxed bg-zinc-800/40 rounded-xl px-3 py-2">{req.reason}</p>
+                                </div>
+
+                                {/* Duration & contact */}
+                                <div className="flex gap-3">
+                                    <div className="flex-1 bg-zinc-800/40 rounded-xl px-3 py-2">
+                                        <p className="text-zinc-500 text-xs">Duration Requested</p>
+                                        <p className="text-white font-bold text-sm">{req.duration_days} days</p>
+                                    </div>
+                                    {req.contact && (
+                                        <div className="flex-1 bg-zinc-800/40 rounded-xl px-3 py-2">
+                                            <p className="text-zinc-500 text-xs">Contact</p>
+                                            <p className="text-white text-sm truncate">{req.contact}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Admin note if exists */}
+                                {req.admin_note && (
+                                    <div className="bg-zinc-800/40 rounded-xl px-3 py-2">
+                                        <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-0.5">Admin Note</p>
+                                        <p className="text-zinc-300 text-xs">{req.admin_note}</p>
+                                    </div>
+                                )}
+
+                                {/* Action buttons */}
+                                {req.status === 'pending' && (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleRenewalRequest(req.id, 'reject')}
+                                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/20 transition">
+                                            <XCircle size={15}/> Reject
+                                        </button>
+                                        <button onClick={() => handleRenewalRequest(req.id, 'approve')}
+                                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-bold hover:bg-green-500/20 transition">
+                                            <CheckCircle size={15}/> Approve ({req.duration_days}d)
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

@@ -87,6 +87,9 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
     const [paySettingsLoading, setPaySettingsLoading] = useState(true);
 
     const [editListing, setEditListing] = useState(null);
+    const [renewModal, setRenewModal] = useState(null); // listing to renew
+    const [renewForm, setRenewForm] = useState({ reason: '', duration: '30', contact: '' });
+    const [submittingRenew, setSubmittingRenew] = useState(false);
     const [boostModal, setBoostModal] = useState(null); // listing to boost
     const [boostStep, setBoostStep] = useState(1); // 1=select payment, 2=instructions, 3=upload proof
     const [boostMethod, setBoostMethod] = useState('');
@@ -212,12 +215,24 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
         setSubmittingBoost(false);
     };
 
-    const renewListing = async (id) => {
+    const submitRenewalRequest = async () => {
+        if (!renewModal || !renewForm.reason.trim()) return alert('Please provide a reason for renewal.');
+        setSubmittingRenew(true);
         try {
-            await axios.put(`${BACKEND_URL}/api/marketplace/${id}/renew`, { userId });
-            fetchListings();
-            alert('Listing renewed — it\'s fresh again!');
-        } catch { alert('Failed to renew listing'); }
+            await axios.post(`${BACKEND_URL}/api/marketplace/renewal-request`, {
+                userId,
+                listingId: renewModal.id,
+                reason: renewForm.reason,
+                durationDays: renewForm.duration,
+                contact: renewForm.contact,
+            });
+            setRenewModal(null);
+            setRenewForm({ reason: '', duration: '30', contact: '' });
+            alert('✅ Renewal request submitted! Admin will review within 24 hours.');
+        } catch(e) {
+            alert(e.response?.data?.error || 'Failed to submit request. Try again.');
+        }
+        setSubmittingRenew(false);
     };
 
     const saveEdit = async () => {
@@ -556,7 +571,7 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                                             <Zap size={18}/>
                                             {viewListing.boost_status === 'pending' ? 'Pending...' : viewListing.is_boosted ? 'Boosted ✓' : 'Boost'}
                                         </button>
-                                        <button onClick={() => renewListing(viewListing.id)}
+                                        <button onClick={() => { setRenewModal(viewListing); setRenewForm({ reason: '', duration: '30', contact: '' }); }}
                                             className="flex flex-col items-center gap-1 py-3 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-semibold hover:text-white hover:border-zinc-500 transition">
                                             <RefreshCw size={18}/>Renew
                                         </button>
@@ -708,6 +723,86 @@ export default function Marketplace({ themeColor = '#3b82f6' }) {
                 </div>
             )}
             {/* ── BOOST PAYMENT MODAL ── */}
+            {/* ── Renewal Request Modal ── */}
+            {renewModal && (
+                <div className="fixed inset-0 z-[130] bg-black/90 flex items-end sm:items-center justify-center" onClick={() => setRenewModal(null)}>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-zinc-800">
+                            <div className="flex items-center gap-2">
+                                <RefreshCw size={18} className="text-blue-400"/>
+                                <h2 className="text-white font-bold">Request Renewal</h2>
+                            </div>
+                            <button onClick={() => setRenewModal(null)} className="text-zinc-500 hover:text-white"><X size={20}/></button>
+                        </div>
+
+                        <div className="px-5 py-4 space-y-4">
+                            {/* Listing preview */}
+                            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                                <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800 flex-shrink-0">
+                                    {safeParseImages(renewModal.images)[0]
+                                        ? <img src={safeParseImages(renewModal.images)[0]} className="w-full h-full object-cover"/>
+                                        : <Package size={20} className="m-auto mt-3 text-zinc-600"/>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white font-semibold text-sm truncate">{renewModal.title}</p>
+                                    <p className="text-zinc-500 text-xs">Listed {timeAgo(renewModal.created_at)}</p>
+                                </div>
+                            </div>
+
+                            {/* Reason */}
+                            <div>
+                                <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1.5">Reason for Renewal <span className="text-red-400">*</span></label>
+                                <textarea
+                                    value={renewForm.reason}
+                                    onChange={e => setRenewForm(f => ({ ...f, reason: e.target.value }))}
+                                    placeholder="e.g. Item still available, price updated, want more visibility..."
+                                    rows={3}
+                                    className="w-full bg-zinc-900 border border-zinc-700 focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none resize-none transition placeholder-zinc-600"
+                                />
+                            </div>
+
+                            {/* Duration */}
+                            <div>
+                                <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1.5">Renewal Duration</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[['15', '15 days'], ['30', '30 days'], ['60', '60 days']].map(([val, label]) => (
+                                        <button key={val} onClick={() => setRenewForm(f => ({ ...f, duration: val }))}
+                                            className={`py-2.5 rounded-xl border text-sm font-semibold transition ${renewForm.duration === val ? 'border-blue-500 bg-blue-500/20 text-blue-400' : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500'}`}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Contact */}
+                            <div>
+                                <label className="text-zinc-400 text-xs font-bold uppercase tracking-wider block mb-1.5">Contact Info <span className="text-zinc-600 font-normal">(optional)</span></label>
+                                <input
+                                    type="text"
+                                    value={renewForm.contact}
+                                    onChange={e => setRenewForm(f => ({ ...f, contact: e.target.value }))}
+                                    placeholder="Phone or email for admin to reach you"
+                                    className="w-full bg-zinc-900 border border-zinc-700 focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm outline-none transition placeholder-zinc-600"
+                                />
+                            </div>
+
+                            {/* Info note */}
+                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 flex gap-2">
+                                <Clock size={15} className="text-blue-400 flex-shrink-0 mt-0.5"/>
+                                <p className="text-blue-300 text-xs leading-relaxed">Admin will review your request within 24 hours. If approved, your listing will be renewed for the selected duration.</p>
+                            </div>
+
+                            {/* Submit */}
+                            <button onClick={submitRenewalRequest} disabled={submittingRenew || !renewForm.reason.trim()}
+                                className="w-full py-3.5 rounded-xl font-bold text-white text-sm transition disabled:opacity-40 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] flex items-center justify-center gap-2">
+                                {submittingRenew ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>Submitting...</> : <><RefreshCw size={16}/>Submit Renewal Request</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {boostModal && (
                 <div className="fixed inset-0 z-[130] bg-black/90 flex items-end sm:items-center justify-center" onClick={() => setBoostModal(null)}>
                     <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
