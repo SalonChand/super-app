@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, AlertTriangle, ChevronRight, X, Check, Users, Video, RefreshCw } from 'lucide-react';
+import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, X, Check, Users, SwitchCamera, ChevronRight, AlertTriangle } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -44,279 +44,337 @@ function isAtRisk(lastInteraction) {
     return hours > 0 && hours <= 4;
 }
 
-// ─── Send Streak Snap Modal ────────────────────────────────────────────────
-function SendSnapModal({ friend, onClose, onSent }) {
-    const [message, setMessage] = useState('');
-    const [sending, setSending] = useState(false);
-    const [phase, setPhase] = useState('idle'); // idle | recording | preview
-    const [timeLeft, setTimeLeft] = useState(10);
+// ─── Fullscreen Camera Page ────────────────────────────────────────────────
+function CameraPage({ friends, onClose, onSent }) {
+    const [phase, setPhase] = useState('camera');   // camera | preview | sending
+    const [facingMode, setFacingMode] = useState('user');
+    const [recording, setRecording] = useState(false);
+    const [progress, setProgress] = useState(0);     // 0–100 for ring
     const [videoBlob, setVideoBlob] = useState(null);
-    const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
-    const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
+    const [videoUrl, setVideoUrl] = useState(null);
+    const [selectedFriends, setSelectedFriends] = useState(new Set());
+    const [sentIds, setSentIds] = useState(new Set());
+    const [sendingAll, setSendingAll] = useState(false);
+
     const videoRef = useRef(null);
     const previewRef = useRef(null);
-    const recorderRef = useRef(null);
     const streamRef = useRef(null);
-    const timerRef = useRef(null);
+    const recorderRef = useRef(null);
     const chunksRef = useRef([]);
     const mimeRef = useRef('');
-    const facingRef = useRef('user');
+    const progressRef = useRef(null);
+    const maxDuration = 10000; // 10s max
+    const startTimeRef = useRef(null);
     const userId = localStorage.getItem('userId');
 
-    const quickMessages = [
-        '🔥 Keeping our streak alive!',
-        '⚡ Streak check!',
-        '👋 Hey! Don\'t let it die!',
-        '🌟 Daily streak snap!',
-        '💪 We got this!',
-    ];
-
+    // Start camera on mount
     useEffect(() => {
+        openCamera(facingMode);
         return () => {
-            clearInterval(timerRef.current);
-            if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-            if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+            stopStream();
+            if (videoUrl) URL.revokeObjectURL(videoUrl);
         };
     }, []);
 
-    // Once phase becomes 'recording', attach stream to video element
+    // Attach stream to video element whenever phase is camera
     useEffect(() => {
-        if (phase === 'recording' && videoRef.current && streamRef.current) {
+        if (phase === 'camera' && videoRef.current && streamRef.current) {
             videoRef.current.srcObject = streamRef.current;
             videoRef.current.muted = true;
             videoRef.current.play().catch(() => {});
         }
     }, [phase]);
 
-    // Once phase becomes 'preview', set preview src
+    // Attach blob to preview
     useEffect(() => {
-        if (phase === 'preview' && previewRef.current && videoPreviewUrl) {
-            previewRef.current.src = videoPreviewUrl;
+        if (phase === 'preview' && previewRef.current && videoUrl) {
+            previewRef.current.src = videoUrl;
             previewRef.current.play().catch(() => {});
         }
-    }, [phase, videoPreviewUrl]);
+    }, [phase, videoUrl]);
 
-    const startRecording = async (facing = facingRef.current) => {
+    const stopStream = () => {
+        if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    };
+
+    const openCamera = async (facing) => {
+        stopStream();
         try {
-            // Stop existing stream if any
-            if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: true
             });
             streamRef.current = stream;
-
-            // Pick best supported mime type
-            const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4', '']
-                .find(t => t === '' || MediaRecorder.isTypeSupported(t));
-            mimeRef.current = mime;
-
-            chunksRef.current = [];
-            const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
-            recorderRef.current = recorder;
-
-            recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
-            recorder.onstop = () => {
-                stream.getTracks().forEach(t => t.stop());
-                const actualType = mimeRef.current || 'video/webm';
-                const blob = new Blob(chunksRef.current, { type: actualType });
-                const url = URL.createObjectURL(blob);
-                setVideoBlob(blob);
-                setVideoPreviewUrl(url);
-                setPhase('preview');
-            };
-
-            recorder.start(100);
-            setPhase('recording');
-            setTimeLeft(10);
-
-            let t = 10;
-            timerRef.current = setInterval(() => {
-                t--;
-                setTimeLeft(t);
-                if (t <= 0) stopRecording();
-            }, 1000);
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.muted = true;
+                videoRef.current.play().catch(() => {});
+            }
         } catch (e) {
-            alert('Camera access denied. Please allow camera & microphone permission and try again.');
+            alert('Camera permission denied. Please allow access and try again.');
+            onClose();
         }
     };
 
     const flipCamera = async () => {
-        const newFacing = facingRef.current === 'user' ? 'environment' : 'user';
-        facingRef.current = newFacing;
-        setFacingMode(newFacing);
+        const next = facingMode === 'user' ? 'environment' : 'user';
+        setFacingMode(next);
+        await openCamera(next);
+    };
 
-        // Stop recorder cleanly without triggering preview
-        clearInterval(timerRef.current);
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-            recorderRef.current.onstop = null; // prevent preview from triggering
-            recorderRef.current.stop();
-        }
+    // ── Hold to record ──────────────────────────────────────────
+    const startHoldRecord = useCallback(() => {
+        if (!streamRef.current || recording) return;
+        const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4', '']
+            .find(t => t === '' || MediaRecorder.isTypeSupported(t));
+        mimeRef.current = mime;
         chunksRef.current = [];
 
-        // Restart with new camera
-        await startRecording(newFacing);
-    };
+        const recorder = new MediaRecorder(streamRef.current, mime ? { mimeType: mime } : {});
+        recorderRef.current = recorder;
+        recorder.ondataavailable = e => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
+        recorder.onstop = () => {
+            stopStream();
+            const type = mimeRef.current || 'video/webm';
+            const blob = new Blob(chunksRef.current, { type });
+            const url = URL.createObjectURL(blob);
+            setVideoBlob(blob);
+            setVideoUrl(url);
+            setPhase('preview');
+        };
 
-    const stopRecording = () => {
-        clearInterval(timerRef.current);
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-            recorderRef.current.stop(); // onstop will fire async and set phase='preview'
-        }
-    };
+        recorder.start(100);
+        setRecording(true);
+        setProgress(0);
+        startTimeRef.current = Date.now();
 
-    const discardVideo = () => {
-        if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-        setVideoBlob(null);
-        setVideoPreviewUrl(null);
-        setPhase('idle');
-    };
-
-    const send = async (msg) => {
-        setSending(true);
-        try {
-            const formData = new FormData();
-            formData.append('fromUserId', userId);
-            formData.append('toUserId', friend.friend_id);
-            if (videoBlob) {
-                const ext = mimeRef.current.includes('mp4') ? 'mp4' : 'webm';
-                formData.append('media', videoBlob, `snap.${ext}`);
+        // Animate progress ring
+        const tick = () => {
+            const elapsed = Date.now() - startTimeRef.current;
+            const pct = Math.min((elapsed / maxDuration) * 100, 100);
+            setProgress(pct);
+            if (pct < 100) {
+                progressRef.current = requestAnimationFrame(tick);
             } else {
-                formData.append('message', msg || message || '🔥 Streak snap!');
+                stopHoldRecord();
             }
-            await axios.post(`${BACKEND_URL}/api/streaks/snap`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            onSent();
-            onClose();
-        } catch (e) {
-            alert('Failed to send. Try again.');
+        };
+        progressRef.current = requestAnimationFrame(tick);
+    }, [recording, facingMode]);
+
+    const stopHoldRecord = useCallback(() => {
+        cancelAnimationFrame(progressRef.current);
+        setRecording(false);
+        setProgress(0);
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+            recorderRef.current.stop();
         }
-        setSending(false);
+    }, []);
+
+    // Touch & mouse events
+    const handlePressStart = (e) => { e.preventDefault(); startHoldRecord(); };
+    const handlePressEnd = (e) => { e.preventDefault(); if (recording) stopHoldRecord(); };
+
+    // ── Friend picker send ──────────────────────────────────────
+    const toggleFriend = (id) => {
+        setSelectedFriends(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
     };
 
-    return (
-        <div className="fixed inset-0 z-[200] bg-black/85 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-            <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto"
-                onClick={e => e.stopPropagation()}>
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-                            <Flame size={15} className="text-orange-400"/>
-                        </div>
-                        <div>
-                            <p className="text-white font-bold text-sm">Send Streak Snap</p>
-                            <p className="text-zinc-500 text-xs">to @{friend.username}</p>
-                        </div>
+    const sendToSelected = async () => {
+        if (selectedFriends.size === 0) return;
+        setSendingAll(true);
+        const ext = mimeRef.current?.includes('mp4') ? 'mp4' : 'webm';
+        for (const friendId of selectedFriends) {
+            if (sentIds.has(friendId)) continue;
+            try {
+                const fd = new FormData();
+                fd.append('fromUserId', userId);
+                fd.append('toUserId', friendId);
+                fd.append('media', videoBlob, `snap.${ext}`);
+                await axios.post(`${BACKEND_URL}/api/streaks/snap`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                setSentIds(prev => new Set([...prev, friendId]));
+            } catch (e) {}
+        }
+        setSendingAll(false);
+        onSent();
+        onClose();
+    };
+
+    const retake = () => {
+        if (videoUrl) URL.revokeObjectURL(videoUrl);
+        setVideoBlob(null);
+        setVideoUrl(null);
+        setSelectedFriends(new Set());
+        setSentIds(new Set());
+        setPhase('camera');
+        openCamera(facingMode);
+    };
+
+    // ── CAMERA PHASE ─────────────────────────────────────────────
+    if (phase === 'camera') return (
+        <div className="fixed inset-0 z-[300] bg-black flex flex-col">
+            {/* Viewfinder */}
+            <div className="relative flex-1 overflow-hidden">
+                <video ref={videoRef} autoPlay muted playsInline
+                    className="w-full h-full object-cover"
+                    style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}/>
+
+                {/* Top bar */}
+                <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 pt-10">
+                    <button onClick={onClose}
+                        className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                        <X size={20} className="text-white"/>
+                    </button>
+                    <div className="bg-black/50 rounded-full px-3 py-1.5 backdrop-blur-sm">
+                        <p className="text-white text-xs font-bold">Hold to record · 10s max</p>
                     </div>
-                    <button onClick={onClose} className="text-zinc-500 hover:text-white p-1"><X size={20}/></button>
+                    <button onClick={flipCamera}
+                        className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                        <SwitchCamera size={20} className="text-white"/>
+                    </button>
                 </div>
+            </div>
 
-                <div className="px-4 py-4 space-y-3">
-                    {/* Friend info */}
-                    <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
-                        <div className="w-11 h-11 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
-                            {friend.profile_pic_url
-                                ? <img src={friend.profile_pic_url} className="w-full h-full object-cover"/>
-                                : <div className="w-full h-full flex items-center justify-center"><User size={18} className="text-zinc-500"/></div>}
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-white font-bold text-sm">{friend.username}</p>
-                            <p className="text-orange-400 text-xs font-bold">{getStreakEmoji(friend.streak_count)} {friend.streak_count} day streak</p>
-                        </div>
+            {/* Bottom controls */}
+            <div className="bg-black flex flex-col items-center pb-12 pt-6 gap-2">
+                {recording && (
+                    <p className="text-red-400 text-xs font-bold animate-pulse mb-1">● Recording... release to stop</p>
+                )}
+
+                {/* Hold-to-record button */}
+                <div className="relative flex items-center justify-center w-24 h-24"
+                    onMouseDown={handlePressStart} onMouseUp={handlePressEnd} onMouseLeave={handlePressEnd}
+                    onTouchStart={handlePressStart} onTouchEnd={handlePressEnd}>
+
+                    {/* Progress ring SVG */}
+                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 96 96">
+                        <circle cx="48" cy="48" r="44" fill="none" stroke="#27272a" strokeWidth="4"/>
+                        <circle cx="48" cy="48" r="44" fill="none" stroke="#f97316" strokeWidth="4"
+                            strokeDasharray={`${2 * Math.PI * 44}`}
+                            strokeDashoffset={`${2 * Math.PI * 44 * (1 - progress / 100)}`}
+                            strokeLinecap="round"
+                            style={{ transition: recording ? 'none' : 'stroke-dashoffset 0.3s ease' }}/>
+                    </svg>
+
+                    {/* Inner button */}
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all select-none ${
+                        recording ? 'bg-red-500 scale-90' : 'bg-white scale-100 active:scale-90'
+                    }`}>
+                        {recording
+                            ? <div className="w-5 h-5 bg-white rounded-sm"/>
+                            : <div className="w-6 h-6 rounded-full border-4 border-orange-500"/>}
                     </div>
-
-                    {/* ── IDLE: show record button ── */}
-                    {phase === 'idle' && (
-                        <button onClick={startRecording}
-                            className="w-full flex items-center justify-center gap-2 py-3.5 bg-zinc-900 border border-zinc-700 hover:border-orange-500/50 hover:bg-orange-500/5 rounded-2xl text-white font-bold text-sm transition">
-                            <Video size={18} className="text-orange-400"/> Record a 10s Video Snap
-                        </button>
-                    )}
-
-                    {/* ── RECORDING: live camera viewfinder ── */}
-                    {phase === 'recording' && (
-                        <div className="relative rounded-2xl overflow-hidden bg-zinc-900 aspect-[3/4]">
-                            <video ref={videoRef} autoPlay muted playsInline
-                                className="w-full h-full object-cover"
-                                style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}/>
-                            {/* Timer */}
-                            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 rounded-full px-2.5 py-1">
-                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
-                                <span className="text-white text-xs font-bold">{timeLeft}s</span>
-                            </div>
-                            {/* Flip camera button */}
-                            <button onClick={flipCamera}
-                                className="absolute top-3 right-3 w-9 h-9 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition">
-                                <RefreshCw size={16} className="text-white"/>
-                            </button>
-                            {/* Stop button */}
-                            <button onClick={stopRecording}
-                                className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500 hover:bg-red-400 text-white font-bold px-6 py-2.5 rounded-full text-sm transition">
-                                Stop
-                            </button>
-                        </div>
-                    )}
-
-                    {/* ── PREVIEW: show recorded video ── */}
-                    {phase === 'preview' && (
-                        <div className="space-y-2">
-                            <div className="relative rounded-2xl overflow-hidden bg-zinc-900 aspect-[3/4]">
-                                <video ref={previewRef} autoPlay loop playsInline controls
-                                    className="w-full h-full object-cover"/>
-                                <div className="absolute top-3 left-3 bg-orange-500/80 rounded-full px-2.5 py-1">
-                                    <span className="text-white text-xs font-bold">📹 Preview</span>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={discardVideo}
-                                    className="flex-1 py-2.5 bg-zinc-900 border border-zinc-700 hover:border-red-500/40 text-zinc-400 hover:text-red-400 rounded-xl text-sm font-bold transition">
-                                    Discard
-                                </button>
-                                <button onClick={() => send()} disabled={sending}
-                                    className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-bold transition disabled:opacity-50 flex items-center justify-center gap-2">
-                                    {sending
-                                        ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                                        : <><Send size={14}/> Send Video</>}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── Text snaps (hidden during recording/preview) ── */}
-                    {phase !== 'recording' && (
-                        <>
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 h-px bg-zinc-800"/>
-                                <span className="text-zinc-600 text-xs">or send a text snap</span>
-                                <div className="flex-1 h-px bg-zinc-800"/>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                {quickMessages.map((msg, i) => (
-                                    <button key={i} onClick={() => send(msg)} disabled={sending}
-                                        className="text-left px-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-orange-500/40 hover:bg-orange-500/5 rounded-xl text-sm text-white transition disabled:opacity-50">
-                                        {msg}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="flex gap-2 pt-1">
-                                <input value={message} onChange={e => setMessage(e.target.value)}
-                                    placeholder="Or type a custom message..."
-                                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder-zinc-600 outline-none focus:border-orange-500/50"/>
-                                <button onClick={() => send(message)} disabled={!message.trim() || sending}
-                                    className="bg-orange-500 hover:bg-orange-400 text-white font-bold px-4 rounded-xl transition disabled:opacity-40">
-                                    <Send size={16}/>
-                                </button>
-                            </div>
-                        </>
-                    )}
                 </div>
-                <div className="h-4"/>
             </div>
         </div>
     );
+
+    // ── PREVIEW + FRIEND PICKER PHASE ────────────────────────────
+    if (phase === 'preview') return (
+        <div className="fixed inset-0 z-[300] bg-black flex flex-col">
+            {/* Video preview - top half */}
+            <div className="relative flex-1 overflow-hidden">
+                <video ref={previewRef} autoPlay loop playsInline
+                    className="w-full h-full object-cover"/>
+
+                {/* Top bar */}
+                <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 pt-10">
+                    <button onClick={retake}
+                        className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                        <X size={20} className="text-white"/>
+                    </button>
+                    <div className="bg-black/50 rounded-full px-3 py-1.5 backdrop-blur-sm">
+                        <p className="text-white text-xs font-bold">📹 Preview</p>
+                    </div>
+                    <div className="w-10"/>
+                </div>
+            </div>
+
+            {/* Friend picker - bottom sheet */}
+            <div className="bg-zinc-950 border-t border-zinc-800 max-h-[55vh] flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 flex-shrink-0">
+                    <div>
+                        <p className="text-white font-bold text-sm">Send to friends</p>
+                        <p className="text-zinc-500 text-xs">{selectedFriends.size} selected</p>
+                    </div>
+                    <button
+                        onClick={sendToSelected}
+                        disabled={selectedFriends.size === 0 || sendingAll}
+                        className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white font-bold px-5 py-2 rounded-full text-sm transition">
+                        {sendingAll
+                            ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                            : <><Send size={14}/> Send</>}
+                    </button>
+                </div>
+
+                {/* Friends grid */}
+                <div className="overflow-y-auto flex-1 p-3">
+                    {friends.length === 0 ? (
+                        <div className="text-center py-8 text-zinc-500 text-sm">No friends yet</div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-2">
+                            {friends.map(f => {
+                                const selected = selectedFriends.has(f.friend_id);
+                                const sent = sentIds.has(f.friend_id);
+                                const colors = getStreakColor(f.streak_count);
+                                return (
+                                    <button key={f.friend_id}
+                                        onClick={() => !sent && toggleFriend(f.friend_id)}
+                                        className={`flex items-center gap-3 p-3 rounded-2xl border transition text-left ${
+                                            sent ? 'bg-green-500/10 border-green-500/30' :
+                                            selected ? 'bg-orange-500/10 border-orange-500/50' :
+                                            'bg-zinc-900 border-zinc-800 hover:border-zinc-600'
+                                        }`}>
+                                        {/* Avatar */}
+                                        <div className="relative flex-shrink-0">
+                                            <div className={`w-11 h-11 rounded-full overflow-hidden border-2 ${selected ? 'border-orange-500' : 'border-zinc-700'}`}>
+                                                {f.profile_pic_url
+                                                    ? <img src={f.profile_pic_url} className="w-full h-full object-cover"/>
+                                                    : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><User size={16} className="text-zinc-500"/></div>}
+                                            </div>
+                                            {f.streak_count > 0 && (
+                                                <div className={`absolute -bottom-1 -right-1 ${colors.bg} border ${colors.border} rounded-full px-1 py-0.5 flex items-center gap-0.5`}>
+                                                    <span className="text-[8px]">{getStreakEmoji(f.streak_count)}</span>
+                                                    <span className={`text-[8px] font-black ${colors.text}`}>{f.streak_count}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Name + streak */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1">
+                                                <p className="text-white font-bold text-sm truncate">{f.username}</p>
+                                                <VerifiedBadge isVerified={!!f.is_verified} verifyType={f.verify_type}/>
+                                            </div>
+                                            <p className={`text-xs ${f.streak_count > 0 ? colors.text : 'text-zinc-500'}`}>
+                                                {f.streak_count > 0 ? `${getStreakEmoji(f.streak_count)} ${f.streak_count} day streak` : 'Start a streak!'}
+                                            </p>
+                                        </div>
+
+                                        {/* Checkbox */}
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition ${
+                                            sent ? 'bg-green-500 border-green-500' :
+                                            selected ? 'bg-orange-500 border-orange-500' :
+                                            'border-zinc-600'
+                                        }`}>
+                                            {(selected || sent) && <Check size={12} className="text-white"/>}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    return null;
 }
 // ─── Main Streaks Page ─────────────────────────────────────────────────────
 export default function Streaks({ themeColor }) {
@@ -327,7 +385,7 @@ export default function Streaks({ themeColor }) {
     const [myLongest, setMyLongest] = useState(0);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState('streaks'); // 'streaks' | 'leaderboard'
-    const [sendTo, setSendTo] = useState(null);
+    const [cameraOpen, setCameraOpen] = useState(false);
     const [sentIds, setSentIds] = useState(new Set());
 
     const load = async () => {
@@ -379,6 +437,10 @@ export default function Streaks({ themeColor }) {
                             <span className="text-orange-400 text-xs font-bold">Best: {myLongest}d</span>
                         </div>
                     )}
+                    <button onClick={() => setCameraOpen(true)}
+                        className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/30 hover:bg-orange-400 transition">
+                        <SwitchCamera size={17} className="text-white"/>
+                    </button>
                 </div>
 
                 {/* Alert bar */}
@@ -531,7 +593,7 @@ export default function Streaks({ themeColor }) {
                                                     </div>
                                                 ) : (
                                                     <button
-                                                        onClick={() => setSendTo(streak)}
+                                                        onClick={() => setCameraOpen(true)}
                                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border font-bold text-xs transition ${
                                                             risk
                                                                 ? 'bg-red-500 border-red-500 text-white hover:bg-red-400 shadow-lg shadow-red-500/30 animate-pulse'
@@ -583,15 +645,12 @@ export default function Streaks({ themeColor }) {
                 )}
             </div>
 
-            {/* Send snap modal */}
-            {sendTo && (
-                <SendSnapModal
-                    friend={sendTo}
-                    onClose={() => setSendTo(null)}
-                    onSent={() => {
-                        setSentIds(prev => new Set([...prev, sendTo.friend_id]));
-                        load();
-                    }}
+            {/* Fullscreen camera */}
+            {cameraOpen && (
+                <CameraPage
+                    friends={streaks}
+                    onClose={() => setCameraOpen(false)}
+                    onSent={() => { load(); }}
                 />
             )}
         </div>
