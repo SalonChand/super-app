@@ -44,6 +44,87 @@ function isAtRisk(lastInteraction) {
     return hours > 0 && hours <= 4;
 }
 
+// ─── Fullscreen Snap Viewer ────────────────────────────────────────────────
+function SnapViewer({ snap, onClose, onAccept, onDismiss }) {
+    const videoRef = useRef(null);
+
+    useEffect(() => {
+        if (snap.media_type === 'video' && videoRef.current) {
+            videoRef.current.play().catch(() => {});
+        }
+    }, []);
+
+    return (
+        <div className="fixed inset-0 z-[300] bg-black flex flex-col">
+            {/* Fullscreen media */}
+            <div className="relative flex-1 overflow-hidden">
+                {snap.media_type === 'video' && snap.media_url ? (
+                    <video ref={videoRef} src={snap.media_url} autoPlay loop playsInline
+                        className="w-full h-full object-cover"/>
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center px-8">
+                        <div className="w-20 h-20 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mb-6">
+                            <Flame size={36} className="text-orange-400"/>
+                        </div>
+                        <p className="text-white text-2xl font-bold text-center leading-tight">{snap.message}</p>
+                    </div>
+                )}
+
+                {/* Sender info overlay — top */}
+                <div className="absolute top-0 left-0 right-0 flex items-center gap-3 p-4 pt-10"
+                    style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)' }}>
+                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-500 flex-shrink-0">
+                        {snap.profile_pic_url
+                            ? <img src={snap.profile_pic_url} className="w-full h-full object-cover"/>
+                            : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><User size={16} className="text-zinc-500"/></div>}
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-white font-bold text-sm">{snap.username}</p>
+                        <p className="text-zinc-300 text-xs">
+                            {snap.media_type === 'video' ? '📹 Video snap' : '💬 Text snap'}
+                        </p>
+                    </div>
+                    <button onClick={onClose}
+                        className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center">
+                        <X size={18} className="text-white"/>
+                    </button>
+                </div>
+
+                {/* Actions — bottom */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 flex items-center justify-center gap-6"
+                    style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
+                    {/* Dismiss */}
+                    <button onClick={onDismiss}
+                        className="flex flex-col items-center gap-1.5">
+                        <div className="w-14 h-14 rounded-full bg-zinc-800/80 border border-zinc-600 flex items-center justify-center backdrop-blur-sm">
+                            <X size={24} className="text-zinc-300"/>
+                        </div>
+                        <span className="text-zinc-400 text-xs font-bold">Dismiss</span>
+                    </button>
+
+                    {/* Accept / streak */}
+                    <button onClick={onAccept}
+                        className="flex flex-col items-center gap-1.5">
+                        <div className="w-16 h-16 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/50">
+                            <Flame size={28} className="text-white"/>
+                        </div>
+                        <span className="text-orange-400 text-xs font-bold">Accept 🔥</span>
+                    </button>
+
+                    {/* Reply with snap */}
+                    <button onClick={onClose}
+                        className="flex flex-col items-center gap-1.5">
+                        <div className="w-14 h-14 rounded-full bg-zinc-800/80 border border-zinc-600 flex items-center justify-center backdrop-blur-sm">
+                            <Send size={20} className="text-zinc-300"/>
+                        </div>
+                        <span className="text-zinc-400 text-xs font-bold">Reply</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Fullscreen Camera Page ────────────────────────────────────────────────
 function CameraPage({ friends, onClose, onSent }) {
     const [phase, setPhase] = useState('camera');   // camera | preview | sending
@@ -387,6 +468,7 @@ export default function Streaks({ themeColor }) {
     const [tab, setTab] = useState('streaks'); // 'streaks' | 'leaderboard'
     const [cameraOpen, setCameraOpen] = useState(false);
     const [sentIds, setSentIds] = useState(new Set());
+    const [viewingSnap, setViewingSnap] = useState(null);
 
     const load = async () => {
         if (!userId) return;
@@ -473,36 +555,31 @@ export default function Streaks({ themeColor }) {
                         </p>
                         <div className="space-y-2">
                             {incoming.map(snap => (
-                                <div key={snap.id} className="bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border border-yellow-500/30 rounded-2xl p-3 flex flex-col gap-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                                <button key={snap.id}
+                                    onClick={() => setViewingSnap(snap)}
+                                    className="w-full bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border border-yellow-500/30 rounded-2xl p-3 flex items-center gap-3 hover:border-orange-500/50 transition text-left">
+                                    {/* Avatar with play indicator */}
+                                    <div className="relative flex-shrink-0">
+                                        <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden border-2 border-orange-500/60">
                                             {snap.profile_pic_url
                                                 ? <img src={snap.profile_pic_url} className="w-full h-full object-cover"/>
                                                 : <div className="w-full h-full flex items-center justify-center"><User size={16} className="text-zinc-500"/></div>}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white text-sm font-bold truncate">{snap.username}</p>
-                                            {snap.media_type === 'video'
-                                                ? <p className="text-orange-400 text-xs flex items-center gap-1"><Video size={11}/> Sent a video snap</p>
-                                                : <p className="text-zinc-400 text-xs truncate">{snap.message}</p>}
-                                        </div>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            <button onClick={() => respondToSnap(snap.id, true)}
-                                                className="w-8 h-8 bg-green-500/20 border border-green-500/40 rounded-full flex items-center justify-center hover:bg-green-500/30 transition">
-                                                <Check size={14} className="text-green-400"/>
-                                            </button>
-                                            <button onClick={() => respondToSnap(snap.id, false)}
-                                                className="w-8 h-8 bg-zinc-800 border border-zinc-700 rounded-full flex items-center justify-center hover:bg-zinc-700 transition">
-                                                <X size={14} className="text-zinc-400"/>
-                                            </button>
+                                        {/* Video/text indicator badge */}
+                                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center border-2 border-zinc-950">
+                                            <span className="text-[9px]">{snap.media_type === 'video' ? '📹' : '💬'}</span>
                                         </div>
                                     </div>
-                                    {/* Video player for video snaps */}
-                                    {snap.media_type === 'video' && snap.media_url && (
-                                        <video src={snap.media_url} controls playsInline
-                                            className="w-full rounded-xl max-h-52 bg-black object-cover"/>
-                                    )}
-                                </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-sm font-bold truncate">{snap.username}</p>
+                                        <p className="text-orange-400 text-xs">
+                                            {snap.media_type === 'video' ? 'Tap to watch video snap 👀' : `"${snap.message?.slice(0, 40) || 'Tap to view'}"`}
+                                        </p>
+                                    </div>
+                                    <div className="w-9 h-9 rounded-full bg-orange-500/20 border border-orange-500/40 flex items-center justify-center flex-shrink-0">
+                                        <Flame size={16} className="text-orange-400"/>
+                                    </div>
+                                </button>
                             ))}
                         </div>
                     </div>
@@ -644,6 +721,22 @@ export default function Streaks({ themeColor }) {
                     </div>
                 )}
             </div>
+
+            {/* Fullscreen snap viewer */}
+            {viewingSnap && (
+                <SnapViewer
+                    snap={viewingSnap}
+                    onClose={() => setViewingSnap(null)}
+                    onAccept={async () => {
+                        await respondToSnap(viewingSnap.id, true);
+                        setViewingSnap(null);
+                    }}
+                    onDismiss={async () => {
+                        await respondToSnap(viewingSnap.id, false);
+                        setViewingSnap(null);
+                    }}
+                />
+            )}
 
             {/* Fullscreen camera */}
             {cameraOpen && (
