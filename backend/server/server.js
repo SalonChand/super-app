@@ -1667,6 +1667,19 @@ app.get('/api/streaks/incoming/:userId', async (req, res) => {
     } catch(e) { res.status(500).json({ error: 'Server error.' }); }
 });
 
+app.get('/api/streaks/sent/:userId', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT ss.*, COALESCE(u.display_name, u.username) AS username, u.profile_pic_url
+            FROM streak_snaps ss JOIN users u ON u.id = ss.to_user_id
+            WHERE ss.from_user_id = ?
+            ORDER BY ss.created_at DESC LIMIT 50
+        `, [req.params.userId]);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+});
+
+
 app.get('/api/streaks/leaderboard/:userId', async (req, res) => {
     try {
         const uid = req.params.userId;

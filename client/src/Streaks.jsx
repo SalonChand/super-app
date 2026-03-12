@@ -94,32 +94,38 @@ function SnapViewer({ snap, onClose, onAccept, onDismiss }) {
                 {/* Actions — bottom */}
                 <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 flex items-center justify-center gap-6"
                     style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
-                    {/* Dismiss */}
-                    <button onClick={onDismiss}
-                        className="flex flex-col items-center gap-1.5">
-                        <div className="w-14 h-14 rounded-full bg-zinc-800/80 border border-zinc-600 flex items-center justify-center backdrop-blur-sm">
-                            <X size={24} className="text-zinc-300"/>
+                    {snap.isSent ? (
+                        // Sent snap — just show who it was sent to
+                        <div className="flex flex-col items-center gap-2">
+                            <div className={`px-4 py-2 rounded-full border text-sm font-bold ${snap.is_read ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'bg-zinc-800 border-zinc-600 text-zinc-300'}`}>
+                                {snap.is_read ? '✓ Seen by ' + snap.username : '• Delivered to ' + snap.username}
+                            </div>
                         </div>
-                        <span className="text-zinc-400 text-xs font-bold">Dismiss</span>
-                    </button>
-
-                    {/* Accept / streak */}
-                    <button onClick={onAccept}
-                        className="flex flex-col items-center gap-1.5">
-                        <div className="w-16 h-16 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/50">
-                            <Flame size={28} className="text-white"/>
-                        </div>
-                        <span className="text-orange-400 text-xs font-bold">Accept 🔥</span>
-                    </button>
-
-                    {/* Reply with snap */}
-                    <button onClick={onClose}
-                        className="flex flex-col items-center gap-1.5">
-                        <div className="w-14 h-14 rounded-full bg-zinc-800/80 border border-zinc-600 flex items-center justify-center backdrop-blur-sm">
-                            <Send size={20} className="text-zinc-300"/>
-                        </div>
-                        <span className="text-zinc-400 text-xs font-bold">Reply</span>
-                    </button>
+                    ) : (
+                        <>
+                            {/* Dismiss */}
+                            <button onClick={onDismiss} className="flex flex-col items-center gap-1.5">
+                                <div className="w-14 h-14 rounded-full bg-zinc-800/80 border border-zinc-600 flex items-center justify-center backdrop-blur-sm">
+                                    <X size={24} className="text-zinc-300"/>
+                                </div>
+                                <span className="text-zinc-400 text-xs font-bold">Dismiss</span>
+                            </button>
+                            {/* Accept */}
+                            <button onClick={onAccept} className="flex flex-col items-center gap-1.5">
+                                <div className="w-16 h-16 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/50">
+                                    <Flame size={28} className="text-white"/>
+                                </div>
+                                <span className="text-orange-400 text-xs font-bold">Accept 🔥</span>
+                            </button>
+                            {/* Reply */}
+                            <button onClick={onClose} className="flex flex-col items-center gap-1.5">
+                                <div className="w-14 h-14 rounded-full bg-zinc-800/80 border border-zinc-600 flex items-center justify-center backdrop-blur-sm">
+                                    <Send size={20} className="text-zinc-300"/>
+                                </div>
+                                <span className="text-zinc-400 text-xs font-bold">Reply</span>
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
@@ -466,24 +472,27 @@ export default function Streaks({ themeColor }) {
     const [leaderboard, setLeaderboard] = useState([]);
     const [myLongest, setMyLongest] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState('streaks'); // 'streaks' | 'leaderboard'
+    const [tab, setTab] = useState('streaks'); // 'streaks' | 'leaderboard' | 'inbox'
     const [cameraOpen, setCameraOpen] = useState(false);
     const [sentIds, setSentIds] = useState(new Set());
     const [viewingSnap, setViewingSnap] = useState(null);
+    const [sent, setSent] = useState([]);
 
     const load = async () => {
         if (!userId) return;
         setLoading(true);
         try {
-            const [streaksRes, incomingRes, lbRes] = await Promise.all([
+            const [streaksRes, incomingRes, lbRes, sentRes] = await Promise.all([
                 axios.get(`${BACKEND_URL}/api/streaks/${userId}`),
                 axios.get(`${BACKEND_URL}/api/streaks/incoming/${userId}`),
                 axios.get(`${BACKEND_URL}/api/streaks/leaderboard/${userId}`),
+                axios.get(`${BACKEND_URL}/api/streaks/sent/${userId}`),
             ]);
             const s = Array.isArray(streaksRes.data) ? streaksRes.data : [];
             setStreaks(s);
             setIncoming(Array.isArray(incomingRes.data) ? incomingRes.data : []);
             setLeaderboard(Array.isArray(lbRes.data) ? lbRes.data : []);
+            setSent(Array.isArray(sentRes.data) ? sentRes.data : []);
             setMyLongest(s.reduce((max, r) => Math.max(max, r.streak_count || 0), 0));
         } catch (e) {}
         setLoading(false);
@@ -545,6 +554,16 @@ export default function Streaks({ themeColor }) {
                         <Icon size={14}/> {label}
                     </button>
                 ))}
+                <button onClick={() => setTab('inbox')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition relative ${tab === 'inbox' ? 'border-orange-500 text-orange-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>
+                    <Zap size={14}/>
+                    Snaps
+                    {incoming.length > 0 && (
+                        <span className="absolute top-2 right-4 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-black flex items-center justify-center">
+                            {incoming.length}
+                        </span>
+                    )}
+                </button>
             </div>
 
             <div className="p-4 space-y-4">
@@ -721,6 +740,89 @@ export default function Streaks({ themeColor }) {
                                 </Link>
                             );
                         })}
+                    </div>
+                )}
+
+                {tab === 'inbox' && (
+                    <div className="space-y-5">
+                        {/* Received */}
+                        <div>
+                            <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <Zap size={12} className="text-yellow-400"/> Received
+                                {incoming.length > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{incoming.length} new</span>}
+                            </p>
+                            {incoming.length === 0 ? (
+                                <div className="text-center py-8 bg-zinc-900 border border-zinc-800 rounded-2xl">
+                                    <p className="text-3xl mb-2">📭</p>
+                                    <p className="text-zinc-400 text-sm font-bold">No new snaps</p>
+                                    <p className="text-zinc-600 text-xs mt-1">When friends send you snaps, they'll appear here</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {incoming.map(snap => (
+                                        <button key={snap.id} onClick={() => setViewingSnap(snap)}
+                                            className="w-full flex items-center gap-3 bg-gradient-to-r from-orange-500/10 to-yellow-500/5 border border-orange-500/30 rounded-2xl p-3 hover:border-orange-500/60 transition text-left">
+                                            <div className="relative flex-shrink-0">
+                                                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500">
+                                                    {snap.profile_pic_url
+                                                        ? <img src={snap.profile_pic_url} className="w-full h-full object-cover"/>
+                                                        : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><User size={16} className="text-zinc-400"/></div>}
+                                                </div>
+                                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-orange-500 border-2 border-zinc-950 flex items-center justify-center">
+                                                    <span className="text-[9px]">{snap.media_type === 'video' ? '📹' : '💬'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white font-bold text-sm truncate">{snap.username}</p>
+                                                <p className="text-orange-300 text-xs">{snap.media_type === 'video' ? '👀 Tap to watch video snap' : `💬 "${snap.message?.slice(0,35) || 'Text snap'}"`}</p>
+                                            </div>
+                                            <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/40 flex-shrink-0">
+                                                <Flame size={16} className="text-white"/>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Sent */}
+                        <div>
+                            <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <Send size={12} className="text-zinc-400"/> Sent
+                            </p>
+                            {sent.length === 0 ? (
+                                <div className="text-center py-8 bg-zinc-900 border border-zinc-800 rounded-2xl">
+                                    <p className="text-3xl mb-2">📤</p>
+                                    <p className="text-zinc-400 text-sm font-bold">No sent snaps</p>
+                                    <p className="text-zinc-600 text-xs mt-1">Snaps you send will appear here</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {sent.map(snap => (
+                                        <button key={snap.id} onClick={() => setViewingSnap({ ...snap, isSent: true })}
+                                            className="w-full flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-2xl p-3 hover:border-zinc-600 transition text-left">
+                                            <div className="relative flex-shrink-0">
+                                                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-700">
+                                                    {snap.profile_pic_url
+                                                        ? <img src={snap.profile_pic_url} className="w-full h-full object-cover"/>
+                                                        : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><User size={16} className="text-zinc-400"/></div>}
+                                                </div>
+                                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-zinc-700 border-2 border-zinc-950 flex items-center justify-center">
+                                                    <span className="text-[9px]">{snap.media_type === 'video' ? '📹' : '💬'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white font-bold text-sm truncate">To: {snap.username}</p>
+                                                <p className="text-zinc-500 text-xs">{snap.media_type === 'video' ? '📹 Video snap' : `💬 "${snap.message?.slice(0,35) || 'Text snap'}"`}</p>
+                                            </div>
+                                            <div className={`text-[10px] font-bold px-2 py-1 rounded-full border flex-shrink-0 ${snap.is_read ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800'}`}>
+                                                {snap.is_read ? '✓ Seen' : '• Sent'}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
