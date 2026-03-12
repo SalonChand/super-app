@@ -6,20 +6,39 @@ import './index.css';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
-// Carousel post component
-function CarouselPost({ images, onImageClick }) {
-    const [idx, setIdx] = useState(0);
-    const prev = (e) => { e.stopPropagation(); setIdx(i => Math.max(0, i - 1)); };
-    const next = (e) => { e.stopPropagation(); setIdx(i => Math.min(images.length - 1, i + 1)); };
+// Collage post component
+function CollagePost({ images, onImageClick }) {
+    const [viewIdx, setViewIdx] = useState(null);
+    const n = images.length;
+    if (!n) return null;
+    const gridClass = n === 2 ? 'grid grid-cols-2 gap-0.5' : n === 3 ? 'grid grid-cols-3 gap-0.5' : 'grid grid-cols-2 gap-0.5';
+    const aspect = n === 3 ? '0.85' : '1';
     return (
-        <div className="relative mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden select-none">
-            <img src={images[idx]} onClick={() => onImageClick(images[idx])} className="max-h-[500px] w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl" />
-            {idx > 0 && <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full transition backdrop-blur-sm"><ChevronLeft size={18}/></button>}
-            {idx < images.length - 1 && <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full transition backdrop-blur-sm"><ChevronRightIcon size={18}/></button>}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {images.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === idx ? 'bg-white scale-125' : 'bg-white/40'}`}/>)}
-            </div>
-            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">{idx+1}/{images.length}</div>
+        <div className="mb-3 rounded-2xl overflow-hidden border border-zinc-800/50">
+            {n === 1
+                ? <img src={images[0]} onClick={() => setViewIdx(0)} className="w-full max-h-[500px] object-contain bg-zinc-900/40 cursor-pointer hover:opacity-95 transition" alt=""/>
+                : <div className={gridClass}>
+                    {images.slice(0, 4).map((img, i) => {
+                        const isOverlay = i === 3 && n > 4;
+                        return (
+                            <div key={i} className="relative overflow-hidden bg-zinc-900 cursor-pointer" style={{ aspectRatio: aspect }} onClick={() => setViewIdx(i)}>
+                                <img src={img} className="w-full h-full object-cover hover:opacity-90 transition" alt=""/>
+                                {isOverlay && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><span className="text-white font-bold text-3xl">+{n - 4}</span></div>}
+                            </div>
+                        );
+                    })}
+                </div>
+            }
+            {viewIdx !== null && (
+                <div className="fixed inset-0 z-[9999] bg-black/97 flex items-center justify-center" onClick={() => setViewIdx(null)}>
+                    <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={() => setViewIdx(null)}><X size={20}/></button>
+                    {viewIdx > 0 && <button className="absolute left-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10" onClick={e => { e.stopPropagation(); setViewIdx(i => i - 1); }}><ChevronLeft size={22}/></button>}
+                    {viewIdx < images.length - 1 && <button className="absolute right-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10" onClick={e => { e.stopPropagation(); setViewIdx(i => i + 1); }}><ChevronRightIcon size={22}/></button>}
+                    <img src={images[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl" onClick={e => e.stopPropagation()} alt=""/>
+                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">{images.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/40'}`}/>)}</div>
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">{viewIdx + 1} / {images.length}</div>
+                </div>
+            )}
         </div>
     );
 }
