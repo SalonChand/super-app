@@ -23,7 +23,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const title = titles[t] || titles.blue;
     const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
     const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
-    return <BadgeCheck size={size} className={`inline-block align-middle flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={{...style, verticalAlign: 'middle', marginLeft: '2px', marginBottom: '1px'}}/>;
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
 }
 
 function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
@@ -310,7 +310,52 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     };
 
     if (errorMessage) return <div className="text-center p-10 mt-20 border border-red-500/50 bg-red-500/10 rounded-2xl m-4"><h3 className="text-red-500 font-bold text-xl mb-2">Oops! Something broke.</h3><p className="text-zinc-400">{errorMessage}</p><button onClick={() => { setErrorMessage(''); loadProfileData(); }} className="mt-4 px-6 py-2 bg-zinc-800 text-white rounded-full hover:bg-zinc-700 transition text-sm">Try Again</button></div>;
-    if (!profileData) return <div className="text-white text-center p-10 mt-20 animate-pulse">Loading profile...</div>;
+    if (!profileData) return (
+        <div className="w-full min-h-screen bg-black animate-fade-in">
+            {/* Cover */}
+            <div className="h-44 bg-zinc-800 animate-pulse"/>
+            <div className="px-4 pb-4 relative">
+                {/* Avatar */}
+                <div className="w-24 h-24 rounded-full bg-zinc-700 animate-pulse border-4 border-black -mt-12 mb-3"/>
+                {/* Name + handle */}
+                <div className="space-y-2 mb-4">
+                    <div className="h-5 w-40 bg-zinc-800 rounded-full animate-pulse"/>
+                    <div className="h-3 w-28 bg-zinc-800/60 rounded-full animate-pulse"/>
+                </div>
+                {/* Bio lines */}
+                <div className="space-y-2 mb-4">
+                    <div className="h-3 w-full bg-zinc-800 rounded-full animate-pulse"/>
+                    <div className="h-3 w-3/4 bg-zinc-800/70 rounded-full animate-pulse"/>
+                </div>
+                {/* Stats */}
+                <div className="flex gap-6 mb-4">
+                    {[...Array(3)].map((_, i) => (
+                        <div key={i} className="flex flex-col items-center gap-1">
+                            <div className="h-4 w-8 bg-zinc-800 rounded-full animate-pulse"/>
+                            <div className="h-2.5 w-16 bg-zinc-800/60 rounded-full animate-pulse"/>
+                        </div>
+                    ))}
+                </div>
+                {/* Buttons */}
+                <div className="flex gap-2 mb-6">
+                    <div className="h-9 flex-1 bg-zinc-800 rounded-xl animate-pulse"/>
+                    <div className="h-9 flex-1 bg-zinc-800 rounded-xl animate-pulse"/>
+                    <div className="h-9 w-9 bg-zinc-800 rounded-xl animate-pulse"/>
+                </div>
+                {/* Tab bar */}
+                <div className="flex gap-2 mb-4">
+                    <div className="h-8 w-20 bg-zinc-800 rounded-full animate-pulse"/>
+                    <div className="h-8 w-20 bg-zinc-800/60 rounded-full animate-pulse"/>
+                </div>
+                {/* Posts grid */}
+                <div className="grid grid-cols-3 gap-1">
+                    {[...Array(9)].map((_, i) => (
+                        <div key={i} className="aspect-square bg-zinc-800 rounded-sm animate-pulse"/>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
 
     const avatarUrl = profileData.profile_pic_url ? `${profileData.profile_pic_url}` : null;
     const coverUrl = profileData.cover_pic_url ? `${profileData.cover_pic_url}` : null;

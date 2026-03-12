@@ -23,7 +23,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const title = titles[t] || titles.blue;
     const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
     const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
-    return <BadgeCheck size={size} className={`inline-block align-middle flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={{...style, verticalAlign: 'middle', marginLeft: '2px', marginBottom: '1px'}}/>;
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
 }
 
 function Communities({ themeColor }) {
@@ -32,6 +32,7 @@ function Communities({ themeColor }) {
     const [activeCommunity, setActiveCommunity] = useState(null); 
     const [posts, setPosts] = useState([]);
     const [friends, setFriends] = useState([]);
+    const [initialLoading, setInitialLoading] = useState(true);
     
     // Channel states
     const [channels, setChannels] = useState([]);
@@ -71,7 +72,7 @@ function Communities({ themeColor }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     const loadCommunities = () => {
-        axios.get(`${BACKEND_URL}/api/communities?userId=${userId}`).then(res => setCommunities(res.data)).catch(err => console.error(err));
+        axios.get(`${BACKEND_URL}/api/communities?userId=${userId}`).then(res => { setCommunities(res.data); setInitialLoading(false); }).catch(err => { console.error(err); setInitialLoading(false); });
     };
 
     const loadFriends = () => {
@@ -615,7 +616,22 @@ function Communities({ themeColor }) {
             )}
 
             <div className="p-4 space-y-3">
-                {communities.length === 0 ? <p className="text-zinc-500 text-center mt-10">No communities exist yet. Be the first to create one!</p> : (
+                {initialLoading ? (
+                    [...Array(5)].map((_, i) => (
+                        <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between">
+                            <div className="flex-1 space-y-2 pr-4">
+                                <div className="h-4 w-36 bg-zinc-800 rounded-full animate-pulse"/>
+                                <div className="h-3 w-full bg-zinc-800/70 rounded-full animate-pulse"/>
+                                <div className="h-3 w-4/5 bg-zinc-800/50 rounded-full animate-pulse"/>
+                                <div className="flex gap-4 mt-1">
+                                    <div className="h-2.5 w-20 bg-zinc-800/50 rounded-full animate-pulse"/>
+                                    <div className="h-2.5 w-20 bg-zinc-800/50 rounded-full animate-pulse"/>
+                                </div>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                        </div>
+                    ))
+                ) : communities.length === 0 ? <p className="text-zinc-500 text-center mt-10">No communities exist yet. Be the first to create one!</p> : (
                     communities.map(comm => (
                         <div key={comm.id} onClick={() => handleOpenCommunity(comm)} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 cursor-pointer hover:bg-zinc-800 transition group flex items-center justify-between shadow-sm">
                             <div className="flex-1 min-w-0 pr-4">

@@ -32,18 +32,21 @@ function Notifications() {
     const [suggestions, setSuggestions] = useState([]);
     const [addedIds, setAddedIds] = useState(new Set());
     const [birthdayFriends, setBirthdayFriends] = useState([]);
+    const [initialLoading, setInitialLoading] = useState(true);
 
     useEffect(() => {
         if (!userId) return;
-        axios.get(`${BACKEND_URL}/api/notifications/${userId}`)
-            .then(res => { if (Array.isArray(res.data)) setActivity(res.data.filter(n => n.type !== 'message')); })
-            .catch(() => {});
-        axios.get(`${BACKEND_URL}/api/friends/suggestions/${userId}`)
-            .then(res => { if (Array.isArray(res.data)) setSuggestions(res.data); })
-            .catch(() => {});
-        axios.get(`${BACKEND_URL}/api/users/${userId}/birthday-friends`)
-            .then(res => { if (Array.isArray(res.data)) setBirthdayFriends(res.data); })
-            .catch(() => {});
+        Promise.all([
+            axios.get(`${BACKEND_URL}/api/notifications/${userId}`)
+                .then(res => { if (Array.isArray(res.data)) setActivity(res.data.filter(n => n.type !== 'message')); })
+                .catch(() => {}),
+            axios.get(`${BACKEND_URL}/api/friends/suggestions/${userId}`)
+                .then(res => { if (Array.isArray(res.data)) setSuggestions(res.data); })
+                .catch(() => {}),
+            axios.get(`${BACKEND_URL}/api/users/${userId}/birthday-friends`)
+                .then(res => { if (Array.isArray(res.data)) setBirthdayFriends(res.data); })
+                .catch(() => {}),
+        ]).finally(() => setInitialLoading(false));
     }, []);
 
     const sendRequest = (targetId) => {
@@ -110,7 +113,38 @@ function Notifications() {
             )}
 
             <div className="p-4 space-y-3">
-                {activity.length === 0 ? (
+                {initialLoading ? (
+                    /* ── Skeleton ── */
+                    <>
+                        {/* Suggestions skeleton */}
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-2">
+                            <div className="h-3 w-36 bg-zinc-800 rounded-full animate-pulse mb-3"/>
+                            <div className="flex gap-3 overflow-x-auto pb-1">
+                                {[...Array(4)].map((_, i) => (
+                                    <div key={i} className="flex flex-col items-center gap-2 flex-shrink-0 w-20">
+                                        <div className="w-14 h-14 rounded-full bg-zinc-800 animate-pulse"/>
+                                        <div className="h-2.5 w-14 bg-zinc-800 rounded-full animate-pulse"/>
+                                        <div className="h-6 w-16 bg-zinc-800 rounded-full animate-pulse"/>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Activity skeleton */}
+                        {[...Array(6)].map((_, i) => (
+                            <div key={i} className="flex items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
+                                <div className="relative flex-shrink-0">
+                                    <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse"/>
+                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-zinc-700 animate-pulse border-2 border-zinc-900"/>
+                                </div>
+                                <div className="flex-1 space-y-2">
+                                    <div className="h-3 bg-zinc-800 rounded-full animate-pulse w-full"/>
+                                    <div className="h-2.5 bg-zinc-800/60 rounded-full animate-pulse w-20"/>
+                                </div>
+                                <div className="w-8 h-8 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                            </div>
+                        ))}
+                    </>
+                ) : activity.length === 0 ? (
                     <div className="text-center p-10 text-zinc-500">
                         <Bell size={48} className="mx-auto mb-4 opacity-30" />
                         <p>No recent activity.</p>
