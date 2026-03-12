@@ -4,7 +4,7 @@ import axios from 'axios';
 
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 
-import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff, ShoppingBag } from 'lucide-react';
+import { Home, LogIn, UserPlus, Users, Menu, MessageCircle, User, Settings as SettingsIcon, Search as SearchIcon, Clapperboard, Globe, X, Bell, Phone, PhoneOff, Video, Mic, MicOff, Camera, CameraOff, ShoppingBag, Flame } from 'lucide-react';
 
 import { io } from 'socket.io-client'; 
 
@@ -53,6 +53,7 @@ import AdminCommunities from './AdminCommunities';
 import AdminUserProfile from './AdminUserProfile';
 
 import Marketplace from './Marketplace';
+import Streaks from './Streaks';
 
 
 
@@ -1007,6 +1008,7 @@ function AppContent() {
                     <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} />
 
                     <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} />
+                    <NavItem to="/streaks" icon={Flame} label="Streaks" themeColor={userThemeColor} />
 
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
 
@@ -1107,6 +1109,7 @@ function AppContent() {
             <Route path="/dashboard" element={<ProtectedRoute><UserDashboard themeColor={userThemeColor} /></ProtectedRoute>} />
 
             <Route path="/marketplace" element={<ProtectedRoute><Marketplace themeColor={userThemeColor} /></ProtectedRoute>} />
+            <Route path="/streaks" element={<ProtectedRoute><Streaks themeColor={userThemeColor} /></ProtectedRoute>} />
 
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
 
@@ -1155,6 +1158,7 @@ function AppContent() {
                         <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
                         <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
+                        <NavItem to="/streaks" icon={Flame} label="Streaks" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
                         <NavItem to="/settings" icon={SettingsIcon} label="App Settings" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
@@ -1211,6 +1215,10 @@ function AppContent() {
                       )}
 
                   </Link> 
+
+                  <Link to="/streaks" className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/streaks' ? '#f97316' : '#a1a1aa' }}>
+                      <Flame size={22} />
+                  </Link>
 
                   <Link to={`/profile/${currentUserId}`} className="p-1.5 flex items-center justify-center">
 
