@@ -99,9 +99,25 @@ function PeoplePicker({ title, subtitle, friends, selected, multiSelect, onToggl
 // ── Collage image preview ─────────────────────────────────────────────────────
 function ImagePreview({ urls, onRemove }) {
     const [viewIdx, setViewIdx] = useState(null);
+    const touchStartX = useRef(null);
+    const touchStartY = useRef(null);
     if (!urls.length) return null;
 
     const n = urls.length;
+
+    const onTouchStart = (e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+    };
+    const onTouchEnd = (e) => {
+        if (touchStartX.current === null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        const dy = e.changedTouches[0].clientY - touchStartY.current;
+        touchStartX.current = null;
+        if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+        if (dx < 0 && viewIdx < urls.length - 1) setViewIdx(i => i + 1);
+        if (dx > 0 && viewIdx > 0) setViewIdx(i => i - 1);
+    };
 
     // Single image
     if (n === 1) return (
@@ -142,29 +158,22 @@ function ImagePreview({ urls, onRemove }) {
             </div>
             {n > 4 && <p className="text-zinc-500 text-xs text-center py-2 bg-zinc-900">{n} photos · tap to view</p>}
 
-            {/* Fullscreen viewer */}
+            {/* Fullscreen viewer with swipe */}
             {viewIdx !== null && (
-                <div className="fixed inset-0 z-[300] bg-black/97 flex items-center justify-center" onClick={() => setViewIdx(null)}>
+                <div className="fixed inset-0 z-[300] bg-black/97 flex items-center justify-center"
+                    onClick={() => setViewIdx(null)}
+                    onTouchStart={onTouchStart}
+                    onTouchEnd={onTouchEnd}>
                     <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={() => setViewIdx(null)}>
                         <X size={20}/>
                     </button>
-                    {viewIdx > 0 && (
-                        <button className="absolute left-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10"
-                            onClick={e => { e.stopPropagation(); setViewIdx(i => i - 1); }}>
-                            <ChevronLeft size={22}/>
-                        </button>
+                    <img src={urls[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl select-none"
+                        onClick={e => e.stopPropagation()} draggable={false} alt=""/>
+                    {urls.length > 1 && (
+                        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+                            {urls.map((_, i) => <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/35'}`}/>)}
+                        </div>
                     )}
-                    {viewIdx < urls.length - 1 && (
-                        <button className="absolute right-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10"
-                            onClick={e => { e.stopPropagation(); setViewIdx(i => i + 1); }}>
-                            <ChevronRight size={22}/>
-                        </button>
-                    )}
-                    <img src={urls[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl"
-                        onClick={e => e.stopPropagation()} alt=""/>
-                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
-                        {urls.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/40'}`}/>)}
-                    </div>
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
                         {viewIdx + 1} / {urls.length}
                     </div>

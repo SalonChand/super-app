@@ -9,10 +9,29 @@ const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Collage post component
 function CollagePost({ images, onImageClick }) {
     const [viewIdx, setViewIdx] = useState(null);
+    const touchStartX = useRef(null);
+    const touchStartY = useRef(null);
     const n = images.length;
     if (!n) return null;
+
     const gridClass = n === 2 ? 'grid grid-cols-2 gap-0.5' : n === 3 ? 'grid grid-cols-3 gap-0.5' : 'grid grid-cols-2 gap-0.5';
     const aspect = n === 3 ? '0.85' : '1';
+
+    const onTouchStart = (e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+    };
+    const onTouchEnd = (e) => {
+        if (touchStartX.current === null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        const dy = e.changedTouches[0].clientY - touchStartY.current;
+        touchStartX.current = null;
+        // Only swipe if horizontal movement dominates
+        if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+        if (dx < 0 && viewIdx < images.length - 1) setViewIdx(i => i + 1);
+        if (dx > 0 && viewIdx > 0) setViewIdx(i => i - 1);
+    };
+
     return (
         <div className="mb-3 rounded-2xl overflow-hidden border border-zinc-800/50">
             {n === 1
@@ -30,12 +49,19 @@ function CollagePost({ images, onImageClick }) {
                 </div>
             }
             {viewIdx !== null && (
-                <div className="fixed inset-0 z-[9999] bg-black/97 flex items-center justify-center" onClick={() => setViewIdx(null)}>
+                <div className="fixed inset-0 z-[9999] bg-black/97 flex items-center justify-center"
+                    onClick={() => setViewIdx(null)}
+                    onTouchStart={onTouchStart}
+                    onTouchEnd={onTouchEnd}>
                     <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={() => setViewIdx(null)}><X size={20}/></button>
-                    {viewIdx > 0 && <button className="absolute left-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10" onClick={e => { e.stopPropagation(); setViewIdx(i => i - 1); }}><ChevronLeft size={22}/></button>}
-                    {viewIdx < images.length - 1 && <button className="absolute right-4 top-1/2 -translate-y-1/2 bg-zinc-800/80 text-white p-2.5 rounded-full z-10" onClick={e => { e.stopPropagation(); setViewIdx(i => i + 1); }}><ChevronRightIcon size={22}/></button>}
-                    <img src={images[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl" onClick={e => e.stopPropagation()} alt=""/>
-                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">{images.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/40'}`}/>)}</div>
+                    <img src={images[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl select-none"
+                        onClick={e => e.stopPropagation()} draggable={false} alt=""/>
+                    {/* Dot indicators */}
+                    {images.length > 1 && (
+                        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+                            {images.map((_, i) => <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/35'}`}/>)}
+                        </div>
+                    )}
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">{viewIdx + 1} / {images.length}</div>
                 </div>
             )}
