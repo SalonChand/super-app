@@ -48,10 +48,17 @@ function isAtRisk(lastInteraction) {
 // ─── Fullscreen Snap Viewer ────────────────────────────────────────────────
 function SnapViewer({ snap, onClose, onAccept, onDismiss }) {
     const videoRef = useRef(null);
+    const [videoError, setVideoError] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    // Log snap data for debugging
+    useEffect(() => {
+        console.log('[SnapViewer] snap data:', JSON.stringify(snap));
+    }, []);
 
     useEffect(() => {
         if (snap.media_type === 'video' && videoRef.current) {
-            videoRef.current.play().catch(() => {});
+            videoRef.current.play().catch(e => console.log('[SnapViewer] play error:', e));
         }
     }, []);
 
@@ -60,14 +67,35 @@ function SnapViewer({ snap, onClose, onAccept, onDismiss }) {
             {/* Fullscreen media */}
             <div className="relative flex-1 overflow-hidden">
                 {snap.media_type === 'video' && snap.media_url ? (
-                    <video ref={videoRef} src={snap.media_url} autoPlay loop playsInline
-                        className="w-full h-full object-cover"/>
+                    <>
+                        <video ref={videoRef}
+                            src={snap.media_url}
+                            autoPlay loop playsInline controls={videoError}
+                            onLoadStart={() => setLoading(true)}
+                            onCanPlay={() => setLoading(false)}
+                            onError={(e) => { console.log('[SnapViewer] video error:', e); setVideoError(true); setLoading(false); }}
+                            className="w-full h-full object-contain bg-black"/>
+                        {loading && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-10 h-10 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin"/>
+                            </div>
+                        )}
+                        {videoError && (
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center px-6">
+                                <p className="text-red-400 text-sm font-bold mb-2">⚠️ Video failed to load</p>
+                                <a href={snap.media_url} target="_blank" rel="noreferrer"
+                                    className="text-orange-400 underline text-xs">Open in browser</a>
+                            </div>
+                        )}
+                    </>
+                ) : snap.media_url && snap.media_type === 'image' ? (
+                    <img src={snap.media_url} className="w-full h-full object-contain bg-black" alt="snap"/>
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center px-8">
+                    <div className="w-full h-full flex flex-col items-center justify-center px-8 bg-gradient-to-br from-orange-900/30 to-black">
                         <div className="w-20 h-20 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mb-6">
                             <Flame size={36} className="text-orange-400"/>
                         </div>
-                        <p className="text-white text-2xl font-bold text-center leading-tight">{snap.message}</p>
+                        <p className="text-white text-2xl font-bold text-center leading-tight">{snap.message || '🔥'}</p>
                     </div>
                 )}
 
@@ -814,6 +842,9 @@ export default function Streaks({ themeColor }) {
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-white font-bold text-sm truncate">To: {snap.username}</p>
                                                 <p className="text-zinc-500 text-xs">{snap.media_type === 'video' ? '📹 Video snap' : `💬 "${snap.message?.slice(0,35) || 'Text snap'}"`}</p>
+                                                {!snap.media_url && snap.media_type === 'video' && (
+                                                    <p className="text-red-400 text-[10px]">⚠️ Upload may have failed</p>
+                                                )}
                                             </div>
                                             <div className={`text-[10px] font-bold px-2 py-1 rounded-full border flex-shrink-0 ${snap.is_read ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-zinc-500 border-zinc-700 bg-zinc-800'}`}>
                                                 {snap.is_read ? '✓ Seen' : '• Sent'}
