@@ -1634,11 +1634,15 @@ server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
             from_user_id INT NOT NULL,
             to_user_id INT NOT NULL,
             message TEXT,
+            media_url VARCHAR(512) DEFAULT NULL,
+            media_type VARCHAR(20) DEFAULT NULL,
             is_read BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
         )`);
+        await pool.query(`ALTER TABLE streak_snaps ADD COLUMN IF NOT EXISTS media_url VARCHAR(512) DEFAULT NULL`).catch(()=>{});
+        await pool.query(`ALTER TABLE streak_snaps ADD COLUMN IF NOT EXISTS media_type VARCHAR(20) DEFAULT NULL`).catch(()=>{});
     } catch(e) { console.log('Streak table setup:', e.message); }
 })();
 
@@ -1723,7 +1727,7 @@ app.get('/api/streaks/:userId', async (req, res) => {
     } catch(e) { res.status(500).json({ error: 'Server error.' }); }
 });
 
-app.post('/api/streaks/snap', async (req, res) => {
+app.post('/api/streaks/snap', upload.single('media'), async (req, res) => {
     try {
         const { fromUserId, toUserId, message } = req.body;
         if (!fromUserId || !toUserId) return res.status(400).json({ error: 'Missing users.' });
@@ -1733,8 +1737,11 @@ app.post('/api/streaks/snap', async (req, res) => {
         );
         if (!friends[0]) return res.status(403).json({ error: 'You must be friends to streak.' });
 
-        await pool.query('INSERT INTO streak_snaps (from_user_id, to_user_id, message) VALUES (?, ?, ?)',
-            [fromUserId, toUserId, message || '🔥 Streak snap!']);
+        const media_url = req.file ? req.file.path : null;
+        const media_type = req.file ? (req.file.mimetype?.startsWith('video') ? 'video' : 'image') : null;
+
+        await pool.query('INSERT INTO streak_snaps (from_user_id, to_user_id, message, media_url, media_type) VALUES (?, ?, ?, ?, ?)',
+            [fromUserId, toUserId, message || (media_url ? '' : '🔥 Streak snap!'), media_url, media_type]);
 
         let streak = await getOrCreateStreak(fromUserId, toUserId);
         const isUser1 = Math.min(fromUserId, toUserId) == fromUserId;

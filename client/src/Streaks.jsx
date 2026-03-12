@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, AlertTriangle, ChevronRight, X, Check, Users } from 'lucide-react';
+import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, AlertTriangle, ChevronRight, X, Check, Users, Video } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -48,6 +48,16 @@ function isAtRisk(lastInteraction) {
 function SendSnapModal({ friend, onClose, onSent }) {
     const [message, setMessage] = useState('');
     const [sending, setSending] = useState(false);
+    const [recording, setRecording] = useState(false);
+    const [videoBlob, setVideoBlob] = useState(null);
+    const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
+    const [cameraStream, setCameraStream] = useState(null);
+    const [timeLeft, setTimeLeft] = useState(10);
+    const videoRef = useRef(null);
+    const previewRef = useRef(null);
+    const recorderRef = useRef(null);
+    const timerRef = useRef(null);
+    const chunksRef = useRef([]);
     const userId = localStorage.getItem('userId');
 
     const quickMessages = [
@@ -58,13 +68,85 @@ function SendSnapModal({ friend, onClose, onSent }) {
         '💪 We got this!',
     ];
 
+    // Clean up on unmount
+    useEffect(() => {
+        return () => {
+            stopCamera();
+            if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+        };
+    }, []);
+
+    const stopCamera = () => {
+        clearInterval(timerRef.current);
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+            recorderRef.current.stop();
+        }
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(t => t.stop());
+            setCameraStream(null);
+        }
+        setRecording(false);
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+            setCameraStream(stream);
+            if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+
+            chunksRef.current = [];
+            const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm' });
+            recorderRef.current = recorder;
+            recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+            recorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                setVideoBlob(blob);
+                setVideoPreviewUrl(url);
+                if (previewRef.current) { previewRef.current.src = url; previewRef.current.play(); }
+            };
+            recorder.start();
+            setRecording(true);
+            setTimeLeft(10);
+
+            // Auto-stop after 10s
+            let t = 10;
+            timerRef.current = setInterval(() => {
+                t--;
+                setTimeLeft(t);
+                if (t <= 0) stopRecording();
+            }, 1000);
+        } catch (e) {
+            alert('Could not access camera. Please allow camera permission.');
+        }
+    };
+
+    const stopRecording = () => {
+        clearInterval(timerRef.current);
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+        if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); setCameraStream(null); }
+        setRecording(false);
+    };
+
+    const discardVideo = () => {
+        if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+        setVideoBlob(null);
+        setVideoPreviewUrl(null);
+    };
+
     const send = async (msg) => {
         setSending(true);
         try {
-            await axios.post(`${BACKEND_URL}/api/streaks/snap`, {
-                fromUserId: userId,
-                toUserId: friend.friend_id,
-                message: msg || message || '🔥 Streak snap!',
+            const formData = new FormData();
+            formData.append('fromUserId', userId);
+            formData.append('toUserId', friend.friend_id);
+            if (videoBlob) {
+                formData.append('media', videoBlob, 'snap.webm');
+            } else {
+                formData.append('message', msg || message || '🔥 Streak snap!');
+            }
+            await axios.post(`${BACKEND_URL}/api/streaks/snap`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
             onSent();
             onClose();
@@ -76,7 +158,7 @@ function SendSnapModal({ friend, onClose, onSent }) {
 
     return (
         <div className="fixed inset-0 z-[200] bg-black/85 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-            <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto"
+            <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto"
                 onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800">
@@ -93,7 +175,7 @@ function SendSnapModal({ friend, onClose, onSent }) {
                 </div>
 
                 <div className="px-4 py-4 space-y-3">
-                    {/* Streak info */}
+                    {/* Friend info */}
                     <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
                         <div className="w-11 h-11 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
                             {friend.profile_pic_url
@@ -106,27 +188,89 @@ function SendSnapModal({ friend, onClose, onSent }) {
                         </div>
                     </div>
 
-                    {/* Quick messages */}
-                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Quick Snap</p>
-                    <div className="flex flex-col gap-2">
-                        {quickMessages.map((msg, i) => (
-                            <button key={i} onClick={() => send(msg)} disabled={sending}
-                                className="text-left px-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-orange-500/40 hover:bg-orange-500/5 rounded-xl text-sm text-white transition disabled:opacity-50">
-                                {msg}
-                            </button>
-                        ))}
-                    </div>
+                    {/* ── Video section ── */}
+                    {!videoBlob ? (
+                        <div className="space-y-2">
+                            {/* Camera viewfinder (shown while recording) */}
+                            {cameraStream && (
+                                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3]">
+                                    <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover"/>
+                                    {recording && (
+                                        <>
+                                            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 rounded-full px-2.5 py-1">
+                                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
+                                                <span className="text-white text-xs font-bold">{timeLeft}s</span>
+                                            </div>
+                                            <button onClick={stopRecording}
+                                                className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-red-500 hover:bg-red-400 text-white font-bold px-5 py-2 rounded-full text-sm transition">
+                                                Stop
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
 
-                    {/* Custom */}
-                    <div className="flex gap-2 pt-1">
-                        <input value={message} onChange={e => setMessage(e.target.value)}
-                            placeholder="Or type a custom message..."
-                            className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder-zinc-600 outline-none focus:border-orange-500/50"/>
-                        <button onClick={() => send(message)} disabled={!message.trim() || sending}
-                            className="bg-orange-500 hover:bg-orange-400 text-white font-bold px-4 rounded-xl transition disabled:opacity-40">
-                            <Send size={16}/>
-                        </button>
-                    </div>
+                            {/* Record button */}
+                            {!cameraStream && (
+                                <button onClick={startRecording}
+                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-zinc-900 border border-zinc-700 hover:border-orange-500/50 hover:bg-orange-500/5 rounded-2xl text-white font-bold text-sm transition">
+                                    <Video size={18} className="text-orange-400"/> Record a 10s Video Snap
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        /* Video preview after recording */
+                        <div className="space-y-2">
+                            <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3]">
+                                <video ref={previewRef} src={videoPreviewUrl} autoPlay loop playsInline className="w-full h-full object-cover"/>
+                                <div className="absolute top-3 left-3 bg-orange-500/80 rounded-full px-2.5 py-1">
+                                    <span className="text-white text-xs font-bold">📹 Preview</span>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={discardVideo}
+                                    className="flex-1 py-2.5 bg-zinc-900 border border-zinc-700 hover:border-red-500/40 text-zinc-400 hover:text-red-400 rounded-xl text-sm font-bold transition">
+                                    Discard
+                                </button>
+                                <button onClick={() => send()} disabled={sending}
+                                    className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 text-white rounded-xl text-sm font-bold transition disabled:opacity-50 flex items-center justify-center gap-2">
+                                    {sending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Send size={14}/> Send Video</>}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Divider */}
+                    {!videoBlob && (
+                        <>
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 h-px bg-zinc-800"/>
+                                <span className="text-zinc-600 text-xs">or send a text snap</span>
+                                <div className="flex-1 h-px bg-zinc-800"/>
+                            </div>
+
+                            {/* Quick messages */}
+                            <div className="flex flex-col gap-2">
+                                {quickMessages.map((msg, i) => (
+                                    <button key={i} onClick={() => send(msg)} disabled={sending}
+                                        className="text-left px-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-orange-500/40 hover:bg-orange-500/5 rounded-xl text-sm text-white transition disabled:opacity-50">
+                                        {msg}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Custom text */}
+                            <div className="flex gap-2 pt-1">
+                                <input value={message} onChange={e => setMessage(e.target.value)}
+                                    placeholder="Or type a custom message..."
+                                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder-zinc-600 outline-none focus:border-orange-500/50"/>
+                                <button onClick={() => send(message)} disabled={!message.trim() || sending}
+                                    className="bg-orange-500 hover:bg-orange-400 text-white font-bold px-4 rounded-xl transition disabled:opacity-40">
+                                    <Send size={16}/>
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
                 <div className="h-4"/>
             </div>
@@ -227,26 +371,35 @@ export default function Streaks({ themeColor }) {
                         </p>
                         <div className="space-y-2">
                             {incoming.map(snap => (
-                                <div key={snap.id} className="bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border border-yellow-500/30 rounded-2xl p-3 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
-                                        {snap.profile_pic_url
-                                            ? <img src={snap.profile_pic_url} className="w-full h-full object-cover"/>
-                                            : <div className="w-full h-full flex items-center justify-center"><User size={16} className="text-zinc-500"/></div>}
+                                <div key={snap.id} className="bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border border-yellow-500/30 rounded-2xl p-3 flex flex-col gap-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                                            {snap.profile_pic_url
+                                                ? <img src={snap.profile_pic_url} className="w-full h-full object-cover"/>
+                                                : <div className="w-full h-full flex items-center justify-center"><User size={16} className="text-zinc-500"/></div>}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-white text-sm font-bold truncate">{snap.username}</p>
+                                            {snap.media_type === 'video'
+                                                ? <p className="text-orange-400 text-xs flex items-center gap-1"><Video size={11}/> Sent a video snap</p>
+                                                : <p className="text-zinc-400 text-xs truncate">{snap.message}</p>}
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <button onClick={() => respondToSnap(snap.id, true)}
+                                                className="w-8 h-8 bg-green-500/20 border border-green-500/40 rounded-full flex items-center justify-center hover:bg-green-500/30 transition">
+                                                <Check size={14} className="text-green-400"/>
+                                            </button>
+                                            <button onClick={() => respondToSnap(snap.id, false)}
+                                                className="w-8 h-8 bg-zinc-800 border border-zinc-700 rounded-full flex items-center justify-center hover:bg-zinc-700 transition">
+                                                <X size={14} className="text-zinc-400"/>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-white text-sm font-bold truncate">{snap.username}</p>
-                                        <p className="text-zinc-400 text-xs truncate">{snap.message}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        <button onClick={() => respondToSnap(snap.id, true)}
-                                            className="w-8 h-8 bg-green-500/20 border border-green-500/40 rounded-full flex items-center justify-center hover:bg-green-500/30 transition">
-                                            <Check size={14} className="text-green-400"/>
-                                        </button>
-                                        <button onClick={() => respondToSnap(snap.id, false)}
-                                            className="w-8 h-8 bg-zinc-800 border border-zinc-700 rounded-full flex items-center justify-center hover:bg-zinc-700 transition">
-                                            <X size={14} className="text-zinc-400"/>
-                                        </button>
-                                    </div>
+                                    {/* Video player for video snaps */}
+                                    {snap.media_type === 'video' && snap.media_url && (
+                                        <video src={snap.media_url} controls playsInline
+                                            className="w-full rounded-xl max-h-52 bg-black object-cover"/>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -272,8 +425,8 @@ export default function Streaks({ themeColor }) {
                                 <div className="w-20 h-20 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto mb-4">
                                     <Flame size={36} className="text-orange-400 opacity-50"/>
                                 </div>
-                                <p className="text-white font-bold text-lg mb-2">No Streaks Yet</p>
-                                <p className="text-zinc-500 text-sm max-w-xs mx-auto">Send a streak snap to a friend every day to build a streak!</p>
+                                <p className="text-white font-bold text-lg mb-2">No Friends Yet</p>
+                                <p className="text-zinc-500 text-sm max-w-xs mx-auto">Add friends to start building streaks with them!</p>
                                 <Link to="/friends" className="inline-flex items-center gap-2 mt-4 bg-orange-500 hover:bg-orange-400 text-white font-bold px-5 py-2.5 rounded-full transition text-sm">
                                     <Users size={15}/> Find Friends
                                 </Link>
@@ -304,10 +457,10 @@ export default function Streaks({ themeColor }) {
                                                             : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><User size={18} className="text-zinc-500"/></div>}
                                                     </div>
                                                     {/* Streak count badge */}
-                                                    <div className={`absolute -bottom-1 -right-1 ${colors.bg} border ${colors.border} rounded-full px-1.5 py-0.5 flex items-center gap-0.5`}>
+                                                    {streak.streak_count > 0 && <div className={`absolute -bottom-1 -right-1 ${colors.bg} border ${colors.border} rounded-full px-1.5 py-0.5 flex items-center gap-0.5`}>
                                                         <span className="text-[9px]">{getStreakEmoji(streak.streak_count)}</span>
                                                         <span className={`text-[9px] font-black ${colors.text}`}>{streak.streak_count}</span>
-                                                    </div>
+                                                    </div>}
                                                 </Link>
 
                                                 {/* Info */}
@@ -317,8 +470,8 @@ export default function Streaks({ themeColor }) {
                                                         <VerifiedBadge isVerified={!!streak.is_verified} verifyType={streak.verify_type}/>
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className={`text-xs font-bold ${colors.text}`}>
-                                                            {getStreakEmoji(streak.streak_count)} {streak.streak_count} day streak
+                                                        <span className={`text-xs font-bold ${streak.streak_count > 0 ? colors.text : 'text-zinc-500'}`}>
+                                                            {streak.streak_count > 0 ? `${getStreakEmoji(streak.streak_count)} ${streak.streak_count} day streak` : '🤝 Start a streak!'}
                                                         </span>
                                                         {risk ? (
                                                             <span className="flex items-center gap-0.5 text-red-400 text-[10px] font-bold animate-pulse">
