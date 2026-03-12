@@ -738,7 +738,12 @@ function Feed({ onlineUsers = new Set() }) {
 
                             {/* Collage or single image */}
                             {(() => {
-                                const imgs = (() => { try { return post.images ? JSON.parse(post.images) : null; } catch(e) { return null; } })();
+                                let imgs = null;
+                                if (post.images) {
+                                    try {
+                                        imgs = typeof post.images === 'string' ? JSON.parse(post.images) : post.images;
+                                    } catch(e) { imgs = null; }
+                                }
                                 const allImgs = (imgs && imgs.length > 0) ? imgs : (post.image_url ? [post.image_url] : null);
                                 if (!allImgs) return null;
                                 return <CollagePost images={allImgs} onImageClick={setViewingPostImage} />;

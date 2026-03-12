@@ -1024,7 +1024,7 @@ app.post('/api/posts', upload.array('images', 10), async (req, res) => {
         if (req.files && req.files.length > 0) {
             const urls = req.files.map(f => f.path);
             image_url = urls[0];
-            if (urls.length > 1) images_json = JSON.stringify(urls);
+            images_json = JSON.stringify(urls); // always store all images (even single)
         }
         const { user_id, content, scheduled_at, is_draft, visibility, tagged_users } = req.body;
         const safeContent = content || '';
