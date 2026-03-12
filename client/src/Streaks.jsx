@@ -23,12 +23,13 @@ function getStreakEmoji(count) {
 }
 
 function getStreakColor(count) {
+    if (!count || count === 0) return { text: 'text-zinc-500', bg: 'bg-zinc-800', border: 'border-zinc-700', glow: 'shadow-zinc-700/30' };
     if (count >= 365) return { text: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/40', glow: 'shadow-yellow-500/30' };
     if (count >= 100) return { text: 'text-cyan-400',   bg: 'bg-cyan-500/20',   border: 'border-cyan-500/40',   glow: 'shadow-cyan-500/30' };
     if (count >= 50)  return { text: 'text-orange-400', bg: 'bg-orange-500/20', border: 'border-orange-500/40', glow: 'shadow-orange-500/30' };
     if (count >= 14)  return { text: 'text-purple-400', bg: 'bg-purple-500/20', border: 'border-purple-500/40', glow: 'shadow-purple-500/30' };
     if (count >= 7)   return { text: 'text-blue-400',   bg: 'bg-blue-500/20',   border: 'border-blue-500/40',   glow: 'shadow-blue-500/30' };
-    return               { text: 'text-red-400',    bg: 'bg-red-500/20',    border: 'border-red-500/40',    glow: 'shadow-red-500/30' };
+    return               { text: 'text-orange-400', bg: 'bg-orange-500/20', border: 'border-orange-500/40', glow: 'shadow-orange-500/30' };
 }
 
 function hoursLeft(lastInteraction) {
@@ -630,7 +631,7 @@ export default function Streaks({ themeColor }) {
                                                 className={`flex items-center gap-3 bg-zinc-900 border rounded-2xl p-3.5 transition ${risk ? 'border-red-500/40 bg-red-500/5' : 'border-zinc-800 hover:border-zinc-700'}`}>
                                                 {/* Avatar */}
                                                 <Link to={`/profile/${streak.friend_id}`} className="relative flex-shrink-0">
-                                                    <div className={`w-12 h-12 rounded-full overflow-hidden border-2 ${risk ? 'border-red-500/60' : colors.border}`}>
+                                                    <div className={`w-12 h-12 rounded-full overflow-hidden border-2 ${risk ? 'border-red-500/60' : streak.streak_count > 0 ? colors.border : 'border-zinc-700'}`}>
                                                         {streak.profile_pic_url
                                                             ? <img src={streak.profile_pic_url} className="w-full h-full object-cover"/>
                                                             : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><User size={18} className="text-zinc-500"/></div>}
@@ -674,7 +675,9 @@ export default function Streaks({ themeColor }) {
                                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border font-bold text-xs transition ${
                                                             risk
                                                                 ? 'bg-red-500 border-red-500 text-white hover:bg-red-400 shadow-lg shadow-red-500/30 animate-pulse'
-                                                                : `${colors.bg} ${colors.border} ${colors.text} hover:opacity-80`
+                                                                : streak.streak_count > 0
+                                                                ? `${colors.bg} ${colors.border} ${colors.text} hover:opacity-80`
+                                                                : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-orange-500/50 hover:text-orange-400'
                                                         }`}>
                                                         <Flame size={12}/>
                                                         {risk ? 'Save!' : 'Snap'}
