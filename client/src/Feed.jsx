@@ -378,25 +378,59 @@ function Feed({ onlineUsers = new Set() }) {
 
     const startStoryDraft = (e) => { const file = e.target.files[0]; if (file) { setDraftFile(file); setDraftPreviewUrl(URL.createObjectURL(file)); setShowStoryEditor(true); setIsDrawingMode(false); } };
     const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSongFile(null); setDraftSongName(''); setStoryVisibility('public'); setVisibleToFriends([]); if (storyInputRef.current) storyInputRef.current.value = ''; };
+    const [uploadingStory, setUploadingStory] = useState(false);
     const uploadFinalStory = async () => {
-        const formData = new FormData(); formData.append('user_id', userId);
-        if (canvasRef.current && !draftFile.type.startsWith('video')) {
-            const mergeCanvas = document.createElement('canvas'); const mergeCtx = mergeCanvas.getContext('2d'); const img = new Image(); img.src = draftPreviewUrl;
-            await new Promise(resolve => {
-                img.onload = () => {
-                    mergeCanvas.width = canvasRef.current.width; mergeCanvas.height = canvasRef.current.height;
-                    mergeCtx.filter = draftFilter;
-                    const scale = Math.max(mergeCanvas.width / img.width, mergeCanvas.height / img.height);
-                    const x = (mergeCanvas.width / 2) - (img.width / 2) * scale; const y = (mergeCanvas.height / 2) - (img.height / 2) * scale;
-                    mergeCtx.drawImage(img, x, y, img.width * scale, img.height * scale);
-                    mergeCtx.filter = 'none'; mergeCtx.drawImage(canvasRef.current, 0, 0); resolve();
-                };
-            });
-            const blob = await new Promise(resolve => mergeCanvas.toBlob(resolve, 'image/jpeg', 0.9));
-            formData.append('media', blob, 'story.jpg'); formData.append('filter_class', 'none'); 
-        } else { formData.append('media', draftFile); if (draftFilter !== 'none') formData.append('filter_class', draftFilter); }
-        if (draftCaption.trim()) formData.append('caption', draftCaption); if (draftSongFile) { formData.append('song', draftSongFile); formData.append('song_name', draftSongName || draftSongFile.name.replace(/\.[^/.]+$/, '')); } else if (draftSongName.trim()) { formData.append('song_name', draftSongName); } formData.append('visibility', storyVisibility); if (storyVisibility === 'selected' && visibleToFriends.length > 0) formData.append('visible_to', JSON.stringify(visibleToFriends));
-        try { await axios.post(`${BACKEND_URL}/api/stories`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); closeStoryEditor(); fetchData(); } catch (err) { console.error(err); }
+        if (uploadingStory) return;
+        setUploadingStory(true);
+        try {
+            const formData = new FormData();
+            formData.append('user_id', userId);
+            if (canvasRef.current && draftFile && !draftFile.type.startsWith('video')) {
+                const mergeCanvas = document.createElement('canvas');
+                const mergeCtx = mergeCanvas.getContext('2d');
+                const img = new Image();
+                img.src = draftPreviewUrl;
+                await new Promise((resolve, reject) => {
+                    if (img.complete && img.naturalWidth > 0) {
+                        // Already loaded (cached) — run immediately
+                        try {
+                            mergeCanvas.width = canvasRef.current.width; mergeCanvas.height = canvasRef.current.height;
+                            mergeCtx.filter = draftFilter;
+                            const scale = Math.max(mergeCanvas.width / img.width, mergeCanvas.height / img.height);
+                            const x = (mergeCanvas.width / 2) - (img.width / 2) * scale; const y = (mergeCanvas.height / 2) - (img.height / 2) * scale;
+                            mergeCtx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                            mergeCtx.filter = 'none'; mergeCtx.drawImage(canvasRef.current, 0, 0);
+                            resolve();
+                        } catch(e) { reject(e); }
+                    } else {
+                        img.onload = () => {
+                            try {
+                                mergeCanvas.width = canvasRef.current.width; mergeCanvas.height = canvasRef.current.height;
+                                mergeCtx.filter = draftFilter;
+                                const scale = Math.max(mergeCanvas.width / img.width, mergeCanvas.height / img.height);
+                                const x = (mergeCanvas.width / 2) - (img.width / 2) * scale; const y = (mergeCanvas.height / 2) - (img.height / 2) * scale;
+                                mergeCtx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                                mergeCtx.filter = 'none'; mergeCtx.drawImage(canvasRef.current, 0, 0);
+                                resolve();
+                            } catch(e) { reject(e); }
+                        };
+                        img.onerror = reject;
+                    }
+                });
+                const blob = await new Promise(resolve => mergeCanvas.toBlob(resolve, 'image/jpeg', 0.9));
+                formData.append('media', blob, 'story.jpg'); formData.append('filter_class', 'none');
+            } else {
+                formData.append('media', draftFile); if (draftFilter !== 'none') formData.append('filter_class', draftFilter);
+            }
+            if (draftCaption.trim()) formData.append('caption', draftCaption);
+            if (draftSongFile) { formData.append('song', draftSongFile); formData.append('song_name', draftSongName || draftSongFile.name.replace(/\.[^/.]+$/, '')); }
+            else if (draftSongName.trim()) { formData.append('song_name', draftSongName); }
+            formData.append('visibility', storyVisibility);
+            if (storyVisibility === 'selected' && visibleToFriends.length > 0) formData.append('visible_to', JSON.stringify(visibleToFriends));
+            await axios.post(`${BACKEND_URL}/api/stories`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            closeStoryEditor(); fetchData();
+        } catch (err) { console.error('Story upload failed:', err); alert('Failed to post story. Please try again.'); }
+        finally { setUploadingStory(false); }
     };
 
     const handleStoryLike = async (storyId) => {
@@ -638,7 +672,9 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                             )}
                         </div>
-                        <button onClick={uploadFinalStory} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-full transition">Post Story</button>
+                        <button onClick={uploadFinalStory} disabled={uploadingStory} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3 rounded-full transition">
+                            {uploadingStory ? 'Posting…' : 'Post Story'}
+                        </button>
                     </div>
                 </div>
             )}
