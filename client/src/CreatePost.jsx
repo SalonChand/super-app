@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { X, Image as ImageIcon, Globe, Users, EyeOff, Star, ChevronDown, Check, Search, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Image as ImageIcon, Globe, Users, EyeOff, Star, ChevronDown, Check, Search, ArrowLeft, ChevronLeft, ChevronRight, Music } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 
@@ -202,6 +202,9 @@ export default function CreatePost({ themeColor = '#3b82f6' }) {
     const [friends, setFriends] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
     const [posting, setPosting] = useState(false);
+    const [songFile, setSongFile] = useState(null);
+    const [songName, setSongName] = useState('');
+    const songInputRef = useRef(null);
 
     useEffect(() => {
         if (!userId) return;
@@ -248,6 +251,7 @@ export default function CreatePost({ themeColor = '#3b82f6' }) {
             if (asDraft) fd.append('is_draft', 'true');
             if (taggedFriends.length > 0) fd.append('tagged_users', JSON.stringify(taggedFriends.map(f => f.id)));
             images.forEach(img => fd.append('images', img));
+            if (songFile) { fd.append('song', songFile); fd.append('song_name', songName || songFile.name.replace(/\.[^/.]+$/, '')); }
             const res = await axios.post(`${BACKEND_URL}/api/posts`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             if (collabFriend && res.data?.postId) {
                 await axios.post(`${BACKEND_URL}/api/posts/${res.data.postId}/collab-invite`, { coAuthorId: collabFriend.id }).catch(() => {});
@@ -373,6 +377,22 @@ export default function CreatePost({ themeColor = '#3b82f6' }) {
                     </div>
                 )}
 
+                {/* ── Music pill ── */}
+                {songFile && (
+                    <div className="mx-4 mb-3 flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-2xl px-4 py-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center flex-shrink-0">
+                            <Music size={16} className="text-white"/>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-green-400 text-[11px] font-bold uppercase tracking-wider">Music attached</p>
+                            <input value={songName} onChange={e => setSongName(e.target.value)}
+                                placeholder="Song name…"
+                                className="bg-transparent text-white text-sm font-semibold outline-none w-full truncate placeholder-zinc-500"/>
+                        </div>
+                        <button onClick={() => { setSongFile(null); setSongName(''); }} className="text-zinc-500 hover:text-red-400 transition flex-shrink-0"><X size={16}/></button>
+                    </div>
+                )}
+
                 {/* ── Image preview ── */}
                 {previewUrls.length > 0 && (
                     <div className="px-4 pb-4">
@@ -407,6 +427,15 @@ export default function CreatePost({ themeColor = '#3b82f6' }) {
                         <Star size={20} className={collabFriend ? 'text-yellow-400 fill-yellow-400' : 'text-zinc-500 group-hover:text-white'} />
                         <span className={`text-sm font-medium ${collabFriend ? 'text-yellow-400' : 'text-zinc-500 group-hover:text-white'}`}>
                             {collabFriend ? `Collab: @${collabFriend.username}` : 'Collab'}
+                        </span>
+                    </button>
+
+                    <input ref={songInputRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setSongFile(f); setSongName(f.name.replace(/\.[^/.]+$/, '')); } e.target.value=''; }} />
+                    <button onClick={() => songInputRef.current.click()}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-2xl hover:bg-zinc-900 transition group">
+                        <Music size={20} className={songFile ? 'text-green-400' : 'text-zinc-500 group-hover:text-white'} />
+                        <span className={`text-sm font-medium ${songFile ? 'text-green-400' : 'text-zinc-500 group-hover:text-white'}`}>
+                            {songFile ? songName || 'Song' : 'Music'}
                         </span>
                     </button>
                 </div>

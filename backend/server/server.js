@@ -630,7 +630,11 @@ app.get('/api/setup-cloud-db', async (req, res) => {
         await pool.query(`CREATE TABLE IF NOT EXISTS messages (id INT AUTO_INCREMENT PRIMARY KEY, sender_id INT NOT NULL, receiver_id INT NOT NULL, content TEXT, media_url VARCHAR(255), media_type VARCHAR(50), reply_to_id INT DEFAULT NULL, is_forwarded BOOLEAN DEFAULT FALSE, is_request BOOLEAN DEFAULT FALSE, reaction VARCHAR(50) DEFAULT NULL, is_read BOOLEAN DEFAULT FALSE, is_pinned BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (reply_to_id) REFERENCES messages(id) ON DELETE SET NULL)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS call_logs (id INT AUTO_INCREMENT PRIMARY KEY, caller_id INT NOT NULL, receiver_id INT NOT NULL, call_type ENUM('audio','video') NOT NULL DEFAULT 'audio', status ENUM('missed','answered','declined') NOT NULL DEFAULT 'missed', duration_seconds INT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (caller_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, subscription JSON NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
-        await pool.query(`CREATE TABLE IF NOT EXISTS stories (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(50) NOT NULL, caption VARCHAR(255), filter_class VARCHAR(100) DEFAULT 'none', song_name VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
+        await pool.query(`CREATE TABLE IF NOT EXISTS stories (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(50) NOT NULL, caption VARCHAR(255), filter_class VARCHAR(100) DEFAULT 'none', song_name VARCHAR(200), song_url VARCHAR(500), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
+        await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
+        await pool.query(`ALTER TABLE stories MODIFY COLUMN IF EXISTS song_name VARCHAR(200)`).catch(()=>{});
+        await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_name VARCHAR(200)`).catch(()=>{});
+        await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
         await pool.query(`CREATE TABLE IF NOT EXISTS story_likes (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS story_views (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS reels (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, video_url VARCHAR(255) NOT NULL, caption TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
@@ -1232,22 +1236,26 @@ app.get('/api/notifications/:userId', async (req, res) => {
 app.get('/api/activity/:userId', async (req, res) => { try { const uid = req.params.userId; const [msgs] = await pool.query(`SELECT m.id, m.content, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type, m.created_at, 'message' as type FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.receiver_id = ? AND m.is_read = FALSE ORDER BY m.created_at DESC`, [uid]); const [reqs] = await pool.query(`SELECT c.id, 'Sent you a friend request' as content, u.username, u.profile_pic_url, c.created_at, 'request' as type FROM connections c JOIN users u ON c.requester_id = u.id WHERE c.receiver_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC`,[uid]); let activity =[...msgs, ...reqs]; activity.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); res.json({ feed: activity, unread_messages: msgs.length, pending_requests: reqs.length, total_notifications: msgs.length + reqs.length }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 
 // POSTS
-app.post('/api/posts', upload.array('images', 10), async (req, res) => {
+app.post('/api/posts', upload.fields([{ name: 'images', maxCount: 10 }, { name: 'song', maxCount: 1 }]), async (req, res) => {
     try {
         // Support both single 'image' (legacy) and multiple 'images' (carousel)
         let image_url = null;
         let images_json = null;
-        if (req.files && req.files.length > 0) {
-            const urls = req.files.map(f => f.path);
+        const imageFiles = req.files?.images || [];
+        const songFile = req.files?.song?.[0] || null;
+        if (imageFiles.length > 0) {
+            const urls = imageFiles.map(f => f.path);
             image_url = urls[0];
             if (urls.length > 1) images_json = JSON.stringify(urls);
         }
-        const { user_id, content, scheduled_at, is_draft, visibility, tagged_users } = req.body;
+        const { user_id, content, scheduled_at, is_draft, visibility, tagged_users, song_name } = req.body;
+        const song_url = songFile ? songFile.path : null;
+        const final_song_name = song_name || (songFile ? songFile.originalname.replace(/\.[^/.]+$/, '') : null);
         const safeContent = content || '';
         const hashtags = (safeContent.match(/#[\w]+/g) || []).map(h => h.toLowerCase());
         const mentions = (safeContent.match(/@([\w]+)/g) || []).map(m => m.slice(1).toLowerCase());
-        const [result] = await pool.query('INSERT INTO posts (user_id, content, image_url, images, scheduled_at, is_draft, hashtags, visibility, tagged_users) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [user_id, safeContent, image_url, images_json, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags), visibility || 'public', tagged_users || null]);
+        const [result] = await pool.query('INSERT INTO posts (user_id, content, image_url, images, scheduled_at, is_draft, hashtags, visibility, tagged_users, song_name, song_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [user_id, safeContent, image_url, images_json, scheduled_at || null, is_draft === 'true' ? 1 : 0, JSON.stringify(hashtags), visibility || 'public', tagged_users || null, final_song_name || null, song_url]);
         if (mentions.length > 0) {
             try {
                 const [poster] = await pool.query('SELECT username FROM users WHERE id = ?', [user_id]);
@@ -1528,15 +1536,19 @@ app.get('/api/friends/explore/:userId', async (req, res) => { try { const[explor
 app.get('/api/friends/list/:userId', async (req, res) => { try { const { userId } = req.params; const [friends] = await pool.query(`SELECT u.id, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type, COALESCE(u.show_active_status, 1) as show_active_status, u.last_seen, (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND receiver_id = ? AND is_read = FALSE) AS unread_count, (SELECT content FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message, (SELECT sender_id FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_sender, (SELECT created_at FROM messages WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id) ORDER BY created_at DESC LIMIT 1) AS last_message_time FROM users u JOIN connections c ON (c.requester_id = u.id AND c.receiver_id = ?) OR (c.receiver_id = u.id AND c.requester_id = ?) WHERE c.status = 'accepted' ORDER BY last_message_time DESC`,[userId, userId, userId, userId, userId, userId, userId, userId, userId]); res.json(friends); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 
 // STORIES & REELS
-app.post('/api/stories', upload.single('media'), async (req, res) => {
+app.post('/api/stories', upload.fields([{ name: 'media', maxCount: 1 }, { name: 'song', maxCount: 1 }]), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: "No file provided" });
-        const media_url = req.file.path;
-        const media_type = req.file.mimetype.startsWith('video') ? 'video' : 'image';
+        const mediaFile = req.files?.media?.[0];
+        const songFile = req.files?.song?.[0];
+        if (!mediaFile) return res.status(400).json({ error: "No file provided" });
+        const media_url = mediaFile.path;
+        const media_type = mediaFile.mimetype.startsWith('video') ? 'video' : 'image';
         const { user_id, caption, filter_class, song_name, visibility, visible_to } = req.body;
+        const song_url = songFile ? songFile.path : null;
+        const final_song_name = song_name || (songFile ? songFile.originalname.replace(/\.[^/.]+$/, '') : null);
         await pool.query(
-            'INSERT INTO stories (user_id, media_url, media_type, caption, filter_class, song_name, visibility, visible_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [user_id, media_url, media_type, caption || null, filter_class || 'none', song_name || null, visibility || 'public', visible_to || null]
+            'INSERT INTO stories (user_id, media_url, media_type, caption, filter_class, song_name, song_url, visibility, visible_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [user_id, media_url, media_type, caption || null, filter_class || 'none', final_song_name || null, song_url, visibility || 'public', visible_to || null]
         );
         res.status(201).json({ message: "Story added!" });
     } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); }

@@ -69,7 +69,7 @@ function CollagePost({ images, onImageClick }) {
     );
 }
 const STORY_FILTERS =[{ name: 'Normal', value: 'none' }, { name: 'Clarendon', value: 'contrast(1.2) saturate(1.3) sepia(0.2) hue-rotate(-10deg)' }, { name: 'Gingham', value: 'brightness(1.1) contrast(1.1) sepia(0.3) hue-rotate(-20deg)' }, { name: 'Moon', value: 'grayscale(100%) contrast(1.2) brightness(1.1)' }, { name: 'Warm', value: 'sepia(0.5) saturate(1.5) contrast(1.1)' }, { name: 'Neon', value: 'hue-rotate(90deg) saturate(2) contrast(1.2)' }];
-const SONG_LIST =["No Music", "Lo-Fi Beats 🎵", "Trending Hits 🔥", "Chill Vibes 🎧", "Gym Motivation 💪"];
+
 const DRAW_COLORS =['#ffffff', '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#000000'];
 
 function formatTimeFriendly(dateString) {
@@ -127,7 +127,8 @@ function Feed({ onlineUsers = new Set() }) {
     const[draftPreviewUrl, setDraftPreviewUrl] = useState(null);
     const [draftCaption, setDraftCaption] = useState('');
     const [draftFilter, setDraftFilter] = useState(STORY_FILTERS[0].value);
-    const [draftSong, setDraftSong] = useState(SONG_LIST[0]);
+    const [draftSongFile, setDraftSongFile] = useState(null);
+    const [draftSongName, setDraftSongName] = useState('');
     const [showStoryEditor, setShowStoryEditor] = useState(false);
     const [storyVisibility, setStoryVisibility] = useState('public');
     const [visibleToFriends, setVisibleToFriends] = useState([]);
@@ -376,7 +377,7 @@ function Feed({ onlineUsers = new Set() }) {
     const clearCanvas = () => { if (canvasRef.current) { const ctx = canvasRef.current.getContext('2d'); ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); } };
 
     const startStoryDraft = (e) => { const file = e.target.files[0]; if (file) { setDraftFile(file); setDraftPreviewUrl(URL.createObjectURL(file)); setShowStoryEditor(true); setIsDrawingMode(false); } };
-    const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSong(SONG_LIST[0]); setStoryVisibility('public'); setVisibleToFriends([]); if (storyInputRef.current) storyInputRef.current.value = ''; };
+    const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSongFile(null); setDraftSongName(''); setStoryVisibility('public'); setVisibleToFriends([]); if (storyInputRef.current) storyInputRef.current.value = ''; };
     const uploadFinalStory = async () => {
         const formData = new FormData(); formData.append('user_id', userId);
         if (canvasRef.current && !draftFile.type.startsWith('video')) {
@@ -394,7 +395,7 @@ function Feed({ onlineUsers = new Set() }) {
             const blob = await new Promise(resolve => mergeCanvas.toBlob(resolve, 'image/jpeg', 0.9));
             formData.append('media', blob, 'story.jpg'); formData.append('filter_class', 'none'); 
         } else { formData.append('media', draftFile); if (draftFilter !== 'none') formData.append('filter_class', draftFilter); }
-        if (draftCaption.trim()) formData.append('caption', draftCaption); if (draftSong !== 'No Music') formData.append('song_name', draftSong); formData.append('visibility', storyVisibility); if (storyVisibility === 'selected' && visibleToFriends.length > 0) formData.append('visible_to', JSON.stringify(visibleToFriends));
+        if (draftCaption.trim()) formData.append('caption', draftCaption); if (draftSongFile) { formData.append('song', draftSongFile); formData.append('song_name', draftSongName || draftSongFile.name.replace(/\.[^/.]+$/, '')); } else if (draftSongName.trim()) { formData.append('song_name', draftSongName); } formData.append('visibility', storyVisibility); if (storyVisibility === 'selected' && visibleToFriends.length > 0) formData.append('visible_to', JSON.stringify(visibleToFriends));
         try { await axios.post(`${BACKEND_URL}/api/stories`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); closeStoryEditor(); fetchData(); } catch (err) { console.error(err); }
     };
 
@@ -519,6 +520,28 @@ function Feed({ onlineUsers = new Set() }) {
                             </div>
                         )}
 
+                        {/* Music bar */}
+                        {viewingStory.song_url && (
+                            <div className="absolute bottom-28 left-4 right-4 z-20 pointer-events-auto">
+                                <div className="flex items-center gap-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-4 py-2">
+                                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center flex-shrink-0 animate-[spin_4s_linear_infinite]">
+                                        <Music size={13} className="text-white"/>
+                                    </div>
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-white text-xs font-semibold truncate">{viewingStory.song_name || 'Music'}</p>
+                                    </div>
+                                    <audio src={viewingStory.song_url} autoPlay loop className="hidden"/>
+                                </div>
+                            </div>
+                        )}
+                        {viewingStory.song_name && !viewingStory.song_url && (
+                            <div className="absolute bottom-28 left-4 right-4 z-20">
+                                <div className="flex items-center gap-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-4 py-2">
+                                    <Music size={13} className="text-white/70"/>
+                                    <p className="text-white/80 text-xs font-medium truncate">{viewingStory.song_name}</p>
+                                </div>
+                            </div>
+                        )}
                         {/* Caption */}
                         {viewingStory.caption && !editingStory && <div className="absolute bottom-20 left-4 right-4 text-white text-center text-sm font-medium drop-shadow z-10">{viewingStory.caption}</div>}
 
@@ -557,10 +580,22 @@ function Feed({ onlineUsers = new Set() }) {
                         <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
                             {STORY_FILTERS.map(f => <button key={f.name} onClick={() => setDraftFilter(f.value)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border ${draftFilter === f.value ? 'border-blue-500 text-blue-400' : 'border-zinc-700 text-zinc-400'}`}>{f.name}</button>)}
                         </div>
-                        {/* Song */}
-                        <select value={draftSong} onChange={e => setDraftSong(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm mb-2 outline-none">
-                            {SONG_LIST.map(s => <option key={s}>{s}</option>)}
-                        </select>
+                        {/* Music */}
+                        <div className="mb-2">
+                            <label className="flex items-center gap-2 w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 cursor-pointer hover:border-zinc-500 transition">
+                                <Music size={15} className={draftSongFile ? "text-green-400" : "text-zinc-400"} />
+                                <span className={`text-sm flex-1 truncate ${draftSongFile ? "text-green-400" : "text-zinc-400"}`}>
+                                    {draftSongFile ? draftSongFile.name : "Add music to story…"}
+                                </span>
+                                {draftSongFile && <button type="button" onClick={() => { setDraftSongFile(null); setDraftSongName(''); }} className="text-zinc-500 hover:text-red-400 transition"><X size={14}/></button>}
+                                <input type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setDraftSongFile(f); setDraftSongName(f.name.replace(/\.[^/.]+$/, '')); } e.target.value = ''; }} />
+                            </label>
+                            {draftSongFile && (
+                                <input value={draftSongName} onChange={e => setDraftSongName(e.target.value)}
+                                    placeholder="Song name (shown on story)…"
+                                    className="mt-1.5 w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-green-500 transition" />
+                            )}
+                        </div>
                         {/* Caption */}
                         <input value={draftCaption} onChange={e => setDraftCaption(e.target.value)} placeholder="Add a caption..." className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm mb-3 outline-none" />
                         {/* Draw tools */}
@@ -810,6 +845,24 @@ function Feed({ onlineUsers = new Set() }) {
                                 return <CollagePost images={allImgs} onImageClick={setViewingPostImage} />;
                             })()}
                             
+                            {/* Music player */}
+                            {post.song_url && (
+                                <div className="mt-3 flex items-center gap-2.5 bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center flex-shrink-0">
+                                        <Music size={14} className="text-white"/>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-xs font-semibold truncate">{post.song_name || 'Music'}</p>
+                                        <audio controls src={post.song_url} className="w-full h-7 mt-0.5" style={{accentColor:'#10b981'}} />
+                                    </div>
+                                </div>
+                            )}
+                            {post.song_name && !post.song_url && (
+                                <div className="mt-2 flex items-center gap-2 text-zinc-500 text-xs">
+                                    <Music size={12}/> <span className="truncate">{post.song_name}</span>
+                                </div>
+                            )}
+
                             <div className="flex justify-between items-center text-zinc-500 mt-2 max-w-sm pr-10">
                                 <div className="flex items-center gap-1 group"><button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 transition ${post.user_liked === 1 ? 'text-pink-600' : 'hover:text-pink-500'}`}><div className="p-2 rounded-full group-hover:bg-pink-500/10"><Heart size={18} className={post.user_liked === 1 ? "fill-pink-600" : ""} /></div></button><span onClick={() => toggleLikes(post.id)} className="text-sm font-medium hover:text-pink-500 hover:underline cursor-pointer">{post.like_count > 0 ? post.like_count : ''}</span></div>
                                 <div className="flex items-center gap-1 group"><button onClick={() => toggleComments(post.id)} className="flex items-center gap-2 hover:text-blue-500 transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><MessageCircle size={18} /></div></button><span onClick={() => toggleComments(post.id)} className="text-sm font-medium hover:text-blue-500 hover:underline cursor-pointer">{post.comment_count > 0 ? post.comment_count : ''}</span></div>
