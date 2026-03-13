@@ -80,9 +80,10 @@ app.get('/api/admin/users/:userId/profile', async (req, res) => {
                 COUNT(DISTINCT p.id) AS post_count,
                 COUNT(DISTINCT f.id) AS friend_count,
                 COUNT(DISTINCT s.id) AS story_count,
-                COALESCE(SUM(p.like_count), 0) AS total_likes_received
+                COUNT(DISTINCT lk.id) AS total_likes_received
             FROM users u
             LEFT JOIN posts p ON p.user_id = u.id
+            LEFT JOIN likes lk ON lk.post_id = p.id
             LEFT JOIN connections f ON (f.requester_id = u.id OR f.receiver_id = u.id) AND f.status = 'accepted'
             LEFT JOIN stories s ON s.user_id = u.id
             WHERE u.id = ?
@@ -98,9 +99,12 @@ app.get('/api/admin/users/:userId/profile', async (req, res) => {
 
         // recent posts
         const [recent_posts] = await pool.query(`
-            SELECT p.id, p.content, p.image_url, p.like_count, p.created_at, p.view_count,
+            SELECT p.id, p.content, p.image_url, p.created_at, p.view_count,
+                COUNT(DISTINCT lk.id) AS like_count,
                 COUNT(DISTINCT c.id) AS comment_count
-            FROM posts p LEFT JOIN comments c ON c.post_id = p.id
+            FROM posts p
+            LEFT JOIN likes lk ON lk.post_id = p.id
+            LEFT JOIN comments c ON c.post_id = p.id
             WHERE p.user_id = ? GROUP BY p.id ORDER BY p.created_at DESC LIMIT 5
         `, [uid]);
         profile.recent_posts = recent_posts;
