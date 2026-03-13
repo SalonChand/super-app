@@ -30,7 +30,7 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     const title = titles[t] || titles.blue;
     const colors = { red: 'text-red-500', green: 'text-green-500', yellow: 'text-yellow-400', blue: 'text-blue-400' };
     const style = t === 'red' ? { filter: 'drop-shadow(0 0 3px rgba(239,68,68,0.7))' } : {};
-    return <BadgeCheck size={size} className={`inline-block align-middle flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={{...style, verticalAlign: 'middle', marginLeft: '2px', marginBottom: '1px'}}/>;
+    return <BadgeCheck size={size} className={`flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={style}/>;
 }
 
 function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
@@ -68,7 +68,6 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [initialLoading, setInitialLoading] = useState(true);
     const [showChatSettings, setShowChatSettings] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -127,7 +126,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             });
             setFriends(uniqueFriends);
             setRequests(requestsRes.data);
-        } catch (err) { console.error(err); } finally { setIsRefreshing(false); setInitialLoading(false); }
+        } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
     };
 
     useEffect(() => {
@@ -151,26 +150,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     }, []);
 
     const loadMessages = () => {
-        // Story viewer modal
-    if (viewingStory) {
-        return (
-            <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center" onClick={() => setViewingStory(null)}>
-                <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 z-10"><X size={20}/></button>
-                <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700">
-                        {viewingStory.profile_pic_url ? <img src={viewingStory.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-white font-bold text-sm">{viewingStory.username?.charAt(0).toUpperCase()}</span>}
-                    </div>
-                    <span className="text-white font-bold text-sm">{viewingStory.username}</span>
-                </div>
-                {viewingStory.media_type === 'video'
-                    ? <video src={viewingStory.media_url} className="max-w-full max-h-[85vh] object-contain rounded-xl" autoPlay controls onClick={e=>e.stopPropagation()}/>
-                    : <img src={viewingStory.media_url} className="max-w-full max-h-[85vh] object-contain rounded-xl" onClick={e=>e.stopPropagation()}/>}
-                {viewingStory.caption && <p className="text-white text-sm mt-3 bg-black/50 px-4 py-2 rounded-full">{viewingStory.caption}</p>}
-            </div>
-        );
-    }
-
-    if (selectedUser) { 
+        if (selectedUser) { 
             axios.get(`${BACKEND_URL}/api/messages/${userId}/${selectedUser.id}`)
                  .then(res => setMessages(res.data)).catch(err => console.error(err)); 
         }
@@ -906,20 +886,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 <div>
                     {activeFolder !== 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">📁 {activeFolder}</h3>}
                     {activeFolder === 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>}
-                    {initialLoading ? (
-                        <div className="space-y-1">
-                            {[...Array(7)].map((_, i) => (
-                                <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
-                                    <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
-                                    <div className="flex-1 space-y-2">
-                                        <div className="h-3 bg-zinc-800 rounded-full animate-pulse w-28"/>
-                                        <div className="h-2.5 bg-zinc-800/60 rounded-full animate-pulse w-40"/>
-                                    </div>
-                                    <div className="h-2 w-8 bg-zinc-800/50 rounded-full animate-pulse"/>
-                                </div>
-                            ))}
-                        </div>
-                    ) : friendsInActiveFolder.length === 0 ? (
+                    {friendsInActiveFolder.length === 0 ? (
                         <p className="text-zinc-500 p-4 border border-zinc-800 rounded-xl bg-zinc-900/50">
                             {activeFolder === 'all' ? <span>No friends yet. Head to the <span className="font-bold text-white">Friends tab</span>.</span> : 'No chats in this folder. Right-click a chat to assign it.'}
                         </p>
