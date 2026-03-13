@@ -67,6 +67,76 @@ app.delete('/api/admin/users/:userId', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===== ADMIN: Full profile & private info =====
+app.get('/api/admin/users/:userId/profile', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [users] = await pool.query(`
+            SELECT u.*, 
+                COUNT(DISTINCT p.id) AS post_count,
+                COUNT(DISTINCT f.id) AS friend_count,
+                COUNT(DISTINCT s.id) AS story_count
+            FROM users u
+            LEFT JOIN posts p ON p.user_id = u.id
+            LEFT JOIN friendships f ON (f.user1_id = u.id OR f.user2_id = u.id) AND f.status = 'accepted'
+            LEFT JOIN stories s ON s.user_id = u.id
+            WHERE u.id = ?
+            GROUP BY u.id
+        `, [req.params.userId]);
+        if (!users[0]) return res.status(404).json({ error: 'User not found.' });
+        res.json(users[0]);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Get user friends =====
+app.get('/api/admin/users/:userId/friends', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const uid = req.params.userId;
+        const [friends] = await pool.query(`
+            SELECT u.id, u.username, u.display_name, u.profile_pic_url, u.is_verified, u.verify_type
+            FROM friendships f
+            JOIN users u ON u.id = IF(f.user1_id = ?, f.user2_id, f.user1_id)
+            WHERE (f.user1_id = ? OR f.user2_id = ?) AND f.status = 'accepted'
+        `, [uid, uid, uid]);
+        res.json(friends);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Warn user =====
+app.post('/api/admin/users/:userId/warn', async (req, res) => {
+    try {
+        const { adminId, message } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("INSERT INTO notifications (user_id, type, content, from_user_id) VALUES (?, 'warning', ?, ?)",
+            [req.params.userId, `⚠️ Admin Warning: ${message}`, adminId]);
+        await sendPush(req.params.userId, { title: '⚠️ Admin Warning', body: message, url: '/', tag: 'admin-warn', type: 'warning' });
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Remove friend between user and another =====
+app.delete('/api/admin/users/:userId/friends/:friendId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const { userId, friendId } = req.params;
+        await pool.query(`DELETE FROM friendships WHERE (user1_id=? AND user2_id=?) OR (user1_id=? AND user2_id=?)`,
+            [userId, friendId, friendId, userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ===== ADMIN: Deactivate/Reactivate user =====
 app.post('/api/admin/users/:userId/deactivate', async (req, res) => {
     try {
