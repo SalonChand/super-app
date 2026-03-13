@@ -83,7 +83,7 @@ app.get('/api/admin/users/:userId/profile', async (req, res) => {
                 COALESCE(SUM(p.like_count), 0) AS total_likes_received
             FROM users u
             LEFT JOIN posts p ON p.user_id = u.id
-            LEFT JOIN friendships f ON (f.user1_id = u.id OR f.user2_id = u.id) AND f.status = 'accepted'
+            LEFT JOIN connections f ON (f.requester_id = u.id OR f.receiver_id = u.id) AND f.status = 'accepted'
             LEFT JOIN stories s ON s.user_id = u.id
             WHERE u.id = ?
             GROUP BY u.id
@@ -130,9 +130,9 @@ app.get('/api/admin/users/:userId/friends', async (req, res) => {
         const [friends] = await pool.query(`
             SELECT u.id, u.username, u.display_name, u.profile_pic_url, u.is_verified, u.verify_type,
                 f.created_at AS friends_since
-            FROM friendships f
-            JOIN users u ON u.id = IF(f.user1_id = ?, f.user2_id, f.user1_id)
-            WHERE (f.user1_id = ? OR f.user2_id = ?) AND f.status = 'accepted'
+            FROM connections f
+            JOIN users u ON u.id = IF(f.requester_id = ?, f.receiver_id, f.requester_id)
+            WHERE (f.requester_id = ? OR f.receiver_id = ?) AND f.status = 'accepted'
             ORDER BY f.created_at DESC
         `, [uid, uid, uid]);
         res.json(friends);
@@ -173,7 +173,7 @@ app.delete('/api/admin/users/:userId/friends/:friendId', async (req, res) => {
         const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
         if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
         const { userId, friendId } = req.params;
-        await pool.query(`DELETE FROM friendships WHERE (user1_id=? AND user2_id=?) OR (user1_id=? AND user2_id=?)`,
+        await pool.query(`DELETE FROM connections WHERE (requester_id=? AND receiver_id=?) OR (requester_id=? AND receiver_id=?)`,
             [userId, friendId, friendId, userId]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
