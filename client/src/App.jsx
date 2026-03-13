@@ -1001,6 +1001,8 @@ function AppContent() {
 
                     <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} />
 
+                    <NavItem to="/streaks" icon={Flame} label="Streaks" themeColor={userThemeColor} />
+
                     <NavItem to="/settings" icon={SettingsIcon} label="Settings" themeColor={userThemeColor} />
 
                 </>
@@ -1149,6 +1151,8 @@ function AppContent() {
                         <NavItem to="/communities" icon={Globe} label="Communities" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
                         <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
+
+                        <NavItem to="/streaks" icon={Flame} label="Streaks 🔥" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
                         <NavItem to="/settings" icon={SettingsIcon} label="App Settings" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
