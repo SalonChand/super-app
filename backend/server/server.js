@@ -74,21 +74,49 @@ app.get('/api/admin/users/:userId/profile', async (req, res) => {
         const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
         const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
         if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const uid = req.params.userId;
         const [users] = await pool.query(`
-            SELECT u.*, 
+            SELECT u.*,
                 COUNT(DISTINCT p.id) AS post_count,
                 COUNT(DISTINCT f.id) AS friend_count,
-                COUNT(DISTINCT s.id) AS story_count
+                COUNT(DISTINCT s.id) AS story_count,
+                COALESCE(SUM(p.like_count), 0) AS total_likes_received
             FROM users u
             LEFT JOIN posts p ON p.user_id = u.id
             LEFT JOIN friendships f ON (f.user1_id = u.id OR f.user2_id = u.id) AND f.status = 'accepted'
             LEFT JOIN stories s ON s.user_id = u.id
             WHERE u.id = ?
             GROUP BY u.id
-        `, [req.params.userId]);
+        `, [uid]);
         if (!users[0]) return res.status(404).json({ error: 'User not found.' });
-        res.json(users[0]);
-    } catch(e) { res.status(500).json({ error: e.message }); }
+        const profile = users[0];
+
+        // total comments received
+        const [[cmtRow]] = await pool.query(
+            `SELECT COUNT(*) AS cnt FROM comments c JOIN posts pp ON c.post_id = pp.id WHERE pp.user_id = ?`, [uid]);
+        profile.total_comments_received = cmtRow.cnt || 0;
+
+        // recent posts
+        const [recent_posts] = await pool.query(`
+            SELECT p.id, p.content, p.image_url, p.like_count, p.created_at, p.view_count,
+                COUNT(DISTINCT c.id) AS comment_count
+            FROM posts p LEFT JOIN comments c ON c.post_id = p.id
+            WHERE p.user_id = ? GROUP BY p.id ORDER BY p.created_at DESC LIMIT 5
+        `, [uid]);
+        profile.recent_posts = recent_posts;
+
+        // warnings (stored as notifications of type 'warning')
+        const [warnings] = await pool.query(`
+            SELECT n.id, n.content AS message, n.created_at,
+                COALESCE(u.display_name, u.username) AS admin_name
+            FROM notifications n LEFT JOIN users u ON u.id = n.from_user_id
+            WHERE n.user_id = ? AND n.type = 'warning'
+            ORDER BY n.created_at DESC
+        `, [uid]);
+        profile.warnings = warnings;
+
+        res.json(profile);
+    } catch(e) { console.error('admin profile error:', e); res.status(500).json({ error: e.message }); }
 });
 
 // ===== ADMIN: Get user friends =====
@@ -100,10 +128,12 @@ app.get('/api/admin/users/:userId/friends', async (req, res) => {
         if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
         const uid = req.params.userId;
         const [friends] = await pool.query(`
-            SELECT u.id, u.username, u.display_name, u.profile_pic_url, u.is_verified, u.verify_type
+            SELECT u.id, u.username, u.display_name, u.profile_pic_url, u.is_verified, u.verify_type,
+                f.created_at AS friends_since
             FROM friendships f
             JOIN users u ON u.id = IF(f.user1_id = ?, f.user2_id, f.user1_id)
             WHERE (f.user1_id = ? OR f.user2_id = ?) AND f.status = 'accepted'
+            ORDER BY f.created_at DESC
         `, [uid, uid, uid]);
         res.json(friends);
     } catch(e) { res.status(500).json({ error: e.message }); }
@@ -119,6 +149,18 @@ app.post('/api/admin/users/:userId/warn', async (req, res) => {
         await pool.query("INSERT INTO notifications (user_id, type, content, from_user_id) VALUES (?, 'warning', ?, ?)",
             [req.params.userId, `⚠️ Admin Warning: ${message}`, adminId]);
         await sendPush(req.params.userId, { title: '⚠️ Admin Warning', body: message, url: '/', tag: 'admin-warn', type: 'warning' });
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Delete a warning =====
+app.delete('/api/admin/warnings/:warningId', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        await pool.query("DELETE FROM notifications WHERE id = ? AND type = 'warning'", [req.params.warningId]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
