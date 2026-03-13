@@ -1152,7 +1152,7 @@ function AppContent() {
 
                         <NavItem to="/marketplace" icon={ShoppingBag} label="Marketplace" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
-                        <NavItem to="/streaks" icon={Flame} label="Streaks 🔥" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
+                        <NavItem to="/streaks" icon={Flame} label="Streaks" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
                         <NavItem to="/settings" icon={SettingsIcon} label="App Settings" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
@@ -1177,7 +1177,6 @@ function AppContent() {
                   <Link to="/" className="p-1.5 transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#a1a1aa' }}><Home size={22} /></Link>
 
                   <Link to="/reels" className="p-1.5 transition-colors" style={{ color: location.pathname === '/reels' ? userThemeColor : '#a1a1aa' }}><Clapperboard size={22} /></Link>
-                  <Link to="/streaks" className="p-1.5 transition-colors" style={{ color: location.pathname === '/streaks' ? userThemeColor : '#a1a1aa' }}><Flame size={22} /></Link>
 
                   <Link to="/friends" onClick={clearFriendsBadge} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#a1a1aa' }}>
 
