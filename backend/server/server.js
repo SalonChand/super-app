@@ -551,6 +551,9 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE stories ADD COLUMN caption VARCHAR(255)");
     await patch("ALTER TABLE stories ADD COLUMN filter_class VARCHAR(100) DEFAULT 'none'");
     await patch("ALTER TABLE stories ADD COLUMN song_name VARCHAR(100)");
+    await patch("ALTER TABLE stories ADD COLUMN song_url VARCHAR(500)");
+    await patch("ALTER TABLE posts ADD COLUMN song_name VARCHAR(200)");
+    await patch("ALTER TABLE posts ADD COLUMN song_url VARCHAR(500)");
     await patch("ALTER TABLE stories ADD COLUMN visibility VARCHAR(20) DEFAULT 'public'");
     await patch("ALTER TABLE stories ADD COLUMN visible_to TEXT DEFAULT NULL");
     await patch("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP NULL DEFAULT NULL");
@@ -632,7 +635,6 @@ app.get('/api/setup-cloud-db', async (req, res) => {
         await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, subscription JSON NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS stories (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(50) NOT NULL, caption VARCHAR(255), filter_class VARCHAR(100) DEFAULT 'none', song_name VARCHAR(200), song_url VARCHAR(500), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
-        await pool.query(`ALTER TABLE stories MODIFY COLUMN IF EXISTS song_name VARCHAR(200)`).catch(()=>{});
         await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_name VARCHAR(200)`).catch(()=>{});
         await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
         await pool.query(`CREATE TABLE IF NOT EXISTS story_likes (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
