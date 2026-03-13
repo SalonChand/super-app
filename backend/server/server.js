@@ -277,6 +277,23 @@ if (fs.existsSync(vapidPath)) { vapidKeys = JSON.parse(fs.readFileSync(vapidPath
 else { vapidKeys = webpush.generateVAPIDKeys(); fs.writeFileSync(vapidPath, JSON.stringify(vapidKeys)); }
 webpush.setVapidDetails('mailto:admin@superapp.com', vapidKeys.publicKey, vapidKeys.privateKey);
 
+// ── Reusable push notification helper ──────────────────────────────────────
+async function sendPush(userId, { title, body, url = '/', tag = 'notification', type = 'general' }) {
+    try {
+        const [subs] = await pool.query('SELECT id, subscription FROM push_subscriptions WHERE user_id = ?', [userId]);
+        const payload = JSON.stringify({ title, body, url, tag, type });
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification(JSON.parse(sub.subscription), payload);
+            } catch (e) {
+                if (e.statusCode === 410 || e.statusCode === 404) {
+                    await pool.query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id]).catch(() => {});
+                }
+            }
+        }
+    } catch (e) {}
+}
+
 const server = http.createServer(app); 
 const io = new Server(server, { cors: { origin: "*", methods:["GET", "POST"] } });
 
@@ -325,11 +342,13 @@ io.on('connection', (socket) => {
             // Persist to notifications_history
             try { await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [receiverId, senderId, 'message', content || '']); } catch(e) {}
             if (media_type !== 'tictactoe' && media_type !== 'rps') {
-                try {
-                    const[subs] = await pool.query('SELECT subscription FROM push_subscriptions WHERE user_id = ?', [receiverId]);
-                    const payload = JSON.stringify({ title: `New message from ${users[0].username}`, body: content || 'Sent an attachment 📷' });
-                    subs.forEach(async (sub) => { try { await webpush.sendNotification(JSON.parse(sub.subscription), payload); } catch (e) { } });
-                } catch(e) { }
+                await sendPush(receiverId, {
+                    title: `💬 ${users[0].username}`,
+                    body: content || 'Sent an attachment 📷',
+                    url: '/chat',
+                    tag: `msg-${senderId}`,
+                    type: 'message'
+                });
             }
         } catch (err) { console.error(err); }
     });
@@ -721,13 +740,23 @@ app.post('/api/admin/broadcast', async (req, res) => {
             "INSERT INTO broadcasts (admin_id, title, message, type) VALUES (?,?,?,?)",
             [adminId, title, message, type || 'info']
         );
-        // Create notification for all users
+        // Create notification + push for all users
         const [users] = await pool.query("SELECT id FROM users WHERE id != ?", [adminId]);
+        const typeEmoji = { announcement: '📢', warning: '⚠️', good_news: '✅', urgent: '🚨' };
+        const emoji = typeEmoji[type] || '📢';
         for (const user of users) {
             await pool.query(
                 "INSERT INTO notifications (user_id, type, content, from_user_id) VALUES (?, 'broadcast', ?, ?)",
                 [user.id, `${title}: ${message}`, adminId]
             ).catch(() => {});
+            // Send push notification
+            await sendPush(user.id, {
+                title: `${emoji} ${title}`,
+                body: message,
+                url: '/',
+                tag: `broadcast-${Date.now()}`,
+                type: 'broadcast'
+            });
         }
         res.json({ message: 'Broadcast sent' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
@@ -1114,9 +1143,13 @@ app.post('/api/posts', upload.array('images', 10), async (req, res) => {
                         await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)',
                             [mentionedId, user_id, 'mention', `@${posterName} mentioned you in a post`]).catch(()=>{});
                         io.to(String(mentionedId)).emit('activity_updated', { type: 'mention', from: posterName });
-                        const [subs] = await pool.query('SELECT subscription FROM push_subscriptions WHERE user_id = ?', [mentionedId]);
-                        const payload = JSON.stringify({ title: `${posterName} mentioned you`, body: content.slice(0, 80) });
-                        subs.forEach(async sub => { try { await webpush.sendNotification(JSON.parse(sub.subscription), payload); } catch(e){} });
+                        await sendPush(mentionedId, {
+                            title: `👤 ${posterName} mentioned you`,
+                            body: content.slice(0, 80),
+                            url: '/',
+                            tag: `mention-${user_id}`,
+                            type: 'mention'
+                        });
                     }
                 }
             } catch(e) {}
