@@ -26,7 +26,7 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: { folder: 'superapp_media', resource_type: 'auto', allowed_formats: ['jpg','jpeg','png','gif','webp','mp4','webm','mov'] },
+    params: { folder: 'superapp_media', resource_type: 'auto' },
 });
 const upload = multer({ storage: storage });
 
@@ -364,10 +364,29 @@ io.on('connection', (socket) => {
     socket.on('react_message', async (data) => { try { await pool.query('UPDATE messages SET reaction = ? WHERE id = ?',[data.reaction, data.messageId]); io.to(data.receiverId.toString()).emit('message_updated'); io.to(data.senderId.toString()).emit('message_updated'); } catch (err) {} });
     socket.on('pin_message', async (data) => { try { await pool.query('UPDATE messages SET is_pinned = ? WHERE id = ?',[data.isPinned, data.messageId]); io.to(data.receiverId.toString()).emit('message_updated'); io.to(data.senderId.toString()).emit('message_updated'); } catch (err) {} });
     socket.on('delete_message', async (data) => { try { await pool.query('DELETE FROM messages WHERE id = ?',[data.messageId]); io.to(data.receiverId.toString()).emit('message_updated'); io.to(data.senderId.toString()).emit('message_updated'); } catch (err) {} });
-    socket.on('call_user', (data) => { io.to(data.userToCall.toString()).emit('incoming_call', { signal: data.signalData, from: data.from, callerName: data.callerName, isVideo: data.isVideo }); });
-    socket.on('answer_call', (data) => { io.to(data.to.toString()).emit('call_accepted', data.signal); });
+    socket.on('call_user', (data) => {
+        io.to(data.userToCall.toString()).emit('incoming_call', { signal: data.signalData, from: data.from, callerName: data.callerName, isVideo: data.isVideo });
+        pool.query('INSERT INTO call_logs (caller_id, receiver_id, call_type, status) VALUES (?, ?, ?, ?)',
+            [data.from, data.userToCall, data.isVideo ? 'video' : 'audio', 'missed']).catch(() => {});
+    });
+    socket.on('answer_call', (data) => {
+        io.to(data.to.toString()).emit('call_accepted', data.signal);
+        pool.query('UPDATE call_logs SET status="answered" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
+            [data.to, data.from]).catch(() => {});
+    });
+    socket.on('decline_call', (data) => {
+        io.to(data.to.toString()).emit('call_ended');
+        pool.query('UPDATE call_logs SET status="declined" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
+            [data.to, data.from]).catch(() => {});
+    });
     socket.on('ice_candidate', (data) => { io.to(data.to.toString()).emit('ice_candidate', data.candidate); });
-    socket.on('end_call', (data) => { io.to(data.to.toString()).emit('call_ended'); });
+    socket.on('end_call', (data) => {
+        io.to(data.to.toString()).emit('call_ended');
+        if (data.duration) {
+            pool.query('UPDATE call_logs SET duration_seconds=? WHERE ((caller_id=? AND receiver_id=?) OR (caller_id=? AND receiver_id=?)) AND status="answered" ORDER BY created_at DESC LIMIT 1',
+                [data.duration, data.from, data.to, data.to, data.from]).catch(() => {});
+        }
+    });
 });
 
 // 🔥 THE NEW DATABASE PATCH ROUTE 🔥
@@ -474,6 +493,7 @@ app.get('/api/setup-cloud-db', async (req, res) => {
         await pool.query(`CREATE TABLE IF NOT EXISTS likes (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, post_id INT NOT NULL, UNIQUE(user_id, post_id), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS comments (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, post_id INT NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS messages (id INT AUTO_INCREMENT PRIMARY KEY, sender_id INT NOT NULL, receiver_id INT NOT NULL, content TEXT, media_url VARCHAR(255), media_type VARCHAR(50), reply_to_id INT DEFAULT NULL, is_forwarded BOOLEAN DEFAULT FALSE, is_request BOOLEAN DEFAULT FALSE, reaction VARCHAR(50) DEFAULT NULL, is_read BOOLEAN DEFAULT FALSE, is_pinned BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (reply_to_id) REFERENCES messages(id) ON DELETE SET NULL)`);
+        await pool.query(`CREATE TABLE IF NOT EXISTS call_logs (id INT AUTO_INCREMENT PRIMARY KEY, caller_id INT NOT NULL, receiver_id INT NOT NULL, call_type ENUM('audio','video') NOT NULL DEFAULT 'audio', status ENUM('missed','answered','declined') NOT NULL DEFAULT 'missed', duration_seconds INT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (caller_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, subscription JSON NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS stories (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, media_url VARCHAR(255) NOT NULL, media_type VARCHAR(50) NOT NULL, caption VARCHAR(255), filter_class VARCHAR(100) DEFAULT 'none', song_name VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS story_likes (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
@@ -1156,6 +1176,23 @@ app.put('/api/messages/read', async (req, res) => {
 });
 app.get('/api/users', async (req, res) => { try { const[users] = await pool.query("SELECT id, username FROM users WHERE username != 'superadmin'"); res.json(users); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/messages/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const[messages] = await pool.query(`SELECT m.*, COALESCE(u.display_name,u.username) as username, COALESCE(u.is_verified,0) as is_verified, u.verify_type, r.content AS reply_content, ru.username AS reply_username FROM messages m JOIN users u ON m.sender_id = u.id LEFT JOIN messages r ON m.reply_to_id = r.id LEFT JOIN users ru ON r.sender_id = ru.id WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?) ORDER BY m.created_at ASC`,[user1, user2, user2, user1]); res.json(messages); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+
+app.get('/api/call-logs/:user1/:user2', async (req, res) => {
+    try {
+        const { user1, user2 } = req.params;
+        const [logs] = await pool.query(`
+            SELECT cl.*, 
+                COALESCE(cu.display_name, cu.username) AS caller_name, cu.profile_pic_url AS caller_pic,
+                COALESCE(ru.display_name, ru.username) AS receiver_name, ru.profile_pic_url AS receiver_pic
+            FROM call_logs cl
+            JOIN users cu ON cu.id = cl.caller_id
+            JOIN users ru ON ru.id = cl.receiver_id
+            WHERE (cl.caller_id = ? AND cl.receiver_id = ?) OR (cl.caller_id = ? AND cl.receiver_id = ?)
+            ORDER BY cl.created_at DESC LIMIT 50
+        `, [user1, user2, user2, user1]);
+        res.json(logs);
+    } catch (err) { res.status(500).json({ error: 'Server error.' }); }
+});
 app.delete('/api/messages/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; await pool.query('DELETE FROM messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', [user1, user2, user2, user1]); res.json({ success: true }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 
 // Birthday
@@ -1610,200 +1647,3 @@ app.get('/api/users/:id/settings', async (req, res) => { try { const[users] = aw
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// ===== STREAKS SYSTEM =====
-
-// Auto-create streaks tables if they don't exist
-(async () => {
-    try {
-        await pool.query(`CREATE TABLE IF NOT EXISTS streaks (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user1_id INT NOT NULL,
-            user2_id INT NOT NULL,
-            streak_count INT DEFAULT 0,
-            user1_sent_today BOOLEAN DEFAULT FALSE,
-            user2_sent_today BOOLEAN DEFAULT FALSE,
-            last_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_reset DATE DEFAULT NULL,
-            UNIQUE KEY unique_pair (user1_id, user2_id),
-            FOREIGN KEY (user1_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (user2_id) REFERENCES users(id) ON DELETE CASCADE
-        )`);
-        await pool.query(`CREATE TABLE IF NOT EXISTS streak_snaps (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            from_user_id INT NOT NULL,
-            to_user_id INT NOT NULL,
-            message TEXT,
-            media_url VARCHAR(512) DEFAULT NULL,
-            media_type VARCHAR(20) DEFAULT NULL,
-            is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
-        )`);
-        await pool.query(`ALTER TABLE streak_snaps ADD COLUMN IF NOT EXISTS media_url VARCHAR(512) DEFAULT NULL`).catch(()=>{});
-        await pool.query(`ALTER TABLE streak_snaps ADD COLUMN IF NOT EXISTS media_type VARCHAR(20) DEFAULT NULL`).catch(()=>{});
-    } catch(e) { console.log('Streak table setup:', e.message); }
-})();
-
-async function getOrCreateStreak(uid1, uid2) {
-    const [a, b] = [Math.min(uid1, uid2), Math.max(uid1, uid2)];
-    const [rows] = await pool.query('SELECT * FROM streaks WHERE user1_id = ? AND user2_id = ?', [a, b]);
-    if (rows[0]) return rows[0];
-    await pool.query('INSERT IGNORE INTO streaks (user1_id, user2_id, streak_count) VALUES (?, ?, 0)', [a, b]);
-    const [r] = await pool.query('SELECT * FROM streaks WHERE user1_id = ? AND user2_id = ?', [a, b]);
-    return r[0];
-}
-
-app.get('/api/streaks/incoming/:userId', async (req, res) => {
-    try {
-        const [rows] = await pool.query(`
-            SELECT ss.*, COALESCE(u.display_name, u.username) AS username, u.profile_pic_url
-            FROM streak_snaps ss JOIN users u ON u.id = ss.from_user_id
-            WHERE ss.to_user_id = ? AND ss.is_read = FALSE
-            ORDER BY ss.created_at DESC
-        `, [req.params.userId]);
-        res.json(rows);
-    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
-});
-
-app.get('/api/streaks/sent/:userId', async (req, res) => {
-    try {
-        const [rows] = await pool.query(`
-            SELECT ss.*, COALESCE(u.display_name, u.username) AS username, u.profile_pic_url
-            FROM streak_snaps ss JOIN users u ON u.id = ss.to_user_id
-            WHERE ss.from_user_id = ?
-            ORDER BY ss.created_at DESC LIMIT 50
-        `, [req.params.userId]);
-        res.json(rows);
-    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
-});
-
-
-app.get('/api/streaks/leaderboard/:userId', async (req, res) => {
-    try {
-        const uid = req.params.userId;
-        const [rows] = await pool.query(`
-            SELECT CASE WHEN c.requester_id = ? THEN c.receiver_id ELSE c.requester_id END AS friend_id,
-                COALESCE(u.display_name, u.username) AS username, u.profile_pic_url,
-                COALESCE(u.is_verified, 0) AS is_verified, u.verify_type,
-                COALESCE(s.streak_count, 0) AS streak_count
-            FROM connections c
-            JOIN users u ON u.id = CASE WHEN c.requester_id = ? THEN c.receiver_id ELSE c.requester_id END
-            LEFT JOIN streaks s ON (
-                (s.user1_id = ? AND s.user2_id = u.id) OR
-                (s.user2_id = ? AND s.user1_id = u.id)
-            )
-            WHERE (c.requester_id = ? OR c.receiver_id = ?) AND c.status = 'accepted'
-            ORDER BY streak_count DESC LIMIT 50
-        `, [uid, uid, uid, uid, uid, uid]);
-        res.json(rows);
-    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
-});
-
-// ── GET all friends with streak data (MUST be last /:userId route) ───────────
-app.get('/api/streaks/:userId', async (req, res) => {
-    try {
-        const uid = req.params.userId;
-        const [friends] = await pool.query(`
-            SELECT CASE WHEN c.requester_id = ? THEN c.receiver_id ELSE c.requester_id END AS friend_id,
-                COALESCE(u.display_name, u.username) AS username,
-                u.profile_pic_url,
-                COALESCE(u.is_verified, 0) AS is_verified, u.verify_type
-            FROM connections c
-            JOIN users u ON u.id = CASE WHEN c.requester_id = ? THEN c.receiver_id ELSE c.requester_id END
-            WHERE (c.requester_id = ? OR c.receiver_id = ?) AND c.status = 'accepted'
-        `, [uid, uid, uid, uid]);
-
-        const friendIds = friends.map(f => f.friend_id);
-        let streakMap = {};
-        if (friendIds.length > 0) {
-            const [streakRows] = await pool.query(`
-                SELECT s.*,
-                    CASE WHEN s.user1_id = ? THEN s.user1_sent_today ELSE s.user2_sent_today END AS i_sent,
-                    CASE WHEN s.user1_id = ? THEN s.user2_sent_today ELSE s.user1_sent_today END AS they_sent
-                FROM streaks s WHERE (s.user1_id = ? OR s.user2_id = ?)
-            `, [uid, uid, uid, uid]);
-            for (const row of streakRows) {
-                const fid = row.user1_id == uid ? row.user2_id : row.user1_id;
-                streakMap[fid] = row;
-            }
-        }
-
-        // ALL friends shown, even those with streak_count = 0
-        const result = friends.map(f => {
-            const s = streakMap[f.friend_id] || {};
-            return { ...f, id: s.id || null, streak_count: s.streak_count || 0, last_interaction: s.last_interaction || null, i_sent: s.i_sent || false, they_sent: s.they_sent || false, last_reset: s.last_reset || null };
-        });
-        result.sort((a, b) => (b.streak_count - a.streak_count) || a.username.localeCompare(b.username));
-        res.json(result);
-    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
-});
-
-app.post('/api/streaks/snap', upload.single('media'), async (req, res) => {
-    try {
-        const { fromUserId, toUserId, message } = req.body;
-        if (!fromUserId || !toUserId) return res.status(400).json({ error: 'Missing users.' });
-        const [friends] = await pool.query(
-            `SELECT id FROM connections WHERE ((requester_id=? AND receiver_id=?) OR (requester_id=? AND receiver_id=?)) AND status='accepted'`,
-            [fromUserId, toUserId, toUserId, fromUserId]
-        );
-        if (!friends[0]) return res.status(403).json({ error: 'You must be friends to streak.' });
-
-        const media_url = req.file ? req.file.path : null;
-        const media_type = req.file ? (req.file.mimetype?.startsWith('video') ? 'video' : 'image') : null;
-
-        await pool.query('INSERT INTO streak_snaps (from_user_id, to_user_id, message, media_url, media_type) VALUES (?, ?, ?, ?, ?)',
-            [fromUserId, toUserId, message || (media_url ? '' : '🔥 Streak snap!'), media_url, media_type]);
-
-        let streak = await getOrCreateStreak(fromUserId, toUserId);
-        const isUser1 = Math.min(fromUserId, toUserId) == fromUserId;
-        const myCol = isUser1 ? 'user1_sent_today' : 'user2_sent_today';
-        const theirCol = isUser1 ? 'user2_sent_today' : 'user1_sent_today';
-
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const lastReset = streak.last_reset ? new Date(streak.last_reset).toISOString().slice(0, 10) : null;
-        let newCount = streak.streak_count;
-
-        if (lastReset !== todayStr) {
-            if (streak.last_interaction) {
-                const hoursSinceLast = (Date.now() - new Date(streak.last_interaction).getTime()) / (1000 * 60 * 60);
-                if (hoursSinceLast > 48 && streak.streak_count > 0) newCount = 0;
-            }
-            await pool.query('UPDATE streaks SET user1_sent_today=FALSE, user2_sent_today=FALSE, last_reset=? WHERE id=?', [todayStr, streak.id]);
-            const [fresh] = await pool.query('SELECT * FROM streaks WHERE id=?', [streak.id]);
-            streak = { ...streak, ...fresh[0] };
-        }
-
-        await pool.query(`UPDATE streaks SET ${myCol}=TRUE, last_interaction=NOW() WHERE id=?`, [streak.id]);
-
-        if (streak[theirCol]) {
-            newCount = newCount + 1;
-            await pool.query('UPDATE streaks SET streak_count=? WHERE id=?', [newCount, streak.id]);
-        }
-
-        io.to(toUserId.toString()).emit('activity_updated');
-        res.json({ success: true, streak_count: newCount });
-    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
-});
-
-app.post('/api/streaks/respond', async (req, res) => {
-    try {
-        const { snapId, userId, accept } = req.body;
-        await pool.query('UPDATE streak_snaps SET is_read=TRUE WHERE id=? AND to_user_id=?', [snapId, userId]);
-        if (accept) {
-            const [snaps] = await pool.query('SELECT * FROM streak_snaps WHERE id=?', [snapId]);
-            if (snaps[0]) {
-                let streak = await getOrCreateStreak(userId, snaps[0].from_user_id);
-                const isUser1 = Math.min(userId, snaps[0].from_user_id) == userId;
-                const myCol = isUser1 ? 'user1_sent_today' : 'user2_sent_today';
-                const theirCol = isUser1 ? 'user2_sent_today' : 'user1_sent_today';
-                await pool.query(`UPDATE streaks SET ${myCol}=TRUE, last_interaction=NOW() WHERE id=?`, [streak.id]);
-                if (streak[theirCol]) {
-                    await pool.query('UPDATE streaks SET streak_count=streak_count+1 WHERE id=?', [streak.id]);
-                }
-            }
-        }
-        res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
-});

@@ -44,6 +44,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const [friendStories, setFriendStories] = useState({}); // { userId: { hasStory, viewed } }
     const [viewingStory, setViewingStory] = useState(null);
     const[messages, setMessages] = useState([]);
+    const [callLogs, setCallLogs] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
     const messagesEndRef = useRef(null);
     const [viewingImage, setViewingImage] = useState(null);
@@ -68,6 +69,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const[recordingDuration, setRecordingDuration] = useState(0);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [showChatSettings, setShowChatSettings] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -126,7 +128,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             });
             setFriends(uniqueFriends);
             setRequests(requestsRes.data);
-        } catch (err) { console.error(err); } finally { setIsRefreshing(false); }
+        } catch (err) { console.error(err); } finally { setIsRefreshing(false); setInitialLoading(false); }
     };
 
     useEffect(() => {
@@ -152,7 +154,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const loadMessages = () => {
         if (selectedUser) { 
             axios.get(`${BACKEND_URL}/api/messages/${userId}/${selectedUser.id}`)
-                 .then(res => setMessages(res.data)).catch(err => console.error(err)); 
+                 .then(res => setMessages(res.data)).catch(err => console.error(err));
+            axios.get(`${BACKEND_URL}/api/call-logs/${userId}/${selectedUser.id}`)
+                 .then(res => setCallLogs(Array.isArray(res.data) ? res.data : [])).catch(() => {});
         }
     };
     
@@ -237,6 +241,11 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
     const filteredMessages = searchQuery.trim()
         ? messages.filter(m => m.content && m.content.toLowerCase().includes(searchQuery.toLowerCase()))
         : messages;
+
+    // Merge messages + call logs into single sorted timeline
+    const callLogItems = callLogs.map(cl => ({ ...cl, _isCallLog: true }));
+    const timeline = [...filteredMessages, ...callLogItems]
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     // Chat folders helpers
     const saveFolders = async (newFolders) => {
@@ -625,8 +634,32 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6 pb-4" ref={null}>
                     {!isCurrentlyFriend && (<div className="bg-zinc-900 border border-zinc-700 p-3 rounded-xl text-center mb-4"><p className="text-sm text-zinc-300">You are not friends with this user.</p><p className="text-xs text-zinc-500">Go to the Friends tab to add them to call them.</p></div>)}
                     
-                    {filteredMessages.map((msg) => { 
-                        const isMyMessage = msg.sender_id === userId; 
+                    {timeline.map((msg, idx) => {
+                        // ── Call log entry ──
+                        if (msg._isCallLog) {
+                            const isCaller = String(msg.caller_id) === String(userId);
+                            const isVideo = msg.call_type === 'video';
+                            const statusColor = msg.status === 'missed' ? 'text-red-400' : msg.status === 'declined' ? 'text-zinc-400' : 'text-green-400';
+                            const statusIcon = msg.status === 'missed' ? '📵' : msg.status === 'declined' ? '🚫' : isVideo ? '📹' : '📞';
+                            const statusText = msg.status === 'missed' ? (isCaller ? 'No answer' : 'Missed call') : msg.status === 'declined' ? 'Declined' : isVideo ? 'Video call' : 'Voice call';
+                            const formatDur = (s) => s >= 60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`;
+                            return (
+                                <div key={`call-${msg.id}`} className="flex justify-center">
+                                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-semibold ${
+                                        msg.status === 'missed' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                        msg.status === 'declined' ? 'bg-zinc-800 border-zinc-700 text-zinc-400' :
+                                        'bg-green-500/10 border-green-500/20 text-green-400'
+                                    }`}>
+                                        <span>{statusIcon}</span>
+                                        <span>{isCaller ? 'You called' : msg.caller_name + ' called'} · {statusText}</span>
+                                        {msg.duration_seconds > 0 && <span className="text-zinc-500">· {formatDur(msg.duration_seconds)}</span>}
+                                        <span className="text-zinc-600 font-normal">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        // ── Regular message ──
+                        { const isMyMessage = msg.sender_id === userId; 
                         const isHovered = hoveredMessageId === msg.id;
                         const isCallLog = msg.content && (msg.content.startsWith('📞') || msg.content.startsWith('📹'));
 
@@ -756,7 +789,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                 </div>
                                 {!isCallLog && <span className={`text-[10px] text-zinc-600 mt-1 px-1 ${msg.reaction ? 'mt-3' : ''}`}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                             </div>
-                        ); 
+                        ); }
                     })}
                     <div ref={messagesEndRef} />
                 </div>
@@ -886,7 +919,20 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 <div>
                     {activeFolder !== 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">📁 {activeFolder}</h3>}
                     {activeFolder === 'all' && <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3">Friends</h3>}
-                    {friendsInActiveFolder.length === 0 ? (
+                    {initialLoading ? (
+                        <div className="space-y-1">
+                            {[...Array(7)].map((_, i) => (
+                                <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
+                                    <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-3 bg-zinc-800 rounded-full animate-pulse w-28"/>
+                                        <div className="h-2.5 bg-zinc-800/60 rounded-full animate-pulse w-40"/>
+                                    </div>
+                                    <div className="h-2 w-8 bg-zinc-800/50 rounded-full animate-pulse"/>
+                                </div>
+                            ))}
+                        </div>
+                    ) : friendsInActiveFolder.length === 0 ? (
                         <p className="text-zinc-500 p-4 border border-zinc-800 rounded-xl bg-zinc-900/50">
                             {activeFolder === 'all' ? <span>No friends yet. Head to the <span className="font-bold text-white">Friends tab</span>.</span> : 'No chats in this folder. Right-click a chat to assign it.'}
                         </p>
