@@ -223,6 +223,26 @@ function Feed({ onlineUsers = new Set() }) {
 
     useEffect(() => { fetchData(); }, []);
 
+    // Real-time: prepend new posts from other users as they are created
+    useEffect(() => {
+        const sock = window._superAppSocket;
+        if (!sock) {
+            console.warn('Feed: socket not available, real-time post updates disabled');
+            return;
+        }
+        const handleNewPost = (post) => {
+            // Skip 'only_me' posts from other users and drafts
+            if (post.visibility === 'only_me' && String(post.user_id) !== String(userId)) return;
+            if (post.is_draft) return;
+            setPosts(prev => {
+                if (prev.some(p => p.id === post.id)) return prev;
+                return [post, ...prev];
+            });
+        };
+        sock.on('new_post', handleNewPost);
+        return () => { sock.off('new_post', handleNewPost); };
+    }, [userId]);
+
     // Track post views when feed loads
     useEffect(() => {
         if (!userId || !posts.length) return;
