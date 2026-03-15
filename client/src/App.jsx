@@ -845,7 +845,7 @@ function AppContent() {
 
               const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: convertedVapidKey });
 
-              await axios.post(`${BACKEND_URL}/api/subscribe`, { userId: currentUserId, subscription: subscription });
+              await axios.post(`${BACKEND_URL}/api/subscribe`, { userId: currentUserId, subscription: subscription.toJSON() });
 
           } catch (e) {}
 
