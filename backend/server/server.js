@@ -9,6 +9,7 @@ const fs = require('fs');
 const http = require('http');
 const { Server } = require('socket.io');
 const webpush = require('web-push');
+const rateLimit = require('express-rate-limit');
 
 // 🔥 CLOUDINARY CLOUD STORAGE FOR RENDER 🔥
 const cloudinary = require('cloudinary').v2;
@@ -653,6 +654,24 @@ app.get('/api/setup-cloud-db', async (req, res) => {
 // PUSH & AUTH
 app.get('/api/vapidPublicKey', (req, res) => { res.send(vapidKeys.publicKey); });
 app.post('/api/subscribe', async (req, res) => { try { const { userId, subscription } = req.body; await pool.query('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]); await pool.query('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)',[userId, JSON.stringify(subscription)]); res.status(201).json({}); } catch (err) { res.status(500).json({ error: "Server error" }); } });
+
+// Called by the service worker's pushsubscriptionchange handler to update
+// an expired/changed subscription without requiring the app to be open.
+const resubscribeLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+app.post('/api/resubscribe', resubscribeLimit, async (req, res) => {
+    try {
+        const { oldEndpoint, newSubscription } = req.body;
+        if (!oldEndpoint || !newSubscription) return res.status(400).json({ error: 'Missing fields' });
+        const [rows] = await pool.query(
+            'SELECT id FROM push_subscriptions WHERE JSON_UNQUOTE(JSON_EXTRACT(subscription, "$.endpoint")) = ?',
+            [oldEndpoint]
+        );
+        if (rows.length === 0) return res.status(404).json({ error: 'Subscription not found' });
+        await pool.query('UPDATE push_subscriptions SET subscription = ? WHERE id = ?', [JSON.stringify(newSubscription), rows[0].id]);
+        res.json({ success: true });
+    } catch (err) { console.error('[resubscribe]', err); res.status(500).json({ error: 'Server error' }); }
+});
+
 // Public: is superadmin already claimed?
 app.get('/api/admin/is-claimed', async (req, res) => {
     try {
