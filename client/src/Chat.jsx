@@ -159,6 +159,13 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                  .then(res => setCallLogs(Array.isArray(res.data) ? res.data : [])).catch(() => {});
         }
     };
+
+    const loadCallLogs = () => {
+        if (selectedUser) {
+            axios.get(`${BACKEND_URL}/api/call-logs/${userId}/${selectedUser.id}`)
+                 .then(res => setCallLogs(Array.isArray(res.data) ? res.data : [])).catch(() => {});
+        }
+    };
     
     useEffect(() => { loadMessages(); }, [selectedUser?.id]);
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -167,6 +174,9 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         const handleMessageUpdate = (data) => {
             loadMessages();
             loadInbox();
+        };
+        const handleCallLogUpdate = () => {
+            loadCallLogs();
         };
         const handleOnlineStatus = ({ userId: uid, online }) => {
             setOnlineUsersLocal(prev => {
@@ -193,6 +203,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             }
         };
         socket.on('message_updated', handleMessageUpdate);
+        socket.on('call_log_updated', handleCallLogUpdate);
         socket.on('online_status', handleOnlineStatus);
         socket.on('messages_seen', handleMessagesSeen);
         socket.on('typing_start', handleTypingStart);
@@ -200,6 +211,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         socket.on('screen_record_detected', handleScreenRecord);
         return () => {
             socket.off('message_updated', handleMessageUpdate);
+            socket.off('call_log_updated', handleCallLogUpdate);
             socket.off('online_status', handleOnlineStatus);
             socket.off('messages_seen', handleMessagesSeen);
             socket.off('typing_start', handleTypingStart);

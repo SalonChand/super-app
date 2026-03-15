@@ -502,24 +502,44 @@ io.on('connection', (socket) => {
     socket.on('call_user', (data) => {
         io.to(data.userToCall.toString()).emit('incoming_call', { signal: data.signalData, from: data.from, callerName: data.callerName, isVideo: data.isVideo });
         pool.query('INSERT INTO call_logs (caller_id, receiver_id, call_type, status) VALUES (?, ?, ?, ?)',
-            [data.from, data.userToCall, data.isVideo ? 'video' : 'audio', 'missed']).catch(() => {});
+            [data.from, data.userToCall, data.isVideo ? 'video' : 'audio', 'missed'])
+            .then(() => {
+                io.to(data.from.toString()).emit('call_log_updated');
+                io.to(data.userToCall.toString()).emit('call_log_updated');
+            })
+            .catch(() => {});
     });
     socket.on('answer_call', (data) => {
         io.to(data.to.toString()).emit('call_accepted', data.signal);
         pool.query('UPDATE call_logs SET status="answered" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
-            [data.to, data.from]).catch(() => {});
+            [data.to, data.from])
+            .then(() => {
+                io.to(data.to.toString()).emit('call_log_updated');
+                io.to(data.from.toString()).emit('call_log_updated');
+            })
+            .catch(() => {});
     });
     socket.on('decline_call', (data) => {
         io.to(data.to.toString()).emit('call_ended');
         pool.query('UPDATE call_logs SET status="declined" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
-            [data.to, data.from]).catch(() => {});
+            [data.to, data.from])
+            .then(() => {
+                io.to(data.to.toString()).emit('call_log_updated');
+                io.to(data.from.toString()).emit('call_log_updated');
+            })
+            .catch(() => {});
     });
     socket.on('ice_candidate', (data) => { io.to(data.to.toString()).emit('ice_candidate', data.candidate); });
     socket.on('end_call', (data) => {
         io.to(data.to.toString()).emit('call_ended');
         if (data.duration) {
             pool.query('UPDATE call_logs SET duration_seconds=? WHERE ((caller_id=? AND receiver_id=?) OR (caller_id=? AND receiver_id=?)) AND status="answered" ORDER BY created_at DESC LIMIT 1',
-                [data.duration, data.from, data.to, data.to, data.from]).catch(() => {});
+                [data.duration, data.from, data.to, data.to, data.from])
+                .then(() => {
+                    io.to(data.to.toString()).emit('call_log_updated');
+                    io.to(data.from.toString()).emit('call_log_updated');
+                })
+                .catch(() => {});
         }
     });
 });

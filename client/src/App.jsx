@@ -291,6 +291,10 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const remoteStreamRef = React.useRef(new MediaStream());
 
+    const callStartTimeRef = React.useRef(null);
+
+    const [audioBlocked, setAudioBlocked] = React.useState(false);
+
 
 
     const playRemoteAudio = () => {
@@ -301,7 +305,21 @@ function CallManager({ currentUserId, startCallRef }) {
 
         remoteAudioRef.current.volume = 1.0;
 
-        remoteAudioRef.current.play().catch(e => console.warn('play blocked:', e));
+        remoteAudioRef.current.play().then(() => { setAudioBlocked(false); }).catch(e => {
+
+            console.warn('play blocked:', e);
+
+            setAudioBlocked(true);
+
+        });
+
+    };
+
+    const unlockAudio = () => {
+
+        if (!remoteAudioRef.current) return;
+
+        remoteAudioRef.current.play().then(() => { setAudioBlocked(false); }).catch(() => {});
 
     };
 
@@ -345,11 +363,19 @@ function CallManager({ currentUserId, startCallRef }) {
 
                 { urls: 'stun:stun1.l.google.com:19302' },
 
+                { urls: 'stun:stun2.l.google.com:19302' },
+
+                { urls: 'stun:stun3.l.google.com:19302' },
+
+                { urls: 'stun:stun4.l.google.com:19302' },
+
                 { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
 
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
 
                 { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+
+                { urls: 'turn:openrelay.metered.ca:80?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
 
             ],
 
@@ -370,6 +396,14 @@ function CallManager({ currentUserId, startCallRef }) {
             if (!remoteStreamRef.current.getTrackById(e.track.id)) {
 
                 remoteStreamRef.current.addTrack(e.track);
+
+            }
+
+            // Always reassign srcObject so the audio element reflects current tracks
+
+            if (remoteAudioRef.current) {
+
+                remoteAudioRef.current.srcObject = remoteStreamRef.current;
 
             }
 
@@ -411,15 +445,19 @@ function CallManager({ currentUserId, startCallRef }) {
 
         stopRinging();
 
-        if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current });
+        const duration = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : 0;
+
+        if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current, from: currentUserId, ...(duration > 0 && { duration }) });
+
+        callStartTimeRef.current = null;
 
         stopAllMedia();
 
-        setActiveCall(null); setCallStatus(''); setIncomingCall(null);
+        setActiveCall(null); setCallStatus(''); setIncomingCall(null); setAudioBlocked(false);
 
         callTargetRef.current = null; pendingIce.current = [];
 
-    }, []);
+    }, [currentUserId]);
 
 
 
@@ -485,6 +523,8 @@ function CallManager({ currentUserId, startCallRef }) {
 
         setCallStatus('connected'); setIncomingCall(null);
 
+        callStartTimeRef.current = Date.now();
+
         try {
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: caller.isVideo });
@@ -534,6 +574,8 @@ function CallManager({ currentUserId, startCallRef }) {
         const onAccepted = async (signal) => {
 
             stopRinging(); setCallStatus('connected');
+
+            callStartTimeRef.current = Date.now();
 
             if (peerConnectionRef.current) {
 
@@ -619,7 +661,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
                         <div className="flex flex-col items-center gap-2">
 
-                            <button onClick={() => { stopRinging(); globalSocket.emit("end_call", { to: incomingCall.from }); setIncomingCall(null); }}
+                            <button onClick={() => { stopRinging(); globalSocket.emit("decline_call", { to: incomingCall.from }); setIncomingCall(null); }}
 
                                 className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-lg shadow-red-500/50 hover:scale-110 transition">
 
@@ -694,6 +736,16 @@ function CallManager({ currentUserId, startCallRef }) {
                                 <p className="text-green-400 animate-pulse mt-2">Connected</p>
 
                             </div>
+
+                        )}
+
+                        {audioBlocked && callStatus === 'connected' && (
+
+                            <button onClick={unlockAudio} className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-yellow-500 text-black font-bold px-5 py-2 rounded-full text-sm shadow-lg animate-pulse">
+
+                                🔇 Tap to enable audio
+
+                            </button>
 
                         )}
 
