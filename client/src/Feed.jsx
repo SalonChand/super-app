@@ -134,6 +134,14 @@ function Feed({ onlineUsers = new Set() }) {
     const [visibleToFriends, setVisibleToFriends] = useState([]);
     const [friendsList, setFriendsList] = useState([]);
 
+    // Music search
+    const [showMusicSearch, setShowMusicSearch] = useState(false);
+    const [musicQuery, setMusicQuery] = useState('');
+    const [musicResults, setMusicResults] = useState([]);
+    const [musicLoading, setMusicLoading] = useState(false);
+    const [musicError, setMusicError] = useState('');
+    const [selectedTrack, setSelectedTrack] = useState(null); // { previewUrl, trackName, artistName, artworkUrl }
+
     const canvasRef = useRef(null);
     const[isDrawingMode, setIsDrawingMode] = useState(false);
     const [drawColor, setDrawColor] = useState('#ef4444');
@@ -377,7 +385,7 @@ function Feed({ onlineUsers = new Set() }) {
     const clearCanvas = () => { if (canvasRef.current) { const ctx = canvasRef.current.getContext('2d'); ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); } };
 
     const startStoryDraft = (e) => { const file = e.target.files[0]; if (file) { setDraftFile(file); setDraftPreviewUrl(URL.createObjectURL(file)); setShowStoryEditor(true); setIsDrawingMode(false); } };
-    const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSongFile(null); setDraftSongName(''); setStoryVisibility('public'); setVisibleToFriends([]); if (storyInputRef.current) storyInputRef.current.value = ''; };
+    const closeStoryEditor = () => { setShowStoryEditor(false); setDraftFile(null); setDraftPreviewUrl(null); setDraftCaption(''); setDraftFilter(STORY_FILTERS[0].value); setDraftSongFile(null); setDraftSongName(''); setSelectedTrack(null); setMusicQuery(''); setMusicResults([]); setMusicError(''); setStoryVisibility('public'); setVisibleToFriends([]); if (storyInputRef.current) storyInputRef.current.value = ''; };
     const [uploadingStory, setUploadingStory] = useState(false);
     const uploadFinalStory = async () => {
         if (uploadingStory) return;
@@ -423,7 +431,10 @@ function Feed({ onlineUsers = new Set() }) {
                 formData.append('media', draftFile); if (draftFilter !== 'none') formData.append('filter_class', draftFilter);
             }
             if (draftCaption.trim()) formData.append('caption', draftCaption);
-            if (draftSongFile) { formData.append('song', draftSongFile); formData.append('song_name', draftSongName || draftSongFile.name.replace(/\.[^/.]+$/, '')); }
+            if (selectedTrack && selectedTrack.previewUrl) {
+                formData.append('song_url', selectedTrack.previewUrl);
+                formData.append('song_name', selectedTrack.trackName + ' — ' + selectedTrack.artistName);
+            } else if (draftSongFile) { formData.append('song', draftSongFile); formData.append('song_name', draftSongName || draftSongFile.name.replace(/\.[^/.]+$/, '')); }
             else if (draftSongName.trim()) { formData.append('song_name', draftSongName); }
             formData.append('visibility', storyVisibility);
             if (storyVisibility === 'selected' && visibleToFriends.length > 0) formData.append('visible_to', JSON.stringify(visibleToFriends));
@@ -616,18 +627,20 @@ function Feed({ onlineUsers = new Set() }) {
                         </div>
                         {/* Music */}
                         <div className="mb-2">
-                            <label className="flex items-center gap-2 w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 cursor-pointer hover:border-zinc-500 transition">
-                                <Music size={15} className={draftSongFile ? "text-green-400" : "text-zinc-400"} />
-                                <span className={`text-sm flex-1 truncate ${draftSongFile ? "text-green-400" : "text-zinc-400"}`}>
-                                    {draftSongFile ? draftSongFile.name : "Add music to story…"}
-                                </span>
-                                {draftSongFile && <button type="button" onClick={() => { setDraftSongFile(null); setDraftSongName(''); }} className="text-zinc-500 hover:text-red-400 transition"><X size={14}/></button>}
-                                <input type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setDraftSongFile(f); setDraftSongName(f.name.replace(/\.[^/.]+$/, '')); } e.target.value = ''; }} />
-                            </label>
-                            {draftSongFile && (
-                                <input value={draftSongName} onChange={e => setDraftSongName(e.target.value)}
-                                    placeholder="Song name (shown on story)…"
-                                    className="mt-1.5 w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-green-500 transition" />
+                            {selectedTrack ? (
+                                <div className="flex items-center gap-2 bg-zinc-900 border border-green-600/50 rounded-lg px-3 py-2">
+                                    <img src={selectedTrack.artworkUrl} alt="" className="w-9 h-9 rounded-md object-cover flex-shrink-0"/>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-green-400 text-sm font-medium truncate">{selectedTrack.trackName}</p>
+                                        <p className="text-zinc-500 text-xs truncate">{selectedTrack.artistName}</p>
+                                    </div>
+                                    <button type="button" onClick={() => setSelectedTrack(null)} className="text-zinc-500 hover:text-red-400 transition flex-shrink-0"><X size={14}/></button>
+                                </div>
+                            ) : (
+                                <button type="button" onClick={() => setShowMusicSearch(true)} className="flex items-center gap-2 w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 hover:border-zinc-500 transition">
+                                    <Music size={15} className="text-zinc-400 flex-shrink-0"/>
+                                    <span className="text-sm text-zinc-400">Add music to story…</span>
+                                </button>
                             )}
                         </div>
                         {/* Caption */}
@@ -675,6 +688,104 @@ function Feed({ onlineUsers = new Set() }) {
                         <button onClick={uploadFinalStory} disabled={uploadingStory} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3 rounded-full transition">
                             {uploadingStory ? 'Posting…' : 'Post Story'}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MUSIC SEARCH MODAL ===== */}
+            {showMusicSearch && (
+                <div className="fixed inset-0 bg-black/90 z-[60] flex flex-col items-center justify-start pt-12 px-4">
+                    <div className="w-full max-w-sm bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border border-zinc-700">
+                        {/* Header */}
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
+                            <button onClick={() => { setShowMusicSearch(false); setMusicQuery(''); setMusicResults([]); setMusicError(''); }} className="text-zinc-400 hover:text-white transition" aria-label="Close music search"><X size={20}/></button>
+                            <h2 className="text-white font-bold text-base flex-1">Add Music</h2>
+                            <Music size={18} className="text-green-400" aria-hidden="true"/>
+                        </div>
+                        {/* Search input */}
+                        <div className="px-4 py-3 border-b border-zinc-800">
+                            <div className="flex items-center gap-2 bg-zinc-800 rounded-full px-4 py-2">
+                                <Music size={14} className="text-zinc-400 flex-shrink-0" aria-hidden="true"/>
+                                <input
+                                    autoFocus
+                                    value={musicQuery}
+                                    onChange={e => { setMusicQuery(e.target.value); setMusicError(''); }}
+                                    onKeyDown={async e => {
+                                        if (e.key === 'Enter' && musicQuery.trim()) {
+                                            setMusicLoading(true);
+                                            setMusicResults([]);
+                                            setMusicError('');
+                                            try {
+                                                const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(musicQuery.trim())}&media=music&limit=20`);
+                                                const data = await res.json();
+                                                setMusicResults(data.results || []);
+                                            } catch(err) { setMusicResults([]); setMusicError('Search failed. Check your connection and try again.'); }
+                                            setMusicLoading(false);
+                                        }
+                                    }}
+                                    placeholder="Search songs, artists…"
+                                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-zinc-500"
+                                    aria-label="Search for music"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        if (!musicQuery.trim()) return;
+                                        setMusicLoading(true);
+                                        setMusicResults([]);
+                                        setMusicError('');
+                                        try {
+                                            const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(musicQuery.trim())}&media=music&limit=20`);
+                                            const data = await res.json();
+                                            setMusicResults(data.results || []);
+                                        } catch(err) { setMusicResults([]); setMusicError('Search failed. Check your connection and try again.'); }
+                                        setMusicLoading(false);
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 text-xs font-semibold transition"
+                                >Search</button>
+                            </div>
+                            {musicError && <p className="text-red-400 text-xs mt-2 px-1">{musicError}</p>}
+                        </div>
+                        {/* Results */}
+                        <div className="overflow-y-auto max-h-80">
+                            {musicLoading && (
+                                <div className="flex items-center justify-center py-10">
+                                    <div className="w-6 h-6 border-2 border-zinc-600 border-t-green-400 rounded-full animate-spin" role="status" aria-label="Searching…"/>
+                                </div>
+                            )}
+                            {!musicLoading && !musicError && musicResults.length === 0 && musicQuery.trim() && (
+                                <p className="text-zinc-500 text-sm text-center py-10">No results found. Try another search.</p>
+                            )}
+                            {!musicLoading && !musicError && musicResults.length === 0 && !musicQuery.trim() && (
+                                <p className="text-zinc-600 text-sm text-center py-10">Search for songs to add to your story</p>
+                            )}
+                            {musicResults.map(track => (
+                                <button
+                                    key={track.trackId}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedTrack({
+                                            previewUrl: track.previewUrl || null,
+                                            trackName: track.trackName,
+                                            artistName: track.artistName,
+                                            artworkUrl: track.artworkUrl100,
+                                        });
+                                        setShowMusicSearch(false);
+                                        setMusicQuery('');
+                                        setMusicResults([]);
+                                        setMusicError('');
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800 transition border-b border-zinc-800/50 last:border-0"
+                                    aria-label={`Add ${track.trackName} by ${track.artistName}`}
+                                >
+                                    <img src={track.artworkUrl100} alt={`${track.trackName} album art`} className="w-11 h-11 rounded-lg object-cover flex-shrink-0"/>
+                                    <div className="flex-1 min-w-0 text-left">
+                                        <p className="text-white text-sm font-medium truncate">{track.trackName}</p>
+                                        <p className="text-zinc-500 text-xs truncate">{track.artistName} · {track.collectionName}</p>
+                                    </div>
+                                    {track.previewUrl && <span className="text-green-400 text-[10px] font-medium flex-shrink-0" aria-label="Preview available">▶ Preview</span>}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}

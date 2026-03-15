@@ -1545,8 +1545,8 @@ app.post('/api/stories', upload.fields([{ name: 'media', maxCount: 1 }, { name: 
         if (!mediaFile) return res.status(400).json({ error: "No file provided" });
         const media_url = mediaFile.path;
         const media_type = mediaFile.mimetype.startsWith('video') ? 'video' : 'image';
-        const { user_id, caption, filter_class, song_name, visibility, visible_to } = req.body;
-        const song_url = songFile ? songFile.path : null;
+        const { user_id, caption, filter_class, song_name, song_url: body_song_url, visibility, visible_to } = req.body;
+        const song_url = songFile ? songFile.path : (body_song_url || null);
         const final_song_name = song_name || (songFile ? songFile.originalname.replace(/\.[^/.]+$/, '') : null);
         await pool.query(
             'INSERT INTO stories (user_id, media_url, media_type, caption, filter_class, song_name, song_url, visibility, visible_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
