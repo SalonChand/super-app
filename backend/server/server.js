@@ -678,6 +678,15 @@ app.post('/api/login', async (req, res) => { try { const[users] = await pool.que
         if (u.is_active === 0) return res.status(403).json({ error: "This account has been deactivated by an administrator." });
         let role = 'user'; try { role = u.role || 'user'; } catch(e) {}
         if (u.username === 'superadmin') role = 'superadmin';
+        if (u.two_factor_enabled) {
+            if (!u.two_factor_secret) return res.status(500).json({ error: 'Account 2FA configuration error.' });
+            const { totp_code } = req.body;
+            if (!totp_code) return res.json({ requires_2fa: true, userId: u.id });
+            const secret = u.two_factor_secret;
+            const t = Math.floor(Date.now() / 30000);
+            const validCodes = [t-1, t, t+1].map(ts => (parseInt(secret.charCodeAt(0) * 7 + ts * 31337) % 1000000).toString().padStart(6, '0'));
+            if (!validCodes.includes(totp_code.toString())) return res.status(401).json({ error: 'Invalid 2FA code.' });
+        }
         const token = jwt.sign({ id: u.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.json({ message: 'Logged in!', token, user: { id: u.id, username: u.display_name || u.username, loginUsername: u.username, email: u.email, role } });
     } catch (err) { res.status(500).json({ error: 'Server error.' }); }
