@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck } from 'lucide-react';
+import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck, ArrowUp } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './index.css';
 
@@ -147,6 +147,8 @@ function Feed({ onlineUsers = new Set() }) {
     const feedEndRef = useRef(null);
     const [sharingToStory, setSharingToStory] = useState(null); // { post }
     const [storyShareCaption, setStoryShareCaption] = useState('');
+    const [newPosts, setNewPosts] = useState([]);
+    const newestPostIdRef = useRef(null);
     const openHashtag = async (tag) => {
         setHashtagLoading(true);
         setHashtagView({ tag, posts: [] });
@@ -180,6 +182,7 @@ function Feed({ onlineUsers = new Set() }) {
             setPosts(arr);
             setFeedPage(0);
             setHasMorePosts(Array.isArray(data) ? arr.length === 20 : (data.hasMore ?? false));
+            if (arr.length > 0) newestPostIdRef.current = arr[0].id;
         } catch (err) { console.error('Posts error:', err); }
         try {
             if (userId) {
@@ -205,6 +208,40 @@ function Feed({ onlineUsers = new Set() }) {
         } catch (err) { console.error('Friends error:', err); }
         setIsRefreshing(false);
         setInitialLoading(false);
+    };
+
+    // Poll every 30 s for posts newer than the most-recently-seen post
+    useEffect(() => {
+        if (!userId) return;
+        const interval = setInterval(async () => {
+            if (!newestPostIdRef.current) return;
+            try {
+                const res = await axios.get(`${BACKEND_URL}/api/posts?userId=${userId}&since=${newestPostIdRef.current}`);
+                const data = res.data;
+                const fresh = Array.isArray(data) ? data : (data.posts || []);
+                if (fresh.length > 0) {
+                    setNewPosts(prev => {
+                        const existingIds = new Set(prev.map(p => p.id));
+                        const deduplicated = fresh.filter(p => !existingIds.has(p.id));
+                        return deduplicated.length > 0 ? [...deduplicated, ...prev] : prev;
+                    });
+                }
+            } catch(e) { console.error('Feed poll error:', e); }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [userId]);
+
+    const loadNewPosts = () => {
+        if (newPosts.length === 0) return;
+        setPosts(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const toAdd = newPosts.filter(p => !existingIds.has(p.id));
+            const merged = [...toAdd, ...prev];
+            if (merged.length > 0) newestPostIdRef.current = merged[0].id;
+            return merged;
+        });
+        setNewPosts([]);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     const loadMorePosts = async () => {
         if (loadingMore || !hasMorePosts) return;
@@ -713,6 +750,16 @@ function Feed({ onlineUsers = new Set() }) {
                     </div>
                 ))}
             </div>
+
+            {/* ===== NEW POSTS BANNER ===== */}
+            {newPosts.length > 0 && (
+                <button
+                    onClick={loadNewPosts}
+                    className="sticky top-0 z-30 w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-bold py-3 transition-colors animate-fade-in shadow-lg">
+                    <ArrowUp size={15}/>
+                    {newPosts.length} new post{newPosts.length !== 1 ? 's' : ''} — tap to see
+                </button>
+            )}
 
             {/* ===== POSTS ===== */}
             <div>
