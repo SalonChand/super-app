@@ -128,3 +128,96 @@ body {
 
 .interactive:hover  { transform: scale(1.03); }
 .interactive:active { transform: scale(0.97); opacity: 0.85; }
+/* ── SPIN (loading spinner) ─────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── GRADIENT SHIFT (animated gradient text) ─────────────────────── */
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ── FLOAT (floating particles) ─────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-18px) scale(1.04); }
+}
+
+/* ── SHIMMER (skeleton loader) ───────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── BOUNCE IN ───────────────────────────────────────────────────── */
+@keyframes bounceIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* ── SLIDE UP ────────────────────────────────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease both;
+}
+
+/* ── GLOW PULSE ──────────────────────────────────────────────────── */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.3); }
+  50% { box-shadow: 0 0 40px rgba(59,130,246,0.6), 0 0 60px rgba(139,92,246,0.3); }
+}
+
+.animate-glow {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* ── TOAST ───────────────────────────────────────────────────────── */
+@keyframes toastIn {
+  from { transform: translateY(100%) translateX(-50%); opacity: 0; }
+  to { transform: translateY(0) translateX(-50%); opacity: 1; }
+}
+
+.animate-toast {
+  animation: toastIn 0.3s ease both;
+}
+
+/* ── CUSTOM SCROLLBAR ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+/* ── GLASS MORPHISM ──────────────────────────────────────────────── */
+.glass {
+  background: rgba(9, 9, 11, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── GRADIENT TEXT UTILITY ───────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+  background-size: 200% 200%;
+  animation: gradientShift 4s ease infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
