@@ -93,7 +93,8 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
     return <BadgeCheck size={size} className={`inline-block align-middle flex-shrink-0 ${colors[t] || colors.blue}`} title={title} style={{...style, verticalAlign: 'middle', marginLeft: '2px', marginBottom: '1px'}}/>;
 }
 
-function Feed({ onlineUsers = new Set() }) {
+function Feed({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
+    const navigate = useNavigate();
     const[posts, setPosts] = useState([]);
     const[savedPosts, setSavedPosts] = useState(new Set());
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
@@ -612,7 +613,7 @@ function Feed({ onlineUsers = new Set() }) {
                         </div>
                         {/* Filters */}
                         <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
-                            {STORY_FILTERS.map(f => <button key={f.name} onClick={() => setDraftFilter(f.value)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border ${draftFilter === f.value ? 'border-blue-500 text-blue-400' : 'border-zinc-700 text-zinc-400'}`}>{f.name}</button>)}
+                            {STORY_FILTERS.map(f => <button key={f.name} onClick={() => setDraftFilter(f.value)} className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border ${draftFilter === f.value ? 'border-transparent' : 'border-zinc-700 text-zinc-400'}`} style={draftFilter === f.value ? { borderColor: themeColor, color: themeColor } : {}}>{f.name}</button>)}
                         </div>
                         {/* Music */}
                         <div className="mb-2">
@@ -634,7 +635,7 @@ function Feed({ onlineUsers = new Set() }) {
                         <input value={draftCaption} onChange={e => setDraftCaption(e.target.value)} placeholder="Add a caption..." className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm mb-3 outline-none" />
                         {/* Draw tools */}
                         <div className="flex gap-2 mb-3 items-center">
-                            <button onClick={() => setIsDrawingMode(!isDrawingMode)} className={`p-2 rounded-full border ${isDrawingMode ? 'border-blue-500 text-blue-400' : 'border-zinc-700 text-zinc-400'}`}><Paintbrush size={16} /></button>
+                            <button onClick={() => setIsDrawingMode(!isDrawingMode)} className={`p-2 rounded-full border ${isDrawingMode ? '' : 'border-zinc-700 text-zinc-400'}`} style={isDrawingMode ? { borderColor: themeColor, color: themeColor } : {}}><Paintbrush size={16} /></button>
                             {DRAW_COLORS.map(c => <button key={c} onClick={() => setDrawColor(c)} style={{ background: c }} className={`w-6 h-6 rounded-full border-2 ${drawColor === c ? 'border-white' : 'border-transparent'}`} />)}
                             <button onClick={() => { const ctx = canvasRef.current?.getContext('2d'); if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); }} className="p-2 rounded-full border border-zinc-700 text-zinc-400 ml-auto"><Undo size={16} /></button>
                         </div>
@@ -649,7 +650,8 @@ function Feed({ onlineUsers = new Set() }) {
                                     { value: 'selected', label: '✅ Selected' },
                                 ].map(opt => (
                                     <button key={opt.value} onClick={() => setStoryVisibility(opt.value)}
-                                        className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${storyVisibility === opt.value ? 'border-blue-500 bg-blue-500/20 text-blue-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}>
+                                        className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${storyVisibility === opt.value ? '' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}
+                                        style={storyVisibility === opt.value ? { borderColor: themeColor, backgroundColor: `${themeColor}33`, color: themeColor } : {}}>
                                         {opt.label}
                                     </button>
                                 ))}
@@ -672,7 +674,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                             )}
                         </div>
-                        <button onClick={uploadFinalStory} disabled={uploadingStory} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3 rounded-full transition">
+                        <button onClick={uploadFinalStory} disabled={uploadingStory} className="w-full disabled:opacity-60 text-white font-bold py-3 rounded-full transition" style={{ backgroundColor: themeColor }}>
                             {uploadingStory ? 'Posting…' : 'Post Story'}
                         </button>
                     </div>
@@ -700,7 +702,7 @@ function Feed({ onlineUsers = new Set() }) {
                 ) : uniqueStories.map(story => (
                     <div key={story.user_id} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => openStoryViewer(story.user_id)}>
                         <div className="relative">
-                            <div className={`w-14 h-14 rounded-full overflow-hidden border-2 ${story.user_has_viewed ? 'border-zinc-600' : 'border-blue-500'} p-0.5`}>
+                            <div className="w-14 h-14 rounded-full overflow-hidden border-2 p-0.5" style={{ borderColor: story.user_has_viewed ? '#52525b' : themeColor }}>
                                 <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800">
                                     {story.profile_pic_url ? <img src={story.profile_pic_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-lg">{story.username?.charAt(0).toUpperCase()}</div>}
                                 </div>
@@ -742,7 +744,7 @@ function Feed({ onlineUsers = new Set() }) {
                                 placeholder="Add a caption to your story..."
                                 className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition mb-4"
                             />
-                            <button onClick={submitShareToStory} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-2xl transition">
+                            <button onClick={submitShareToStory} className="w-full text-white font-bold py-3 rounded-2xl transition" style={{ backgroundColor: themeColor }}>
                                 Share to Story ✨
                             </button>
                         </div>
@@ -810,7 +812,8 @@ function Feed({ onlineUsers = new Set() }) {
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <div className="relative flex-shrink-0" style={{width: '48px', height: '48px'}}>
         <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
-            className={"w-12 h-12 rounded-full flex items-center justify-center overflow-hidden transition " + (hasStory ? ("p-0.5 " + (viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+            className={"w-12 h-12 rounded-full flex items-center justify-center overflow-hidden transition " + (hasStory ? "p-0.5" : "bg-zinc-800 border border-zinc-700")}
+            style={hasStory ? { background: viewed ? '#71717a' : themeColor, boxShadow: viewed ? 'none' : `0 0 12px ${themeColor}80` } : {}}>
             <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center " + (hasStory ? "border-2 border-black" : "")}>
                 {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
             </div>
@@ -861,7 +864,7 @@ function Feed({ onlineUsers = new Set() }) {
                                     <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition" rows="3" />
                                     <div className="flex justify-end gap-2 mt-2">
                                         <button onClick={() => setEditingPostId(null)} className="text-zinc-400 hover:text-white px-4 py-1.5 rounded-full text-sm font-bold transition">Cancel</button>
-                                        <button onClick={() => saveEdit(post.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1 transition"><Check size={16}/> Save</button>
+                                        <button onClick={() => saveEdit(post.id)} className="text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1 transition" style={{ backgroundColor: themeColor }}><Check size={16}/> Save</button>
                                     </div>
                                 </div>
                             ) : (
@@ -913,7 +916,7 @@ function Feed({ onlineUsers = new Set() }) {
 
                             {activeCommentPostId === post.id && (
                                 <div className="mt-3 pt-3 border-t border-zinc-800 animate-fade-in">
-                                    <form onSubmit={(e) => submitComment(e, post.id)} className="flex gap-3 mb-4"><div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{currentUserInfo?.profile_pic_url ? <img src={`${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</div><div className="w-full flex bg-zinc-900 border border-zinc-800 rounded-full overflow-hidden focus-within:border-blue-500 transition"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Post your reply..." className="w-full bg-transparent px-4 py-2 text-sm text-white outline-none placeholder-zinc-500" /><button type="submit" disabled={!newComment.trim()} className="px-4 text-blue-500 hover:text-blue-400 disabled:opacity-50"><Send size={16} /></button></div></form>
+                                    <form onSubmit={(e) => submitComment(e, post.id)} className="flex gap-3 mb-4"><div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{currentUserInfo?.profile_pic_url ? <img src={`${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</div><div className="w-full flex bg-zinc-900 border border-zinc-800 rounded-full overflow-hidden transition" style={{['--tw-ring-color']: themeColor}}><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Post your reply..." className="w-full bg-transparent px-4 py-2 text-sm text-white outline-none placeholder-zinc-500" /><button type="submit" disabled={!newComment.trim()} className="px-4 disabled:opacity-50" style={{ color: themeColor }}><Send size={16} /></button></div></form>
                                     <div className="space-y-4">{commentsData[post.id] && commentsData[post.id].map(comment => (<div key={comment.id} className="flex gap-3"><Link to={`/profile/${comment.user_id}`} className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{comment.profile_pic_url ? <img src={`${comment.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</Link><div className="bg-zinc-900/50 p-3 rounded-2xl rounded-tl-sm w-full border border-zinc-800/50"><div className="flex items-center gap-2 mb-1"><div className="flex items-center gap-1"><Link to={`/profile/${comment.user_id}`} className="font-bold text-white text-sm hover:underline">{comment.username}</Link>{<VerifiedBadge isVerified={!!comment.is_verified} verifyType={comment.verify_type} size={12}/>}</div><span className="text-zinc-600 text-xs">{formatTimeFriendly(comment.created_at)}</span></div><p className="text-zinc-200 text-sm">{comment.content}</p></div></div>))}</div>
                                 </div>
                             )}
