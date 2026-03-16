@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const pool = require('./db'); 
@@ -14,8 +15,10 @@ const webpush = require('web-push');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://super-app-wc32.vercel.app';
+
 const app = express();
-app.use(cors()); 
+app.use(cors({ origin: FRONTEND_URL, credentials: true })); 
 app.use(express.json()); 
 
 cloudinary.config({
@@ -411,7 +414,7 @@ async function sendPush(userId, { title, body, url = '/', tag = 'notification', 
 }
 
 const server = http.createServer(app); 
-const io = new Server(server, { cors: { origin: "*", methods:["GET", "POST"] } });
+const io = new Server(server, { cors: { origin: FRONTEND_URL, methods:["GET", "POST"] } });
 
 // Online users: userId -> { socketId, lastSeen }
 const onlineUsers = new Map();
