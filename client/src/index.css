@@ -1,26 +1,29 @@
 @import "tailwindcss";
 
+/* ── Global base ─────────────────────────────────────────────── */
 body {
-  background-color: #000000;
+  background-color: #09090b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* THE INSTANT LIGHT MODE HACK */
+/* ── THE INSTANT LIGHT MODE HACK ────────────────────────────── */
 .light-theme {
   filter: invert(1) hue-rotate(180deg);
   background-color: #ffffff;
 }
 
-/* We re-invert the images and colorful gradients so they don't look weird! */
-.light-theme img, 
+/* Re-invert images and colorful gradients so they look correct */
+.light-theme img,
 .light-theme .bg-gradient-to-tr,
 .light-theme .text-blue-500,
 .light-theme .bg-blue-600 {
   filter: invert(1) hue-rotate(180deg);
 }
 
-/* STORY PROGRESS BAR ANIMATION */
+/* ── STORY PROGRESS BAR ─────────────────────────────────────── */
 @keyframes storyProgress {
-  0% { width: 0%; }
+  0%   { width: 0%; }
   100% { width: 100%; }
 }
 
@@ -28,29 +31,100 @@ body {
   animation: storyProgress 5s linear forwards;
 }
 
-/* AUDIO RECORDING WAVE ANIMATION */
+/* ── AUDIO RECORDING WAVE ────────────────────────────────────── */
 @keyframes audioWave {
   0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
-  50% { transform: scaleY(1); opacity: 1; }
+  50%       { transform: scaleY(1);   opacity: 1; }
 }
-.animate-wave { animation: audioWave 1s ease-in-out infinite; }
-.delay-100 { animation-delay: 0.1s; }
-.delay-200 { animation-delay: 0.2s; }
-.delay-300 { animation-delay: 0.3s; }
-.delay-400 { animation-delay: 0.4s; }
 
-/* Slide Animation for Mobile Menu */
+.animate-wave   { animation: audioWave 1s ease-in-out infinite; }
+.delay-100      { animation-delay: 0.1s; }
+.delay-200      { animation-delay: 0.2s; }
+.delay-300      { animation-delay: 0.3s; }
+.delay-400      { animation-delay: 0.4s; }
+
+/* ── SLIDE-IN FOR MOBILE MENU ────────────────────────────────── */
 @keyframes slide-left {
   from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  to   { transform: translateX(0); }
 }
 
-/* SPLASH SCREEN FADE OUT */
+.animate-slide-left {
+  animation: slide-left 0.3s ease both;
+}
+
+/* ── SPLASH SCREEN FADE OUT ──────────────────────────────────── */
 @keyframes fadeOut {
-  0% { opacity: 1; visibility: visible; }
-  100% { opacity: 0; visibility: hidden; pointer-events: none; z-index: -100; display: none;}
+  0%   { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; pointer-events: none; z-index: -100; }
 }
 
 .animate-fade-out {
   animation: fadeOut 0.5s ease-out forwards;
 }
+
+/* ── FADE IN ─────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s ease both;
+}
+
+/* ── SCALE PULSE (notification badge, etc.) ──────────────────── */
+@keyframes scalePulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.12); }
+}
+
+.animate-pulse-scale {
+  animation: scalePulse 1.8s ease-in-out infinite;
+}
+
+/* ── GRADIENT BORDER (interactive cards) ────────────────────── */
+.gradient-border {
+  position: relative;
+  border-radius: 16px;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #14b8a6, #8b5cf6);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── GLOW EFFECT ─────────────────────────────────────────────── */
+.glow-teal {
+  box-shadow: 0 0 16px rgba(20, 184, 166, 0.25);
+}
+
+.glow-purple {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.25);
+}
+
+/* ── GLASS SURFACE ───────────────────────────────────────────── */
+.glass {
+  background: rgba(24, 24, 27, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── INTERACTIVE SCALE ───────────────────────────────────────── */
+.interactive {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.interactive:hover  { transform: scale(1.03); }
+.interactive:active { transform: scale(0.97); opacity: 0.85; }
