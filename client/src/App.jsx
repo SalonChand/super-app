@@ -54,7 +54,7 @@ import AdminCommunities from './AdminCommunities';
 import Streaks from './Streaks';
 
 import Marketplace from './Marketplace';
-import Landing from './Landing';
+
 
 
 
@@ -956,7 +956,7 @@ function AppContent() {
 
 
 
-    const isPublicPage = ['/landing', '/login', '/register'].includes(location.pathname);
+    const isPublicPage = ['/login', '/register'].includes(location.pathname);
 
   if (isPublicPage) {
     return (
@@ -964,10 +964,9 @@ function AppContent() {
         {showSplash && <SplashScreen />}
         <CallManager currentUserId={currentUserId} startCallRef={startCallRef} />
         <Routes>
-          <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="*" element={<Navigate to="/landing" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </>
     );
