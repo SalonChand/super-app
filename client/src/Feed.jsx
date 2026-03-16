@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -139,6 +139,7 @@ function Feed({ onlineUsers = new Set() }) {
     const [drawColor, setDrawColor] = useState('#ef4444');
     const isDrawing = useRef(false);
 
+    const [feedMode, setFeedMode] = useState('for_you'); // 'for_you' | 'following'
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [feedPage, setFeedPage] = useState(0);
@@ -459,6 +460,12 @@ function Feed({ onlineUsers = new Set() }) {
         setStoryMenuOpen(false);
     };
 
+    const friendIds = useMemo(() => new Set(friendsList.map(f => String(f.id))), [friendsList]);
+    const displayPosts = useMemo(
+        () => feedMode === 'following' ? posts.filter(p => friendIds.has(String(p.user_id))) : posts,
+        [feedMode, posts, friendIds]
+    );
+
     return (
         <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
             {/* ===== HASHTAG VIEW ===== */}
@@ -716,6 +723,20 @@ function Feed({ onlineUsers = new Set() }) {
 
             {/* ===== POSTS ===== */}
             <div>
+                {/* ===== FEED TABS ===== */}
+                <div className="flex border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-10">
+                    <button
+                        onClick={() => setFeedMode('for_you')}
+                        className={`flex-1 py-3 text-sm font-bold transition-colors ${feedMode === 'for_you' ? 'text-white border-b-2 border-blue-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                        For You
+                    </button>
+                    <button
+                        onClick={() => setFeedMode('following')}
+                        className={`flex-1 py-3 text-sm font-bold transition-colors ${feedMode === 'following' ? 'text-white border-b-2 border-blue-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                        Following
+                    </button>
+                </div>
+
                 {/* ===== SHARE TO STORY MODAL ===== */}
                 {sharingToStory && (
                     <div className="fixed inset-0 z-[200] bg-black/80 flex items-end sm:items-center justify-center animate-fade-in p-4">
@@ -780,9 +801,9 @@ function Feed({ onlineUsers = new Set() }) {
 
                 {initialLoading ? (
                     /* ── Skeleton: posts only ── */
-                    <>
+                    <div className="px-3 pt-3 space-y-3">
                         {[...Array(4)].map((_, i) => (
-                            <div key={i} className="p-4 border-b border-zinc-800 flex gap-4">
+                            <div key={i} className="bg-zinc-900/40 border border-zinc-800/70 rounded-2xl p-4 flex gap-3">
                                 <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
                                 <div className="flex-1 space-y-2 pt-1">
                                     <div className="flex gap-2 items-center">
@@ -801,12 +822,25 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                             </div>
                         ))}
-                    </>
+                    </div>
                 ) : (
                     <>
-                {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
-                {posts.map((post) => (
-                    <div key={post.id} className="p-4 border-b border-zinc-800 hover:bg-zinc-950/30 transition flex gap-4">
+                {displayPosts.length === 0 && (
+                    <div className="flex flex-col items-center justify-center mt-16 px-6 text-center">
+                        <div className="w-16 h-16 rounded-full bg-zinc-800/60 flex items-center justify-center mb-4">
+                            <Users size={28} className="text-zinc-600" />
+                        </div>
+                        <p className="text-zinc-300 font-semibold text-base mb-1">
+                            {feedMode === 'following' ? 'No posts from people you follow' : 'No posts yet'}
+                        </p>
+                        <p className="text-zinc-600 text-sm">
+                            {feedMode === 'following' ? 'Follow more people to see their posts here.' : 'Be the first to share something!'}
+                        </p>
+                    </div>
+                )}
+                <div className="px-3 pt-3 space-y-3">
+                {displayPosts.map((post) => (
+                    <div key={post.id} className="bg-zinc-900/40 border border-zinc-800/70 rounded-2xl p-4 flex gap-3 hover:bg-zinc-900/60 hover:border-zinc-700/80 transition">
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <div className="relative flex-shrink-0" style={{width: '48px', height: '48px'}}>
         <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
@@ -920,8 +954,9 @@ function Feed({ onlineUsers = new Set() }) {
                         </div>
                     </div>
                 ))}
+                </div>
                 {/* Load more */}
-                {hasMorePosts && (
+                {feedMode === 'for_you' && hasMorePosts && (
                     <div className="flex justify-center py-6">
                         <button onClick={loadMorePosts} disabled={loadingMore}
                             className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-sm font-semibold px-6 py-2.5 rounded-full transition disabled:opacity-50">
@@ -930,7 +965,7 @@ function Feed({ onlineUsers = new Set() }) {
                         </button>
                     </div>
                 )}
-                {!hasMorePosts && posts.length > 0 && (
+                {feedMode === 'for_you' && !hasMorePosts && displayPosts.length > 0 && (
                     <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
                 )}
                     </>
