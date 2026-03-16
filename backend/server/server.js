@@ -1967,7 +1967,7 @@ app.post('/api/streaks/snap', upload.single('media'), async (req, res) => {
         }
 
         await pool.query(`UPDATE streaks SET ${myCol}=TRUE, last_interaction=NOW() WHERE id=?`, [streak.id]);
-        if (streak[theirCol]) {
+        if (!streak[myCol] && streak[theirCol]) {
             newCount = newCount + 1;
             await pool.query('UPDATE streaks SET streak_count=? WHERE id=?', [newCount, streak.id]);
         }
@@ -1989,7 +1989,7 @@ app.post('/api/streaks/respond', async (req, res) => {
                 const myCol = isUser1 ? 'user1_sent_today' : 'user2_sent_today';
                 const theirCol = isUser1 ? 'user2_sent_today' : 'user1_sent_today';
                 await pool.query(`UPDATE streaks SET ${myCol}=TRUE, last_interaction=NOW() WHERE id=?`, [streak.id]);
-                if (streak[theirCol]) {
+                if (!streak[myCol] && streak[theirCol]) {
                     await pool.query('UPDATE streaks SET streak_count=streak_count+1 WHERE id=?', [streak.id]);
                 }
             }
