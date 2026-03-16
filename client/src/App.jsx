@@ -54,6 +54,7 @@ import AdminCommunities from './AdminCommunities';
 import Streaks from './Streaks';
 
 import Marketplace from './Marketplace';
+import Landing from './Landing';
 
 
 
@@ -233,7 +234,7 @@ const stopRinging = () => { if (ringInterval) { clearInterval(ringInterval); rin
 
 
 
-function ProtectedRoute({ children }) { const currentUserId = localStorage.getItem('userId'); if (!currentUserId) return <Navigate to="/login" replace />; return children; }
+function ProtectedRoute({ children }) { const currentUserId = localStorage.getItem('userId'); if (!currentUserId) return <Navigate to="/landing" replace />; return children; }
 
 function PublicRoute({ children }) { const currentUserId = localStorage.getItem('userId'); if (currentUserId) return <Navigate to="/" replace />; return children; }
 
@@ -955,7 +956,24 @@ function AppContent() {
 
 
 
-  return (
+    const isPublicPage = ['/landing', '/login', '/register'].includes(location.pathname);
+
+  if (isPublicPage) {
+    return (
+      <>
+        {showSplash && <SplashScreen />}
+        <CallManager currentUserId={currentUserId} startCallRef={startCallRef} />
+        <Routes>
+          <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="*" element={<Navigate to="/landing" replace />} />
+        </Routes>
+      </>
+    );
+  }
+
+return (
 
       <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
 
@@ -1074,6 +1092,8 @@ function AppContent() {
 
 
           <Routes>
+
+            <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
 
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
