@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Flame, User, BadgeCheck, Send, Trophy, Zap, Clock, X, Check, Users, SwitchCamera, ChevronRight, AlertTriangle } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -495,6 +495,7 @@ function CameraPage({ friends, onClose, onSent }) {
 // ─── Main Streaks Page ─────────────────────────────────────────────────────
 export default function Streaks({ themeColor }) {
     const userId = localStorage.getItem('userId');
+    const navigate = useNavigate();
     const [streaks, setStreaks] = useState([]);
     const [incoming, setIncoming] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
@@ -677,7 +678,18 @@ export default function Streaks({ themeColor }) {
                                             <div key={streak.friend_id}
                                                 className={`flex items-center gap-3 bg-zinc-900 border rounded-2xl p-3.5 transition ${risk ? 'border-red-500/40 bg-red-500/5' : 'border-zinc-800 hover:border-zinc-700'}`}>
                                                 {/* Avatar */}
-                                                <Link to={`/profile/${streak.friend_id}`} className="relative flex-shrink-0">
+                                                <button
+                                                    type="button"
+                                                    aria-label={`View sent snap for ${streak.username}`}
+                                                    onClick={() => {
+                                                        const snap = sent.find(s => s.to_user_id === streak.friend_id);
+                                                        if (snap) {
+                                                            setViewingSnap({ ...snap, isSent: true });
+                                                        } else {
+                                                            navigate(`/profile/${streak.friend_id}`);
+                                                        }
+                                                    }}
+                                                    className="relative flex-shrink-0">
                                                     <div className={`w-12 h-12 rounded-full overflow-hidden border-2 ${risk ? 'border-red-500/60' : streak.streak_count > 0 ? colors.border : 'border-zinc-700'}`}>
                                                         {streak.profile_pic_url
                                                             ? <img src={streak.profile_pic_url} className="w-full h-full object-cover"/>
@@ -688,9 +700,7 @@ export default function Streaks({ themeColor }) {
                                                         <span className="text-[9px]">{getStreakEmoji(streak.streak_count)}</span>
                                                         <span className={`text-[9px] font-black ${colors.text}`}>{streak.streak_count}</span>
                                                     </div>}
-                                                </Link>
-
-                                                {/* Info */}
+                                                </button>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-white font-bold text-sm truncate">{streak.username}</p>
