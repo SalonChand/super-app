@@ -15,6 +15,13 @@ const BADGE_TYPES = [
 
 const BADGE_COLOR = { blue: 'text-blue-400', yellow: 'text-yellow-400', green: 'text-green-400', red: 'text-red-500' };
 
+const STATUS_TABS = [
+    { key: 'all',         label: 'All' },
+    { key: 'active',      label: 'Active' },
+    { key: 'deactivated', label: 'Deactivated' },
+    { key: 'verified',    label: 'Verified' },
+];
+
 export default function AdminUsers() {
     const adminId = localStorage.getItem('userId');
     const userRole = localStorage.getItem('userRole');
@@ -25,6 +32,7 @@ export default function AdminUsers() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [statusTab, setStatusTab] = useState('all');
     const [actionMsg, setActionMsg] = useState({});
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [badgePickerUserId, setBadgePickerUserId] = useState(null);
@@ -100,11 +108,17 @@ export default function AdminUsers() {
         } catch(e) { msg(userId, '❌ Failed'); }
     };
 
-    const filtered = users.filter(u =>
-        u.display_name?.toLowerCase().includes(search.toLowerCase()) ||
-        u.username?.toLowerCase().includes(search.toLowerCase()) ||
-        u.email?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = users.filter(u => {
+        const matchesSearch =
+            u.display_name?.toLowerCase().includes(search.toLowerCase()) ||
+            u.username?.toLowerCase().includes(search.toLowerCase()) ||
+            u.email?.toLowerCase().includes(search.toLowerCase());
+        if (!matchesSearch) return false;
+        if (statusTab === 'active') return u.is_active !== 0;
+        if (statusTab === 'deactivated') return u.is_active === 0;
+        if (statusTab === 'verified') return isVerified(u);
+        return true;
+    });
 
     return (
         <div className="min-h-screen bg-black pb-24">
@@ -122,6 +136,29 @@ export default function AdminUsers() {
                         <input value={search} onChange={e => setSearch(e.target.value)}
                             placeholder="Search by name, username or email..."
                             className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm placeholder-zinc-500 outline-none focus:border-blue-500/50"/>
+                    </div>
+
+                    {/* Status filter tabs */}
+                    <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                        {STATUS_TABS.map(tab => {
+                            const count = tab.key === 'all' ? users.length
+                                : tab.key === 'active' ? users.filter(u => u.is_active !== 0).length
+                                : tab.key === 'deactivated' ? users.filter(u => u.is_active === 0).length
+                                : users.filter(u => isVerified(u)).length;
+                            return (
+                                <button key={tab.key} onClick={() => setStatusTab(tab.key)}
+                                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition
+                                        ${statusTab === tab.key
+                                            ? 'bg-blue-500/20 border border-blue-500/40 text-blue-300'
+                                            : 'bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800'}`}>
+                                    {tab.label}
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
+                                        ${statusTab === tab.key ? 'bg-blue-500/30 text-blue-300' : 'bg-zinc-800 text-zinc-500'}`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <p className="text-zinc-600 text-xs px-1">{filtered.length} user{filtered.length !== 1 ? 's' : ''}</p>

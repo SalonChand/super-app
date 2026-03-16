@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const pool = require('./db'); 
 const bcrypt = require('bcrypt'); 
 const jwt = require('jsonwebtoken'); 
@@ -17,6 +18,8 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const app = express();
 app.use(cors()); 
 app.use(express.json()); 
+
+const adminReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -237,7 +240,7 @@ app.get('/api/admin/stats', async (req, res) => {
 });
 
 // ===== ADMIN: Analytics =====
-app.get('/api/admin/analytics', async (req, res) => {
+app.get('/api/admin/analytics', adminReadLimiter, async (req, res) => {
     try {
         const { adminId } = req.query;
         const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
@@ -252,8 +255,29 @@ app.get('/api/admin/analytics', async (req, res) => {
         const [[{pending_requests}]] = await pool.query("SELECT COUNT(*) as pending_requests FROM verification_requests WHERE status = 'pending'");
         const [[{new_users_today}]] = await pool.query("SELECT COUNT(*) as new_users_today FROM users WHERE DATE(created_at) = CURDATE()");
         const [[{new_posts_today}]] = await pool.query("SELECT COUNT(*) as new_posts_today FROM posts WHERE DATE(created_at) = CURDATE()");
+        let new_users_week = 0, total_connections = 0, deactivated_users = 0;
+        try { [[{new_users_week}]] = await pool.query("SELECT COUNT(*) as new_users_week FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND username != 'superadmin'"); } catch(e) {}
+        try { [[{total_connections}]] = await pool.query("SELECT COUNT(*) as total_connections FROM connections WHERE status = 'accepted'"); } catch(e) {}
+        try { [[{deactivated_users}]] = await pool.query("SELECT COUNT(*) as deactivated_users FROM users WHERE is_active = 0 AND username != 'superadmin'"); } catch(e) {}
         const [top_users] = await pool.query("SELECT u.id, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COUNT(p.id) as post_count FROM users u LEFT JOIN posts p ON u.id = p.user_id WHERE u.username != 'superadmin' GROUP BY u.id ORDER BY post_count DESC LIMIT 5");
-        res.json({ total_users, total_posts, total_reels, total_comments, total_likes, verified_users, pending_requests, new_users_today, new_posts_today, top_users });
+        const avg_posts_per_user = total_users > 0 ? (total_posts / total_users).toFixed(1) : 0;
+        const avg_likes_per_post = total_posts > 0 ? (total_likes / total_posts).toFixed(1) : 0;
+        res.json({ total_users, total_posts, total_reels, total_comments, total_likes, verified_users, pending_requests, new_users_today, new_posts_today, new_users_week, total_connections, deactivated_users, avg_posts_per_user, avg_likes_per_post, top_users });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Recent Activity =====
+app.get('/api/admin/recent-activity', adminReadLimiter, async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [recent_users] = await pool.query("SELECT id, COALESCE(display_name, username) as name, username, profile_pic_url, created_at FROM users WHERE username != 'superadmin' ORDER BY created_at DESC LIMIT 5");
+        let recent_reports = [], recent_verifications = [];
+        try { [recent_reports] = await pool.query("SELECT r.id, r.reason, r.created_at, COALESCE(ru.display_name, ru.username) as reporter_name, COALESCE(tu.display_name, tu.username) as target_name FROM reports r LEFT JOIN users ru ON r.reporter_id = ru.id LEFT JOIN users tu ON r.reported_user_id = tu.id WHERE r.status = 'pending' ORDER BY r.created_at DESC LIMIT 5"); } catch(e) {}
+        try { [recent_verifications] = await pool.query("SELECT vr.id, vr.verify_type, vr.status, vr.created_at, COALESCE(u.display_name, u.username) as username FROM verification_requests vr JOIN users u ON vr.user_id = u.id ORDER BY vr.created_at DESC LIMIT 5"); } catch(e) {}
+        res.json({ recent_users, recent_reports, recent_verifications });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
