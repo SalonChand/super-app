@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserPlus, Zap, Eye, EyeOff, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { UserPlus, Zap, Eye, EyeOff, Check, ArrowRight } from 'lucide-react';
 
 function Register() {
     const [username, setUsername] = useState('');
@@ -59,12 +59,6 @@ function Register() {
             />
 
             <div className="w-full max-w-md relative animate-fade-in">
-                {/* Back to landing */}
-                <Link to="/landing" className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm mb-6 transition-colors">
-                    <ArrowLeft size={14} />
-                    Back to home
-                </Link>
-
                 {/* Card */}
                 <div className="bg-zinc-950/90 backdrop-blur-xl border border-zinc-800/80 rounded-3xl p-8 shadow-2xl shadow-black/60">
                     {/* Brand */}
