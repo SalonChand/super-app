@@ -144,9 +144,12 @@ function SplashScreen() {
 
         <div className="fixed inset-0 z-[999] bg-black flex flex-col items-center justify-center animate-fade-out" style={{ animationDelay: '1.5s', animationFillMode: 'forwards' }}>
 
-            <img src="/logo.png" alt="SuperApp" className="w-24 h-24 rounded-2xl object-cover animate-pulse shadow-[0_0_40px_rgba(59,130,246,0.6)]" />
+            <div className="relative mb-1">
+                <div className="absolute -inset-6 rounded-3xl bg-blue-500/20 blur-3xl animate-pulse" />
+                <img src="/logo.png" alt="SuperApp" className="relative w-24 h-24 rounded-2xl object-cover shadow-[0_0_60px_rgba(59,130,246,0.7)]" />
+            </div>
 
-            <h1 className="text-white font-extrabold text-3xl mt-4 tracking-tight text-blue-500">SuperApp</h1>
+            <h1 className="font-extrabold text-3xl mt-5 tracking-tight" style={{ background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SuperApp</h1>
 
             <p className="text-zinc-500 text-sm font-medium mt-2 tracking-widest uppercase">From Nepal</p>
 
@@ -248,17 +251,21 @@ function NavItem({ to, icon: Icon, label, badgeCount, themeColor, onClick, showL
 
   return (
 
-    <Link to={to} onClick={onClick} className="flex items-center gap-4 p-3 rounded-xl transition-colors text-xl font-medium w-fit xl:w-full relative" style={{ backgroundColor: isActive ? `${themeColor}20` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
+    <Link to={to} onClick={onClick} className="flex items-center gap-4 p-3 rounded-xl transition-all text-xl font-medium w-full relative group" style={{ backgroundColor: isActive ? `${themeColor}18` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
+
+      {isActive && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full transition-all" style={{ backgroundColor: themeColor }} />
+      )}
 
       <div className="relative">
 
-          <Icon size={28} />
+          <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
 
           {badgeCount > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">{badgeCount > 9 ? '9+' : badgeCount}</span>}
 
       </div>
 
-      <span className={"block"}>{label}</span>
+      <span className={`block font-semibold text-base ${isActive ? '' : 'group-hover:text-zinc-200 transition-colors'}`}>{label}</span>
 
     </Link>
 
@@ -985,15 +992,15 @@ return (
 
         {/* DESKTOP SIDEBAR */}
 
-        <header className="hidden sm:flex flex-col justify-between w-56 border-r border-zinc-800 h-screen sticky top-0 py-4 px-4 z-40 bg-black overflow-y-auto">
+        <header className="hidden sm:flex flex-col justify-between w-56 border-r border-zinc-800/60 h-screen sticky top-0 py-4 px-4 z-40 bg-black overflow-y-auto">
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
 
-            <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
+            <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3 group">
 
-              <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
+              <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover shadow-lg group-hover:scale-105 transition-transform" />
 
-              <span className="font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
+              <span className="font-extrabold text-2xl tracking-tight" style={{ background: `linear-gradient(135deg, ${userThemeColor} 0%, #818cf8 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SuperApp</span>
 
             </Link>
 
@@ -1045,9 +1052,9 @@ return (
 
           {currentUserId && (
 
-            <Link to={`/profile/${currentUserId}`} className="mt-auto flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-xl cursor-pointer transition">
+            <Link to={`/profile/${currentUserId}`} className="mt-auto flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-xl cursor-pointer transition-all border border-transparent hover:border-zinc-800">
 
-              <div className="w-10 h-10 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden" style={{ boxShadow: `0 0 0 2px ${userThemeColor}40`, border: `2px solid ${userThemeColor}60` }}>
 
                  {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
 
@@ -1069,19 +1076,19 @@ return (
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
 
-              <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
+              <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800/60 sticky top-0 bg-black/85 backdrop-blur-xl z-30">
 
                 <div className="flex items-center gap-3">
 
-                    <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+                    <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover shadow-md" />
 
-                    <h1 className="font-bold text-xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</h1>
+                    <h1 className="font-bold text-xl tracking-tight" style={{ background: `linear-gradient(135deg, ${userThemeColor} 0%, #818cf8 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SuperApp</h1>
 
                 </div>
 
-                <button onClick={() => setMobileMenuOpen(true)} className="p-2 -mr-2 text-zinc-400 hover:text-white transition">
+                <button onClick={() => setMobileMenuOpen(true)} className="p-2 -mr-2 text-zinc-400 hover:text-white transition rounded-lg hover:bg-zinc-800">
 
-                    <Menu size={26} />
+                    <Menu size={24} />
 
                 </button>
 
@@ -1152,19 +1159,22 @@ return (
 
             <div className="fixed inset-0 z-50 flex sm:hidden">
 
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setMobileMenuOpen(false)}></div>
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setMobileMenuOpen(false)}></div>
 
-                <aside className="absolute right-0 top-0 bottom-0 w-[75%] max-w-sm bg-zinc-950 border-l border-zinc-800 flex flex-col animate-[slide-left_0.3s_ease-out] shadow-2xl">
+                <aside className="absolute right-0 top-0 bottom-0 w-[75%] max-w-sm bg-zinc-950 border-l border-zinc-800/60 flex flex-col animate-[slide-left_0.3s_ease-out] shadow-2xl">
 
-                    <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+                    <div className="p-5 border-b border-zinc-800/60 flex justify-between items-center">
 
-                        <span className="font-bold text-xl text-white">Menu</span>
+                        <div className="flex items-center gap-3">
+                            <img src="/logo.png" alt="Logo" className="w-7 h-7 rounded-lg object-cover" />
+                            <span className="font-bold text-lg" style={{ background: `linear-gradient(135deg, ${userThemeColor} 0%, #818cf8 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SuperApp</span>
+                        </div>
 
-                        <button onClick={() => setMobileMenuOpen(false)} className="text-zinc-400 hover:text-white"><X size={24}/></button>
+                        <button onClick={() => setMobileMenuOpen(false)} className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"><X size={22}/></button>
 
                     </div>
 
-                    <div className="p-4 flex flex-col gap-2">
+                    <div className="p-4 flex flex-col gap-1">
 
                         <NavItem to="/search" icon={SearchIcon} label="Explore Users" themeColor={userThemeColor} showLabelAlways={true} onClick={() => setMobileMenuOpen(false)} />
 
@@ -1188,60 +1198,61 @@ return (
 
         {/* 🔥 MOBILE BOTTOM NAV (ABSOLUTELY FIXED TO SCREEN BOTTOM) 🔥 */}
 
-        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-zinc-800 flex justify-around items-center px-1 py-3 pb-safe z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/95 backdrop-blur-xl border-t border-zinc-800/60 flex justify-around items-center px-1 pt-2 pb-safe z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.6)]">
 
           {currentUserId ? (
 
               <>
 
-                  <Link to="/" className="p-1.5 transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#a1a1aa' }}><Home size={22} /></Link>
-
-                  <Link to="/reels" className="p-1.5 transition-colors" style={{ color: location.pathname === '/reels' ? userThemeColor : '#a1a1aa' }}><Clapperboard size={22} /></Link>
-
-                  <Link to="/friends" onClick={clearFriendsBadge} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#a1a1aa' }}>
-
-                      <Users size={22} />
-
-                      {badges.pending_requests > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
-
-                  </Link> 
-
-                  <Link to="/chat" onClick={clearChatBadge} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/chat' ? userThemeColor : '#a1a1aa' }}>
-
-                      <MessageCircle size={22} />
-
-                      {badges.unread_messages > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
-
+                  <Link to="/" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all relative" style={{ color: location.pathname === '/' ? userThemeColor : '#71717a' }}>
+                      {location.pathname === '/' && <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: userThemeColor }} />}
+                      <Home size={22} strokeWidth={location.pathname === '/' ? 2.5 : 2} />
+                      <span className="text-[10px] font-semibold">Home</span>
                   </Link>
 
-                  <Link to="/notifications" onClick={clearNotifications} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#a1a1aa' }}>
+                  <Link to="/reels" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all relative" style={{ color: location.pathname === '/reels' ? userThemeColor : '#71717a' }}>
+                      {location.pathname === '/reels' && <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: userThemeColor }} />}
+                      <Clapperboard size={22} strokeWidth={location.pathname === '/reels' ? 2.5 : 2} />
+                      <span className="text-[10px] font-semibold">Watch</span>
+                  </Link>
 
-                      <Bell size={22} />
+                  <Link to="/friends" onClick={clearFriendsBadge} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#71717a' }}>
+                      {location.pathname === '/friends' && <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: userThemeColor }} />}
+                      <div className="relative">
+                          <Users size={22} strokeWidth={location.pathname === '/friends' ? 2.5 : 2} />
+                          {badges.pending_requests > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
+                      </div>
+                      <span className="text-[10px] font-semibold">Friends</span>
+                  </Link>
 
-                      {badges.total_notifications > 0 && (
+                  <Link to="/chat" onClick={clearChatBadge} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all relative" style={{ color: location.pathname === '/chat' ? userThemeColor : '#71717a' }}>
+                      {location.pathname === '/chat' && <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: userThemeColor }} />}
+                      <div className="relative">
+                          <MessageCircle size={22} strokeWidth={location.pathname === '/chat' ? 2.5 : 2} />
+                          {badges.unread_messages > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
+                      </div>
+                      <span className="text-[10px] font-semibold">Chat</span>
+                  </Link>
 
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-bounce">
+                  <Link to="/notifications" onClick={clearNotifications} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#71717a' }}>
+                      {location.pathname === '/notifications' && <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: userThemeColor }} />}
+                      <div className="relative">
+                          <Bell size={22} strokeWidth={location.pathname === '/notifications' ? 2.5 : 2} />
+                          {badges.total_notifications > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold px-1 py-0 rounded-full shadow-md min-w-[14px] text-center">{badges.total_notifications > 9 ? '9+' : badges.total_notifications}</span>
+                          )}
+                      </div>
+                      <span className="text-[10px] font-semibold">Alerts</span>
+                  </Link>
 
-                              {badges.total_notifications}
-
-                          </span>
-
+                  <Link to={`/profile/${currentUserId}`} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all relative" style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#71717a' }}>
+                      {location.pathname.includes('/profile') && <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ backgroundColor: userThemeColor }} />}
+                      {currentUser?.profile_pic_url ? (
+                          <img src={`${currentUser.profile_pic_url}`} className="w-[22px] h-[22px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} />
+                      ) : (
+                          <User size={22} strokeWidth={location.pathname.includes('/profile') ? 2.5 : 2} />
                       )}
-
-                  </Link> 
-
-                  <Link to={`/profile/${currentUserId}`} className="p-1.5 flex items-center justify-center">
-
-                    {currentUser?.profile_pic_url ? ( 
-
-                        <img src={`${currentUser.profile_pic_url}`} className="w-[26px] h-[26px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
-
-                    ) : ( 
-
-                        <User size={22} style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#a1a1aa' }} /> 
-
-                    )}
-
+                      <span className="text-[10px] font-semibold">Profile</span>
                   </Link>
 
               </>
