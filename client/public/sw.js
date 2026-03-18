@@ -106,3 +106,52 @@ self.addEventListener('notificationclick', (e) => {
 
 // ── Notification Close (optional analytics) ──────────────────
 self.addEventListener('notificationclose', () => {});
+
+// ── Push Subscription Change (auto-renew when subscription expires) ──────
+// Fired by the browser when the push subscription is changed or expires.
+// We resubscribe and push the new subscription to the backend so push
+// notifications keep working even while the app is closed.
+self.addEventListener('pushsubscriptionchange', (e) => {
+    const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+
+    e.waitUntil(
+        (async () => {
+            try {
+                // Fetch the VAPID public key
+                const vapidRes = await fetch(`${BACKEND_URL}/api/vapidPublicKey`);
+                if (!vapidRes.ok) throw new Error('Failed to fetch VAPID key');
+                const vapidKey = await vapidRes.text();
+
+                // Resubscribe with the current VAPID key
+                const newSubscription = await self.registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey),
+                });
+
+                // Tell the backend to swap the old subscription for the new one
+                await fetch(`${BACKEND_URL}/api/resubscribe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        oldEndpoint: e.oldSubscription?.endpoint,
+                        newSubscription: newSubscription.toJSON(),
+                    }),
+                });
+            } catch (err) {
+                console.error('[SW] pushsubscriptionchange failed:', err);
+            }
+        })()
+    );
+});
+
+// ── Helper: convert URL-safe base64 VAPID key to Uint8Array ──────────────
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i++) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
