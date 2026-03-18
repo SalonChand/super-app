@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Users, BadgeCheck, BarChart2, MessageSquareX, Flag, Settings, ChevronRight, LogOut, Zap, Globe, ShoppingBag } from 'lucide-react';
+import { Shield, Users, BadgeCheck, BarChart2, MessageSquareX, Flag, Settings, ChevronRight, Zap, Globe, ShoppingBag, UserPlus, AlertTriangle, Clock } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+
+function timeAgo(d) {
+    if (!d) return '';
+    const diff = (Date.now() - new Date(d)) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+}
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
@@ -12,11 +21,14 @@ export default function AdminDashboard() {
     const username = localStorage.getItem('username');
     const isAdmin = userRole === 'superadmin' || loginUsername === 'superadmin' || username === 'superadmin' || adminId === '1';
     const [stats, setStats] = useState({ users: 0, posts: 0, pending: 0, reports: 0 });
+    const [activity, setActivity] = useState(null);
 
     useEffect(() => {
         if (!isAdmin) { navigate('/settings'); return; }
         fetch(`${BACKEND_URL}/api/admin/stats?adminId=${adminId}`)
             .then(r => r.json()).then(d => { if (d && !d.error) setStats(d); }).catch(() => {});
+        fetch(`${BACKEND_URL}/api/admin/recent-activity?adminId=${adminId}`)
+            .then(r => r.json()).then(d => { if (d && !d.error) setActivity(d); }).catch(() => {});
     }, []);
 
     const sections = [
@@ -32,6 +44,9 @@ export default function AdminDashboard() {
     ];
 
     if (!isAdmin) return null;
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
     return (
         <div className="min-h-screen bg-black pb-24">
@@ -52,22 +67,88 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            <div className="max-w-2xl mx-auto px-4 pt-5 space-y-3">
+            <div className="max-w-2xl mx-auto px-4 pt-5 space-y-4">
+                {/* Welcome Banner */}
+                <div className="bg-gradient-to-r from-yellow-500/10 to-zinc-900 border border-yellow-500/20 rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <Shield size={20} className="text-yellow-400 flex-shrink-0"/>
+                    <div>
+                        <p className="text-white font-bold text-sm">Welcome back, Superadmin</p>
+                        <p className="text-zinc-500 text-xs">{dateStr}</p>
+                    </div>
+                    {stats.reports > 0 && (
+                        <Link to="/admin/reports" className="ml-auto flex items-center gap-1.5 bg-orange-500/20 border border-orange-500/40 rounded-full px-3 py-1 hover:bg-orange-500/30 transition">
+                            <AlertTriangle size={11} className="text-orange-400"/>
+                            <span className="text-orange-400 text-xs font-bold">{stats.reports} reports</span>
+                        </Link>
+                    )}
+                </div>
+
                 {/* Stats Row */}
-                <div className="grid grid-cols-3 gap-2 mb-2">
+                <div className="grid grid-cols-2 gap-2">
                     {[
-                        { label: 'Total Users', value: stats.users, color: 'text-blue-400' },
-                        { label: 'Total Posts', value: stats.posts, color: 'text-green-400' },
-                        { label: 'Pending', value: stats.pending, color: 'text-yellow-400' },
+                        { label: 'Total Users', value: stats.users, color: 'text-blue-400', bg: 'border-blue-500/20' },
+                        { label: 'Total Posts', value: stats.posts, color: 'text-green-400', bg: 'border-green-500/20' },
+                        { label: 'Pending Verif.', value: stats.pending, color: 'text-yellow-400', bg: 'border-yellow-500/20' },
+                        { label: 'Open Reports', value: stats.reports, color: stats.reports > 0 ? 'text-orange-400' : 'text-zinc-500', bg: stats.reports > 0 ? 'border-orange-500/20' : 'border-zinc-800' },
                     ].map(s => (
-                        <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
-                            <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                        <div key={s.label} className={`bg-zinc-900 border ${s.bg} rounded-2xl p-3 text-center`}>
+                            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
                             <p className="text-zinc-500 text-xs mt-0.5">{s.label}</p>
                         </div>
                     ))}
                 </div>
 
+                {/* Recent Activity */}
+                {activity && (activity.recent_users?.length > 0 || activity.recent_reports?.length > 0 || activity.recent_verifications?.length > 0) && (
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                        <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                            <Clock size={14} className="text-zinc-400"/>
+                            <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Recent Activity</p>
+                        </div>
+                        <div className="divide-y divide-zinc-800">
+                            {activity.recent_verifications?.slice(0, 3).map(v => (
+                                <div key={v.id} className="flex items-center gap-3 px-4 py-2.5">
+                                    <BadgeCheck size={14} className="text-yellow-400 flex-shrink-0"/>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-xs font-semibold truncate">
+                                            <span className="text-yellow-400">@{v.username}</span> requested {v.verify_type} verification
+                                        </p>
+                                        <p className="text-zinc-600 text-[10px]">{timeAgo(v.created_at)}</p>
+                                    </div>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full
+                                        ${v.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400'
+                                        : v.status === 'approved' ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-red-500/20 text-red-400'}`}>{v.status}</span>
+                                </div>
+                            ))}
+                            {activity.recent_reports?.slice(0, 2).map(r => (
+                                <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                                    <Flag size={14} className="text-orange-400 flex-shrink-0"/>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-xs font-semibold truncate">
+                                            Report: <span className="text-orange-400">{r.reason || 'No reason'}</span>
+                                        </p>
+                                        <p className="text-zinc-600 text-[10px]">{timeAgo(r.created_at)}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {activity.recent_users?.slice(0, 2).map(u => (
+                                <div key={u.id} className="flex items-center gap-3 px-4 py-2.5">
+                                    <UserPlus size={14} className="text-blue-400 flex-shrink-0"/>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white text-xs font-semibold truncate">
+                                            <span className="text-blue-400">@{u.username}</span> joined
+                                        </p>
+                                        <p className="text-zinc-600 text-[10px]">{timeAgo(u.created_at)}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Section Cards */}
+                <p className="text-zinc-500 text-xs px-1 uppercase tracking-wider font-bold">Management</p>
                 {sections.map(sec => (
                     <Link key={sec.route} to={sec.route}
                         className={`flex items-center gap-4 bg-gradient-to-r ${sec.color} border ${sec.border} rounded-2xl p-4 transition hover:scale-[1.01] active:scale-[0.99]`}>

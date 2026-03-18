@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const pool = require('./db'); 
 const bcrypt = require('bcrypt'); 
 const jwt = require('jsonwebtoken'); 
@@ -20,6 +21,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://super-app-wc32.vercel.
 const app = express();
 app.use(cors({ origin: FRONTEND_URL, credentials: true })); 
 app.use(express.json()); 
+
+const adminReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -240,7 +243,7 @@ app.get('/api/admin/stats', async (req, res) => {
 });
 
 // ===== ADMIN: Analytics =====
-app.get('/api/admin/analytics', async (req, res) => {
+app.get('/api/admin/analytics', adminReadLimiter, async (req, res) => {
     try {
         const { adminId } = req.query;
         const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
@@ -255,8 +258,29 @@ app.get('/api/admin/analytics', async (req, res) => {
         const [[{pending_requests}]] = await pool.query("SELECT COUNT(*) as pending_requests FROM verification_requests WHERE status = 'pending'");
         const [[{new_users_today}]] = await pool.query("SELECT COUNT(*) as new_users_today FROM users WHERE DATE(created_at) = CURDATE()");
         const [[{new_posts_today}]] = await pool.query("SELECT COUNT(*) as new_posts_today FROM posts WHERE DATE(created_at) = CURDATE()");
+        let new_users_week = 0, total_connections = 0, deactivated_users = 0;
+        try { [[{new_users_week}]] = await pool.query("SELECT COUNT(*) as new_users_week FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND username != 'superadmin'"); } catch(e) { console.warn('analytics: new_users_week query failed', e.message); }
+        try { [[{total_connections}]] = await pool.query("SELECT COUNT(*) as total_connections FROM connections WHERE status = 'accepted'"); } catch(e) { console.warn('analytics: total_connections query failed', e.message); }
+        try { [[{deactivated_users}]] = await pool.query("SELECT COUNT(*) as deactivated_users FROM users WHERE is_active = 0 AND username != 'superadmin'"); } catch(e) { console.warn('analytics: deactivated_users query failed', e.message); }
         const [top_users] = await pool.query("SELECT u.id, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COUNT(p.id) as post_count FROM users u LEFT JOIN posts p ON u.id = p.user_id WHERE u.username != 'superadmin' GROUP BY u.id ORDER BY post_count DESC LIMIT 5");
-        res.json({ total_users, total_posts, total_reels, total_comments, total_likes, verified_users, pending_requests, new_users_today, new_posts_today, top_users });
+        const avg_posts_per_user = total_users > 0 ? (total_posts / total_users).toFixed(1) : 0;
+        const avg_likes_per_post = total_posts > 0 ? (total_likes / total_posts).toFixed(1) : 0;
+        res.json({ total_users, total_posts, total_reels, total_comments, total_likes, verified_users, pending_requests, new_users_today, new_posts_today, new_users_week, total_connections, deactivated_users, avg_posts_per_user, avg_likes_per_post, top_users });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ADMIN: Recent Activity =====
+app.get('/api/admin/recent-activity', adminReadLimiter, async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query("SELECT id, username, role FROM users WHERE id = ?", [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
+        const [recent_users] = await pool.query("SELECT id, COALESCE(display_name, username) as name, username, profile_pic_url, created_at FROM users WHERE username != 'superadmin' ORDER BY created_at DESC LIMIT 5");
+        let recent_reports = [], recent_verifications = [];
+        try { [recent_reports] = await pool.query("SELECT r.id, r.reason, r.created_at, COALESCE(ru.display_name, ru.username) as reporter_name, COALESCE(tu.display_name, tu.username) as target_name FROM reports r LEFT JOIN users ru ON r.reporter_id = ru.id LEFT JOIN users tu ON r.reported_user_id = tu.id WHERE r.status = 'pending' ORDER BY r.created_at DESC LIMIT 5"); } catch(e) { console.warn('recent-activity: reports query failed', e.message); }
+        try { [recent_verifications] = await pool.query("SELECT vr.id, vr.verify_type, vr.status, vr.created_at, COALESCE(u.display_name, u.username) as username FROM verification_requests vr JOIN users u ON vr.user_id = u.id ORDER BY vr.created_at DESC LIMIT 5"); } catch(e) { console.warn('recent-activity: verifications query failed', e.message); }
+        res.json({ recent_users, recent_reports, recent_verifications });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1306,6 +1330,10 @@ app.delete('/api/posts/:id', async (req, res) => { try { await pool.query('DELET
 app.get('/api/posts', async (req, res) => {
     try {
         const currentUserId = req.query.userId || 0;
+        const sinceRaw = req.query.since ? parseInt(req.query.since, 10) : null;
+        const since = sinceRaw > 0 ? sinceRaw : null;
+        const sinceClause = since ? 'AND p.id > ?' : '';
+        const queryParams = since ? [currentUserId, since] : [currentUserId];
         const [posts] = await pool.query(
             `SELECT p.*, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type, COALESCE(u.show_active_status, 1) as show_active_status,
              (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count,
@@ -1314,7 +1342,8 @@ app.get('/api/posts', async (req, res) => {
              cu.username as co_author_username, cu.profile_pic_url as co_author_pic
              FROM posts p JOIN users u ON p.user_id = u.id
              LEFT JOIN users cu ON p.co_author_id = cu.id
-             ORDER BY p.created_at DESC`, [currentUserId]);
+             WHERE 1=1 ${sinceClause}
+             ORDER BY p.created_at DESC`, queryParams);
         // Filter out drafts and future scheduled posts in JS (safer if columns don't exist yet)
         const filtered = posts.filter(p => !p.is_draft && (!p.scheduled_at || new Date(p.scheduled_at) <= new Date()) && (p.visibility !== 'only_me' || p.user_id == currentUserId));
         res.json(filtered);

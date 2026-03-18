@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, BarChart2, Users, FileText, Film, MessageCircle, Heart, RefreshCw } from 'lucide-react';
+import { ChevronLeft, BarChart2, Users, FileText, Film, MessageCircle, Heart, RefreshCw, TrendingUp, Link2, UserX } from 'lucide-react';
 import axios from 'axios';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -50,12 +50,20 @@ export default function AdminAnalytics() {
                 {loading ? <div className="text-center py-16 text-zinc-500">Loading analytics...</div> : !stats ? <div className="text-center py-16 text-zinc-500">Could not load stats</div> : <>
                     <p className="text-zinc-500 text-xs px-1 uppercase tracking-wider font-bold">Overview</p>
                     <div className="grid grid-cols-2 gap-3">
-                        <StatCard icon={Users} label="Total Users" value={stats.total_users} sub={`${stats.new_users_today || 0} today`} color="bg-blue-500"/>
+                        <StatCard icon={Users} label="Total Users" value={stats.total_users} sub={`${stats.new_users_today || 0} today · ${stats.new_users_week || 0} this week`} color="bg-blue-500"/>
                         <StatCard icon={FileText} label="Total Posts" value={stats.total_posts} sub={`${stats.new_posts_today || 0} today`} color="bg-green-500"/>
                         <StatCard icon={Film} label="Total Reels" value={stats.total_reels} color="bg-purple-500"/>
                         <StatCard icon={MessageCircle} label="Total Comments" value={stats.total_comments} color="bg-yellow-500"/>
                         <StatCard icon={Heart} label="Total Likes" value={stats.total_likes} color="bg-red-500"/>
                         <StatCard icon={Users} label="Verified Users" value={stats.verified_users} sub={`${stats.pending_requests || 0} pending`} color="bg-yellow-600"/>
+                    </div>
+
+                    <p className="text-zinc-500 text-xs px-1 uppercase tracking-wider font-bold pt-2">Engagement</p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <StatCard icon={TrendingUp} label="Avg Posts / User" value={stats.avg_posts_per_user} color="bg-teal-500"/>
+                        <StatCard icon={Heart} label="Avg Likes / Post" value={stats.avg_likes_per_post} color="bg-pink-500"/>
+                        <StatCard icon={Link2} label="Total Connections" value={stats.total_connections} color="bg-indigo-500"/>
+                        <StatCard icon={UserX} label="Deactivated Users" value={stats.deactivated_users} color="bg-zinc-600"/>
                     </div>
 
                     {stats.top_users && stats.top_users.length > 0 && <>
