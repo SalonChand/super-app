@@ -52,6 +52,7 @@ import AdminMarketplace from './AdminMarketplace';
 import AdminPowers from './AdminPowers';
 import AdminCommunities from './AdminCommunities';
 import Streaks from './Streaks';
+import AppTreeDiagram from './AppTreeDiagram';
 
 import Marketplace from './Marketplace';
 import Landing from './Landing';
@@ -1141,6 +1142,7 @@ return (
             <Route path="/admin/app-settings" element={<ProtectedRoute><AdminAppSettings /></ProtectedRoute>} />
             <Route path="/admin/powers" element={<ProtectedRoute><AdminPowers /></ProtectedRoute>} />
             <Route path="/admin/communities" element={<ProtectedRoute><AdminCommunities /></ProtectedRoute>} />
+            <Route path="/admin/tree" element={<ProtectedRoute><AppTreeDiagram /></ProtectedRoute>} />
 
           </Routes>
 
