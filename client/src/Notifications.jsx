@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, UserPlus, Check, AtSign, Heart, Users, Cake } from 'lucide-react';
@@ -28,15 +29,18 @@ const TYPE_CONFIG = {
 
 function Notifications() {
     const userId = localStorage.getItem('userId');
-    const [activity, setActivity] = useState([]);
-    const [suggestions, setSuggestions] = useState([]);
-    const [addedIds, setAddedIds] = useState(new Set());
-    const [birthdayFriends, setBirthdayFriends] = useState([]);
-    const [initialLoading, setInitialLoading] = useState(true);
+    const navigate = useNavigate();
 
-    useEffect(() => {
+    // ── Pull-to-refresh ──
+    const containerRef = useRef(null);
+    const ptrStartY = useRef(null);
+    const [ptrY, setPtrY] = useState(0);
+    const [ptrActive, setPtrActive] = useState(false);
+    const ptrThreshold = 70;
+
+    const loadAll = async () => {
         if (!userId) return;
-        Promise.all([
+        return Promise.all([
             axios.get(`${BACKEND_URL}/api/notifications/${userId}`)
                 .then(res => { if (Array.isArray(res.data)) setActivity(res.data.filter(n => n.type !== 'message')); })
                 .catch(() => {}),
@@ -46,7 +50,40 @@ function Notifications() {
             axios.get(`${BACKEND_URL}/api/users/${userId}/birthday-friends`)
                 .then(res => { if (Array.isArray(res.data)) setBirthdayFriends(res.data); })
                 .catch(() => {}),
-        ]).finally(() => setInitialLoading(false));
+        ]);
+    };
+
+    const onPtrTouchStart = (e) => {
+        const el = containerRef.current;
+        if (!el || el.scrollTop > 0) return;
+        ptrStartY.current = e.touches[0].clientY;
+    };
+    const onPtrTouchMove = (e) => {
+        if (ptrStartY.current === null) return;
+        const dy = e.touches[0].clientY - ptrStartY.current;
+        if (dy < 0) { ptrStartY.current = null; return; }
+        e.preventDefault();
+        setPtrY(Math.min(dy * 0.5, ptrThreshold + 20));
+    };
+    const onPtrTouchEnd = async () => {
+        if (ptrStartY.current === null) return;
+        ptrStartY.current = null;
+        if (ptrY >= ptrThreshold) {
+            setPtrActive(true); setPtrY(ptrThreshold);
+            await loadAll();
+            setPtrActive(false);
+        }
+        setPtrY(0);
+    };
+    const [activity, setActivity] = useState([]);
+    const [suggestions, setSuggestions] = useState([]);
+    const [addedIds, setAddedIds] = useState(new Set());
+    const [birthdayFriends, setBirthdayFriends] = useState([]);
+    const [initialLoading, setInitialLoading] = useState(true);
+
+    useEffect(() => {
+        if (!userId) return;
+        loadAll().finally(() => setInitialLoading(false));
     }, []);
 
     const sendRequest = (targetId) => {
@@ -56,7 +93,21 @@ function Notifications() {
     };
 
     return (
-        <div className="w-full bg-zinc-950 min-h-screen pb-20 sm:pb-0 animate-fade-in relative">
+        <div
+            ref={containerRef}
+            className="w-full bg-zinc-950 min-h-screen pb-20 sm:pb-0 animate-fade-in relative overflow-y-auto"
+            onTouchStart={onPtrTouchStart}
+            onTouchMove={onPtrTouchMove}
+            onTouchEnd={onPtrTouchEnd}
+            style={{ touchAction: ptrY > 0 ? 'none' : 'auto' }}
+        >
+            {/* Pull-to-refresh indicator */}
+            <div className="flex items-center justify-center overflow-hidden transition-[height] duration-200 ease-out"
+                style={{ height: ptrY > 0 || ptrActive ? `${Math.max(ptrY, ptrActive ? ptrThreshold : 0)}px` : '0px' }}>
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${ptrActive ? 'border-sky-500 border-t-transparent animate-spin' : ptrY >= ptrThreshold ? 'border-sky-400 border-t-transparent' : 'border-zinc-700 border-t-zinc-400'}`}>
+                    {!ptrActive && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-zinc-400" style={{transform:`rotate(${Math.min((ptrY/ptrThreshold)*180,180)}deg)`,transition:'transform 0.1s'}}><path d="M12 5v14M5 12l7-7 7 7"/></svg>}
+                </div>
+            </div>
             <div className="px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/90 sticky top-0 z-10 flex items-center justify-between backdrop-blur-xl">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500/20 to-rose-500/20 border border-sky-500/20 flex items-center justify-center">
@@ -161,7 +212,7 @@ function Notifications() {
                         const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG['message'];
                         const { color, Icon, link } = cfg;
                         return (
-                            <Link to={link} key={i} className="flex items-center gap-4 bg-zinc-900/60 border border-zinc-800/50 p-4 rounded-2xl hover:bg-zinc-900 hover:border-zinc-700/60 transition-all shadow-sm">
+                            <Link to={item.type === 'mention' && item.post_id ? `/?post=${item.post_id}` : link} key={i} className="flex items-center gap-4 bg-zinc-900/60 border border-zinc-800/50 p-4 rounded-2xl hover:bg-zinc-900 hover:border-zinc-700/60 transition-all shadow-sm">
                                 <div className="relative flex-shrink-0">
                                     <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center">
                                         {item.profile_pic_url

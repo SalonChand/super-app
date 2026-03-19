@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import './index.css';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -140,6 +140,30 @@ function Feed({ onlineUsers = new Set() }) {
     const isDrawing = useRef(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [ptrActive, setPtrActive] = useState(false);   // pull-to-refresh visible
+    const [ptrY, setPtrY] = useState(0);                 // how far pulled (px)
+    const ptrStartY = useRef(null);
+    const ptrScrollTop = useRef(0);
+    const ptrThreshold = 70;                             // px to trigger refresh
+    const feedRef = useRef(null);
+    const location = useLocation();
+    const [highlightPostId, setHighlightPostId] = useState(null);
+
+    // Deep link: ?post=123 scrolls to and highlights that post
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const postId = params.get('post');
+        if (postId) {
+            setHighlightPostId(Number(postId));
+            // Scroll to post after data loads
+            setTimeout(() => {
+                const el = document.getElementById(`post-${postId}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Remove highlight after 3s
+                setTimeout(() => setHighlightPostId(null), 3000);
+            }, 800);
+        }
+    }, [location.search]);
     const [initialLoading, setInitialLoading] = useState(true);
     const [feedPage, setFeedPage] = useState(0);
     const [hasMorePosts, setHasMorePosts] = useState(true);
@@ -219,6 +243,37 @@ function Feed({ onlineUsers = new Set() }) {
             setHasMorePosts(Array.isArray(data) ? newPosts.length === 20 : (data.hasMore ?? false));
         } catch(e) {}
         setLoadingMore(false);
+    };
+
+    // ── Pull-to-refresh handlers ──────────────────────────────────
+    const onPtrTouchStart = (e) => {
+        const scrollEl = feedRef.current;
+        if (!scrollEl) return;
+        ptrScrollTop.current = scrollEl.scrollTop;
+        if (ptrScrollTop.current > 0) return; // only trigger at top
+        ptrStartY.current = e.touches[0].clientY;
+    };
+
+    const onPtrTouchMove = (e) => {
+        if (ptrStartY.current === null) return;
+        const scrollEl = feedRef.current;
+        if (scrollEl && scrollEl.scrollTop > 0) { ptrStartY.current = null; return; }
+        const dy = e.touches[0].clientY - ptrStartY.current;
+        if (dy < 0) return;
+        e.preventDefault();
+        setPtrY(Math.min(dy * 0.5, ptrThreshold + 20)); // rubber band
+    };
+
+    const onPtrTouchEnd = async () => {
+        if (ptrStartY.current === null) return;
+        ptrStartY.current = null;
+        if (ptrY >= ptrThreshold) {
+            setPtrActive(true);
+            setPtrY(ptrThreshold);
+            await fetchData();
+            setPtrActive(false);
+        }
+        setPtrY(0);
     };
 
     useEffect(() => { fetchData(); }, []);
@@ -460,7 +515,23 @@ function Feed({ onlineUsers = new Set() }) {
     };
 
     return (
-        <div className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative">
+        <div
+            ref={feedRef}
+            className="w-full animate-fade-in pb-20 sm:pb-0 overflow-hidden relative"
+            onTouchStart={onPtrTouchStart}
+            onTouchMove={onPtrTouchMove}
+            onTouchEnd={onPtrTouchEnd}
+            style={{ touchAction: ptrY > 0 ? 'none' : 'auto' }}
+        >
+            {/* ── Pull-to-refresh indicator ── */}
+            <div
+                className="flex items-center justify-center overflow-hidden transition-[height] duration-200 ease-out"
+                style={{ height: ptrY > 0 || ptrActive ? `${Math.max(ptrY, ptrActive ? ptrThreshold : 0)}px` : '0px' }}
+            >
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${ptrActive ? 'border-sky-500 border-t-transparent animate-spin' : ptrY >= ptrThreshold ? 'border-sky-400 border-t-transparent' : 'border-zinc-700 border-t-zinc-400'}`}>
+                    {!ptrActive && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-zinc-400" style={{transform: `rotate(${Math.min((ptrY/ptrThreshold)*180, 180)}deg)`, transition:'transform 0.1s'}}><path d="M12 5v14M5 12l7-7 7 7"/></svg>}
+                </div>
+            </div>
             {/* ===== HASHTAG VIEW ===== */}
             {hashtagView && (
                 <div style={{position:'fixed',inset:0,zIndex:9000,background:'rgba(0,0,0,0.97)',overflowY:'auto'}} className="animate-fade-in">
@@ -806,7 +877,7 @@ function Feed({ onlineUsers = new Set() }) {
                     <>
                 {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
                 {posts.map((post) => (
-                    <div key={post.id} className="p-4 border-b border-zinc-800/50 hover:bg-zinc-900/20 transition-colors flex gap-4">
+                    <div key={post.id} id={`post-${post.id}`} className={`p-4 border-b border-zinc-800/50 hover:bg-zinc-900/20 transition-colors flex gap-4 ${highlightPostId === post.id ? "bg-sky-500/10 border-l-2 border-l-sky-500" : ""}`}>
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <div className="relative flex-shrink-0" style={{width: '48px', height: '48px'}}>
         <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
