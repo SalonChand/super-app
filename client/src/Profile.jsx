@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost, Rss } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost, Rss , DollarSign } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -476,6 +476,10 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                             : <>
                                 <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 hover:border-zinc-600 transition-all text-sm"><Edit3 size={15} /> Edit Profile</button>
                                 <button onClick={() => setShowQR(true)} title="Show QR Code" className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-700/60 text-white font-semibold py-2 px-3 rounded-xl hover:bg-zinc-800 hover:border-zinc-600 transition-all text-sm">📱</button>
+                                <Link to="/monetization" title="Monetization" className={`flex items-center gap-1.5 py-2 px-3 rounded-xl font-semibold text-sm transition-all border ${profileData?.is_monetized ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' : 'bg-zinc-900/80 border-zinc-700/60 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}>
+                                    <DollarSign size={15} />
+                                    {profileData?.is_monetized ? 'Monetized' : 'Monetize'}
+                                </Link>
                                 <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800 transition">📊 Dashboard</button>
                               </>
                         ) : (
@@ -511,6 +515,11 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         <VerifiedBadge isVerified={!!profileData.is_verified} verifyType={profileData.verify_type} size={20}/>
                         {!isVerifiedProfile && profileData.is_private ? <Lock size={16} className="text-zinc-500" /> : null}
                         {isMyProfile && !!profileData.ghost_mode && <span title="Ghost Mode ON" className="text-purple-400"><Ghost size={16}/></span>}
+                        {profileData?.is_monetized && profileData?.creator_tag && (
+                            <span className="inline-flex items-center gap-1 text-xs font-black px-2 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-400">
+                                <DollarSign size={10} />{profileData.creator_tag}
+                            </span>
+                        )}
                     </div>
                     <p className="text-zinc-500">@{profileData.username.toLowerCase()}</p>
                     {/* Active status badge */}

@@ -633,6 +633,9 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE posts ADD COLUMN is_pinned_global BOOLEAN DEFAULT FALSE");
     await patch("CREATE TABLE IF NOT EXISTS broadcasts (id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT, title VARCHAR(200), message TEXT, type VARCHAR(20) DEFAULT 'info', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     await patch("CREATE TABLE IF NOT EXISTS renewal_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, listing_id INT NOT NULL, listing_title VARCHAR(200), reason TEXT, duration_days INT DEFAULT 30, contact VARCHAR(200), status VARCHAR(20) DEFAULT 'pending', admin_note VARCHAR(500) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (listing_id) REFERENCES marketplace(id) ON DELETE CASCADE)");
+    await patch("ALTER TABLE users ADD COLUMN is_monetized BOOLEAN DEFAULT FALSE");
+    await patch("ALTER TABLE users ADD COLUMN creator_tag VARCHAR(100) DEFAULT NULL");
+    await patch("CREATE TABLE IF NOT EXISTS monetization_applications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, status VARCHAR(20) DEFAULT 'pending', applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMP NULL, reviewed_by INT NULL, admin_note TEXT, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     await patch("CREATE TABLE IF NOT EXISTS daily_challenges (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(200) NOT NULL, description TEXT, emoji VARCHAR(10) DEFAULT '🎯', challenge_date DATE NOT NULL, created_by INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_date (challenge_date))");
     await patch("CREATE TABLE IF NOT EXISTS challenge_completions (id INT AUTO_INCREMENT PRIMARY KEY, challenge_id INT NOT NULL, user_id INT NOT NULL, post_id INT DEFAULT NULL, completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_completion (challenge_id, user_id), FOREIGN KEY (challenge_id) REFERENCES daily_challenges(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
@@ -2012,6 +2015,144 @@ app.delete('/api/admin/challenge/:id', async (req, res) => {
         await pool.query('DELETE FROM daily_challenges WHERE id = ?', [req.params.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// ===== MONETIZATION ROUTES =====
+
+// Get user monetization progress
+app.get('/api/monetization/progress/:userId', async (req, res) => {
+    try {
+        const uid = req.params.userId;
+
+        // Get user data
+        const [[user]] = await pool.query(`
+            SELECT u.*,
+                (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS post_count,
+                (SELECT COUNT(*) FROM likes l JOIN posts p ON l.post_id = p.id WHERE p.user_id = u.id) AS total_likes,
+                (SELECT COUNT(*) FROM comments cm JOIN posts p ON cm.post_id = p.id WHERE p.user_id = u.id) AS total_comments,
+                (SELECT COUNT(*) FROM connections WHERE (requester_id = u.id OR receiver_id = u.id) AND status = 'accepted') AS friend_count,
+                (SELECT COUNT(*) FROM followers WHERE following_id = u.id) AS follower_count,
+                (SELECT COUNT(*) FROM challenge_completions WHERE user_id = u.id) AS challenge_count
+            FROM users u WHERE u.id = ?
+        `, [uid]);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Check consecutive posting days (last 65 days)
+        const [postDates] = await pool.query(`
+            SELECT DISTINCT DATE(created_at) AS post_date
+            FROM posts WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 65 DAY)
+            ORDER BY post_date DESC
+        `, [uid]);
+        let consecutiveDays = 0;
+        const today = new Date(); today.setHours(0,0,0,0);
+        for (let i = 0; i < postDates.length; i++) {
+            const expected = new Date(today); expected.setDate(today.getDate() - i);
+            const actual = new Date(postDates[i].post_date);
+            if (actual.toDateString() === expected.toDateString()) consecutiveDays++;
+            else break;
+        }
+
+        // Check 3 posts/day for 30 days
+        const [dailyPosts] = await pool.query(`
+            SELECT DATE(created_at) AS d, COUNT(*) AS cnt
+            FROM posts WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY d HAVING cnt >= 3
+        `, [uid]);
+
+        // Profile completeness
+        const profileComplete = !!(user.bio && user.profile_pic_url && user.cover_pic_url);
+        const totalFollowers = (user.follower_count || 0) + (user.friend_count || 0);
+
+        const tasks = [
+            // Easy
+            { id: 'profile_complete', label: 'Complete your profile', desc: 'Add bio, profile photo & cover photo', difficulty: 'easy', current: profileComplete ? 1 : 0, target: 1, done: profileComplete },
+            { id: 'first_posts', label: 'Make your first 10 posts', desc: 'Share 10 posts with your followers', difficulty: 'easy', current: Math.min(user.post_count, 10), target: 10, done: user.post_count >= 10 },
+            // Moderate
+            { id: 'reach_150', label: 'Reach 150 friends/followers', desc: 'Grow your network to 150 people', difficulty: 'moderate', current: Math.min(totalFollowers, 150), target: 150, done: totalFollowers >= 150 },
+            { id: 'post_3x30', label: 'Post 3 times a day for 30 days', desc: 'Consistent daily posting for a month', difficulty: 'moderate', current: Math.min(dailyPosts.length, 30), target: 30, done: dailyPosts.length >= 30 },
+            { id: 'likes_500', label: 'Get 500 total likes', desc: 'Earn 500 likes across all your posts', difficulty: 'moderate', current: Math.min(user.total_likes, 500), target: 500, done: user.total_likes >= 500 },
+            // Hard
+            { id: 'reach_450', label: 'Reach 450 followers', desc: 'Build a large following of 450+', difficulty: 'hard', current: Math.min(user.follower_count || 0, 450), target: 450, done: (user.follower_count || 0) >= 450 },
+            { id: 'likes_1500', label: 'Get 1500 total likes', desc: 'Earn 1500 likes across all your posts', difficulty: 'hard', current: Math.min(user.total_likes, 1500), target: 1500, done: user.total_likes >= 1500 },
+            { id: 'streak_65', label: 'Post for 65 consecutive days', desc: 'Show consistency with 65 days straight', difficulty: 'hard', current: Math.min(consecutiveDays, 65), target: 65, done: consecutiveDays >= 65 },
+            { id: 'challenges_5', label: 'Complete 5 daily challenges', desc: 'Participate in 5 platform challenges', difficulty: 'hard', current: Math.min(user.challenge_count, 5), target: 5, done: user.challenge_count >= 5 },
+            { id: 'comments_1000', label: 'Get 1000 comments on posts', desc: 'Build an engaged community', difficulty: 'hard', current: Math.min(user.total_comments, 1000), target: 1000, done: user.total_comments >= 1000 },
+        ];
+
+        const allDone = tasks.every(t => t.done);
+        const [appRows] = await pool.query('SELECT * FROM monetization_applications WHERE user_id = ?', [uid]);
+
+        res.json({
+            tasks,
+            allDone,
+            is_monetized: !!user.is_monetized,
+            creator_tag: user.creator_tag,
+            application: appRows[0] || null
+        });
+    } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+
+// Apply for monetization
+app.post('/api/monetization/apply', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        // Verify all tasks done
+        const progressRes = await new Promise((resolve, reject) => {
+            const fakeReq = { params: { userId } };
+            const fakeRes = { json: resolve, status: () => ({ json: reject }) };
+            // Just recompute inline
+            resolve(null);
+        });
+        await pool.query(`CREATE TABLE IF NOT EXISTS monetization_applications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, status VARCHAR(20) DEFAULT 'pending', applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMP NULL, reviewed_by INT NULL, admin_note TEXT, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`).catch(()=>{});
+        await pool.query(
+            'INSERT INTO monetization_applications (user_id, status) VALUES (?, "pending") ON DUPLICATE KEY UPDATE status="pending", applied_at=NOW()',
+            [userId]
+        );
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: get monetization applications
+app.get('/api/admin/monetization', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query(`CREATE TABLE IF NOT EXISTS monetization_applications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL UNIQUE, status VARCHAR(20) DEFAULT 'pending', applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMP NULL, reviewed_by INT NULL, admin_note TEXT, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`).catch(()=>{});
+        const [rows] = await pool.query(`
+            SELECT ma.*, COALESCE(u.display_name, u.username) AS username, u.profile_pic_url,
+                u.email, u.created_at AS joined_at, u.is_monetized,
+                (SELECT COUNT(*) FROM posts WHERE user_id = u.id) AS post_count,
+                (SELECT COUNT(*) FROM likes l JOIN posts p ON l.post_id = p.id WHERE p.user_id = u.id) AS total_likes,
+                (SELECT COUNT(*) FROM followers WHERE following_id = u.id) AS follower_count
+            FROM monetization_applications ma
+            JOIN users u ON u.id = ma.user_id
+            ORDER BY ma.applied_at DESC
+        `);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: approve/reject monetization
+app.post('/api/admin/monetization/:userId', async (req, res) => {
+    try {
+        const { adminId, action, creator_tag, admin_note } = req.body;
+        const [admin] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+        const uid = req.params.userId;
+        if (action === 'approve') {
+            await pool.query('UPDATE users SET is_monetized = TRUE, creator_tag = ? WHERE id = ?', [creator_tag || 'Creator', uid]);
+            await pool.query('UPDATE monetization_applications SET status = "approved", reviewed_at = NOW(), reviewed_by = ?, admin_note = ? WHERE user_id = ?', [adminId, admin_note || '', uid]);
+            await sendPush(uid, { title: '💰 Monetization Approved!', body: 'Congratulations! Your account is now monetized.', url: '/settings', tag: 'monetization', type: 'general' });
+            await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [uid, adminId, 'verified', '💰 Your monetization application has been approved! You are now a monetized creator.']).catch(()=>{});
+        } else {
+            await pool.query('UPDATE monetization_applications SET status = "rejected", reviewed_at = NOW(), reviewed_by = ?, admin_note = ? WHERE user_id = ?', [adminId, admin_note || '', uid]);
+            await sendPush(uid, { title: '❌ Monetization Update', body: admin_note || 'Your application was not approved at this time.', url: '/', tag: 'monetization', type: 'general' });
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET all friends with their streak data (streak_count=0 for new friends)

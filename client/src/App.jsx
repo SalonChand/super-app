@@ -40,6 +40,7 @@ import AdminDashboard from './AdminDashboard';
 
 import AdminUsers from './AdminUsers';
 import AdminUserProfile from './AdminUserProfile';
+import Monetization from './Monetization';
 
 import AdminContent from './AdminContent';
 
@@ -1132,6 +1133,7 @@ return (
 
             <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/users/:userId/profile" element={<ProtectedRoute><AdminUserProfile /></ProtectedRoute>} />
+            <Route path="/monetization" element={<ProtectedRoute><Monetization /></ProtectedRoute>} />
 
             <Route path="/admin/content" element={<ProtectedRoute><AdminContent /></ProtectedRoute>} />
 
