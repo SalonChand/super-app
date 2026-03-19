@@ -144,9 +144,9 @@ function SplashScreen() {
 
         <div className="fixed inset-0 z-[999] bg-black flex flex-col items-center justify-center animate-fade-out" style={{ animationDelay: '1.5s', animationFillMode: 'forwards' }}>
 
-            <img src="/logo.png" alt="SuperApp" className="w-24 h-24 rounded-2xl object-cover animate-pulse shadow-[0_0_40px_rgba(59,130,246,0.6)]" />
+            <img src="/logo.png" alt="Connect" className="w-24 h-24 rounded-2xl object-cover animate-pulse shadow-[0_0_40px_rgba(59,130,246,0.6)]" />
 
-            <h1 className="text-white font-extrabold text-3xl mt-4 tracking-tight text-blue-500">SuperApp</h1>
+            <h1 className="text-white font-extrabold text-3xl mt-4 tracking-tight text-blue-500">Connect</h1>
 
             <p className="text-zinc-500 text-sm font-medium mt-2 tracking-widest uppercase">From Nepal</p>
 
@@ -992,7 +992,7 @@ return (
 
               <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
 
-              <span className="font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</span>
+              <span className="font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>Connect</span>
 
             </Link>
 
@@ -1074,7 +1074,7 @@ return (
 
                     <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
 
-                    <h1 className="font-bold text-xl tracking-tight" style={{ color: userThemeColor }}>SuperApp</h1>
+                    <h1 className="font-bold text-xl tracking-tight" style={{ color: userThemeColor }}>Connect</h1>
 
                 </div>
 

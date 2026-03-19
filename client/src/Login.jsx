@@ -124,8 +124,8 @@ function Login() {
     return (
         <div className="min-h-screen bg-[#09090b] flex items-center justify-center px-4 py-12 relative overflow-hidden">
             {/* Background glows */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-blue-600/8 blur-3xl pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-violet-600/6 blur-3xl pointer-events-none" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-sky-500/8 blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-rose-500/6 blur-3xl pointer-events-none" />
             {/* Grid pattern */}
             <div
                 className="absolute inset-0 opacity-[0.025] pointer-events-none"
@@ -142,16 +142,14 @@ function Login() {
                     {/* Brand */}
                     <div className="flex flex-col items-center mb-8">
                         <div className="flex items-center gap-2 mb-6">
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                                <Zap size={16} className="text-white" />
-                            </div>
-                            <span className="font-black text-xl bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">SuperApp</span>
+                            <img src="/logo.png" alt="Connect" className="w-10 h-10 rounded-xl object-cover shadow-lg" />
+                            <span className="font-black text-xl bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">Connect</span>
                         </div>
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-violet-600 rounded-2xl flex items-center justify-center mb-4 shadow-xl shadow-blue-500/30">
+                        <div className="w-12 h-12 bg-gradient-to-br from-sky-500 to-rose-500 rounded-2xl flex items-center justify-center mb-4 shadow-xl shadow-sky-500/30">
                             <LogIn size={22} className="text-white" />
                         </div>
                         <h2 className="text-2xl font-black text-white">Welcome back</h2>
-                        <p className="text-zinc-400 mt-1 text-sm">Sign in to your SuperApp account</p>
+                        <p className="text-zinc-400 mt-1 text-sm">Sign in to your Connect account</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -164,7 +162,7 @@ function Login() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl px-4 py-3.5 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30 transition-all text-sm"
+                                className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl px-4 py-3.5 text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/70 focus:ring-1 focus:ring-sky-500/30 transition-all text-sm"
                             />
                         </div>
 
@@ -178,7 +176,7 @@ function Login() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl px-4 py-3.5 pr-12 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/70 focus:ring-1 focus:ring-blue-500/30 transition-all text-sm"
+                                    className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl px-4 py-3.5 pr-12 text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500/70 focus:ring-1 focus:ring-sky-500/30 transition-all text-sm"
                                 />
                                 <button
                                     type="button"
@@ -194,7 +192,7 @@ function Login() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-bold text-base py-4 rounded-2xl mt-2 transition-all shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full bg-gradient-to-r from-sky-500 to-rose-500 hover:from-sky-400 hover:to-rose-400 text-white font-bold text-base py-4 rounded-2xl mt-2 transition-all shadow-xl shadow-sky-500/25 hover:shadow-sky-500/40 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {loading ? (
                                 <span className="flex items-center justify-center gap-2">
@@ -213,7 +211,7 @@ function Login() {
 
                     <p className="text-center text-zinc-500 mt-7 text-sm">
                         Don't have an account?{' '}
-                        <Link to="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                        <Link to="/register" className="text-sky-400 hover:text-sky-300 font-semibold transition-colors">
                             Create one free
                         </Link>
                     </p>
