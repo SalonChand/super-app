@@ -897,16 +897,17 @@ app.post('/api/admin/broadcast', async (req, res) => {
             "INSERT INTO broadcasts (admin_id, title, message, type) VALUES (?,?,?,?)",
             [adminId, title, message, type || 'info']
         );
-        // Create notification + push for all users
         const [users] = await pool.query("SELECT id FROM users WHERE id != ?", [adminId]);
         const typeEmoji = { announcement: '📢', warning: '⚠️', good_news: '✅', urgent: '🚨' };
         const emoji = typeEmoji[type] || '📢';
-        for (const user of users) {
+        // Respond immediately — push in background
+        res.json({ message: 'Broadcast sent' });
+        // Insert notifications + push in background
+        Promise.allSettled(users.map(async user => {
             await pool.query(
                 "INSERT INTO notifications (user_id, type, content, from_user_id) VALUES (?, 'broadcast', ?, ?)",
                 [user.id, `${title}: ${message}`, adminId]
             ).catch(() => {});
-            // Send push notification
             await sendPush(user.id, {
                 title: `${emoji} ${title}`,
                 body: message,
@@ -914,8 +915,7 @@ app.post('/api/admin/broadcast', async (req, res) => {
                 tag: `broadcast-${Date.now()}`,
                 type: 'broadcast'
             });
-        }
-        res.json({ message: 'Broadcast sent' });
+        })).catch(() => {});
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -1956,6 +1956,7 @@ app.post('/api/admin/challenge', async (req, res) => {
         const [admin] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [adminId]);
         const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
         if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+        if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
         const date = challenge_date || new Date().toISOString().slice(0, 10);
         await pool.query(
             `INSERT INTO daily_challenges (title, description, emoji, challenge_date, created_by)
@@ -1963,15 +1964,18 @@ app.post('/api/admin/challenge', async (req, res) => {
              ON DUPLICATE KEY UPDATE title=VALUES(title), description=VALUES(description), emoji=VALUES(emoji)`,
             [title, description || '', emoji || '🎯', date, adminId]
         );
-        const [users] = await pool.query('SELECT id FROM users WHERE id != ?', [adminId]);
-        for (const user of users) {
-            await sendPush(user.id, {
-                title: `${emoji || '🎯'} New Daily Challenge!`,
-                body: title, url: '/', tag: 'daily-challenge', type: 'challenge'
-            });
-        }
+        // Respond immediately — send push in background so request doesn't time out
         res.json({ success: true });
-    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
+        // Background push (fire and forget)
+        pool.query('SELECT id FROM users WHERE id != ?', [adminId]).then(([users]) => {
+            Promise.allSettled(users.map(user =>
+                sendPush(user.id, {
+                    title: `${emoji || '🎯'} New Daily Challenge!`,
+                    body: title, url: '/', tag: 'daily-challenge', type: 'challenge'
+                })
+            ));
+        }).catch(() => {});
+    } catch(e) { console.error(e); res.status(500).json({ error: e.message }); }
 });
 
 // Admin: get all challenges
