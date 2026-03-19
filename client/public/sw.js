@@ -1,5 +1,5 @@
 // ============================================================
-//  SuperApp Service Worker — Push Notifications (no caching)
+//  Connect Service Worker — Push Notifications (no caching)
 //  No static caching = always loads fresh code on every deploy
 // ============================================================
 
@@ -24,15 +24,15 @@ self.addEventListener('push', (e) => {
     if (!e.data) return;
 
     let data;
-    try { data = e.data.json(); } catch { data = { title: 'SuperApp', body: e.data.text() }; }
+    try { data = e.data.json(); } catch { data = { title: 'Connect', body: e.data.text() }; }
 
     const {
-        title  = 'SuperApp',
+        title  = 'Connect',
         body   = 'You have a new notification',
         icon   = '/logo.png',
         badge  = '/logo.png',
         url    = '/',
-        tag    = 'superapp-notif',
+        tag    = 'connect-notif',
         type   = 'general',
     } = data;
 

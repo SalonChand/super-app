@@ -1,7 +1,7 @@
 {
-  "short_name": "SuperApp",
-  "name": "SuperApp Social Network",
-  "icons":[
+  "short_name": "Connect",
+  "name": "Connect - Social Network",
+  "icons": [
     {
       "src": "/logo.png",
       "sizes": "192x192",

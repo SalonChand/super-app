@@ -248,8 +248,7 @@ function NavItem({ to, icon: Icon, label, badgeCount, themeColor, onClick, showL
 
   return (
 
-    <Link to={to} onClick={onClick} className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-base font-medium w-full relative group" style={{ backgroundColor: isActive ? `${themeColor}15` : 'transparent', color: isActive ? themeColor : '#71717a' }}>
-        {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full" style={{backgroundColor: themeColor}}/>}
+    <Link to={to} onClick={onClick} className="flex items-center gap-4 p-3 rounded-xl transition-colors text-xl font-medium w-fit xl:w-full relative" style={{ backgroundColor: isActive ? `${themeColor}20` : 'transparent', color: isActive ? themeColor : '#a1a1aa' }}>
 
       <div className="relative">
 
@@ -834,25 +833,30 @@ function AppContent() {
 
 
   const subscribeToPush = async () => {
-
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-
-          try {
-
-              const reg = await navigator.serviceWorker.ready;
-
-              const vapidRes = await axios.get(`${BACKEND_URL}/api/vapidPublicKey`);
-
-              const convertedVapidKey = urlBase64ToUint8Array(vapidRes.data);
-
-              const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: convertedVapidKey });
-
-              await axios.post(`${BACKEND_URL}/api/subscribe`, { userId: currentUserId, subscription: subscription });
-
-          } catch (e) {}
-
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      try {
+          // Request permission first - required on all browsers
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+              console.log('[Push] Permission denied:', permission);
+              return;
+          }
+          const reg = await navigator.serviceWorker.ready;
+          // Check if already subscribed
+          const existing = await reg.pushManager.getSubscription();
+          if (existing) {
+              // Re-register with backend in case it was lost
+              await axios.post(`${BACKEND_URL}/api/subscribe`, { userId: currentUserId, subscription: existing }).catch(() => {});
+              return;
+          }
+          const vapidRes = await axios.get(`${BACKEND_URL}/api/vapidPublicKey`);
+          const convertedVapidKey = urlBase64ToUint8Array(vapidRes.data);
+          const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: convertedVapidKey });
+          await axios.post(`${BACKEND_URL}/api/subscribe`, { userId: currentUserId, subscription });
+          console.log('[Push] Subscribed successfully');
+      } catch (e) {
+          console.error('[Push] Subscribe error:', e.message);
       }
-
   };
 
 
@@ -985,13 +989,16 @@ return (
 
         {/* DESKTOP SIDEBAR */}
 
-        <header className="hidden sm:flex flex-col justify-between w-60 border-r border-zinc-800/60 h-screen sticky top-0 py-5 px-3 z-40 bg-zinc-950 overflow-y-auto">
+        <header className="hidden sm:flex flex-col justify-between w-56 border-r border-zinc-800 h-screen sticky top-0 py-4 px-4 z-40 bg-black overflow-y-auto">
 
           <div className="flex flex-col gap-2">
 
-            <Link to="/" className="px-3 py-2 mb-3 rounded-xl transition-all flex items-center gap-3 hover:bg-zinc-900/50">
-              <img src="/logo.png" alt="Logo" className="w-9 h-9 rounded-xl object-cover shadow-lg" />
-              <span className="font-black text-xl tracking-tight bg-gradient-to-r from-sky-400 to-rose-400 bg-clip-text text-transparent">Connect</span>
+            <Link to="/" className="p-3 mb-4 w-fit rounded-full transition flex items-center gap-3">
+
+              <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl object-cover" />
+
+              <span className="font-extrabold text-2xl tracking-tight" style={{ color: userThemeColor }}>Connect</span>
+
             </Link>
 
 
@@ -1041,12 +1048,19 @@ return (
           
 
           {currentUserId && (
-            <Link to={`/profile/${currentUserId}`} className="mt-auto flex items-center gap-3 p-3 hover:bg-zinc-900/70 rounded-xl cursor-pointer transition-all border border-transparent hover:border-zinc-800">
-              <div className="w-9 h-9 rounded-full border-2 bg-zinc-800 flex items-center justify-center overflow-hidden flex-shrink-0" style={{borderColor: userThemeColor + '40'}}>
-                 {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={18} className="text-zinc-400" /> )}
+
+            <Link to={`/profile/${currentUserId}`} className="mt-auto flex items-center gap-3 p-3 hover:bg-zinc-900 rounded-xl cursor-pointer transition">
+
+              <div className="w-10 h-10 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
+
+                 {currentUser?.profile_pic_url ? ( <img src={`${currentUser.profile_pic_url}`} className="w-full h-full object-cover" /> ) : ( <User size={20} className="text-zinc-400" /> )}
+
               </div>
-              <div className="min-w-0"><p className="font-bold text-sm truncate" style={{ color: userThemeColor }}>{currentUser?.username || 'My Profile'}</p><p className="text-zinc-600 text-xs">View profile</p></div>
+
+              <div><p className="font-bold text-sm" style={{ color: userThemeColor }}>My Profile</p><p className="text-zinc-500 text-xs">View & Edit</p></div>
+
             </Link>
+
           )}
 
         </header>
@@ -1055,18 +1069,28 @@ return (
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
 
-        <main className={`w-full max-w-[600px] border-x border-zinc-800/60 h-screen relative bg-zinc-950 ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
+        <main className={`w-full max-w-[600px] border-x border-zinc-800 h-screen relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
-              <div className="sm:hidden flex items-center justify-between px-4 py-3 border-b border-zinc-800/60 sticky top-0 bg-zinc-950/90 backdrop-blur-xl z-30 shadow-sm">
-                <div className="flex items-center gap-2.5">
+
+              <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
+
+                <div className="flex items-center gap-3">
+
                     <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
-                    <h1 className="font-black text-lg tracking-tight bg-gradient-to-r from-sky-400 to-rose-400 bg-clip-text text-transparent">Connect</h1>
+
+                    <h1 className="font-bold text-xl tracking-tight" style={{ color: userThemeColor }}>Connect</h1>
+
                 </div>
-                <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-all">
-                    <Menu size={22} />
+
+                <button onClick={() => setMobileMenuOpen(true)} className="p-2 -mr-2 text-zinc-400 hover:text-white transition">
+
+                    <Menu size={26} />
+
                 </button>
+
               </div>
+
           )}
 
 
@@ -1132,13 +1156,14 @@ return (
 
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setMobileMenuOpen(false)}></div>
 
-                <aside className="absolute right-0 top-0 bottom-0 w-[78%] max-w-xs bg-zinc-950 border-l border-zinc-800/60 flex flex-col animate-[slide-left_0.25s_ease-out] shadow-2xl shadow-black/80">
-                    <div className="px-5 py-4 border-b border-zinc-800/60 flex justify-between items-center bg-zinc-950">
-                        <div className="flex items-center gap-2.5">
-                            <img src="/logo.png" alt="Logo" className="w-7 h-7 rounded-lg object-cover"/>
-                            <span className="font-black text-lg bg-gradient-to-r from-sky-400 to-rose-400 bg-clip-text text-transparent">Connect</span>
-                        </div>
-                        <button onClick={() => setMobileMenuOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"><X size={20}/></button>
+                <aside className="absolute right-0 top-0 bottom-0 w-[75%] max-w-sm bg-zinc-950 border-l border-zinc-800 flex flex-col animate-[slide-left_0.3s_ease-out] shadow-2xl">
+
+                    <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+
+                        <span className="font-bold text-xl text-white">Menu</span>
+
+                        <button onClick={() => setMobileMenuOpen(false)} className="text-zinc-400 hover:text-white"><X size={24}/></button>
+
                     </div>
 
                     <div className="p-4 flex flex-col gap-2">
@@ -1165,7 +1190,7 @@ return (
 
         {/* 🔥 MOBILE BOTTOM NAV (ABSOLUTELY FIXED TO SCREEN BOTTOM) 🔥 */}
 
-        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-800/60 flex justify-around items-center px-2 py-2 pb-safe z-50 shadow-[0_-1px_0_rgba(255,255,255,0.04),0_-20px_40px_rgba(0,0,0,0.6)]">
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-zinc-800 flex justify-around items-center px-1 py-3 pb-safe z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
 
           {currentUserId ? (
 
@@ -1243,7 +1268,7 @@ return (
 
           {toasts.map(toast => (
 
-              <div key={toast.id} className="pointer-events-auto flex items-center gap-3 bg-zinc-900/95 border border-zinc-700/60 rounded-2xl px-4 py-3 shadow-2xl shadow-black/70 min-w-[260px] max-w-xs animate-fade-in backdrop-blur-xl">
+              <div key={toast.id} className="pointer-events-auto flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 shadow-2xl shadow-black/50 min-w-[260px] max-w-xs animate-fade-in backdrop-blur-md">
 
                   <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
 
