@@ -633,6 +633,8 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE posts ADD COLUMN is_pinned_global BOOLEAN DEFAULT FALSE");
     await patch("CREATE TABLE IF NOT EXISTS broadcasts (id INT AUTO_INCREMENT PRIMARY KEY, admin_id INT, title VARCHAR(200), message TEXT, type VARCHAR(20) DEFAULT 'info', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     await patch("CREATE TABLE IF NOT EXISTS renewal_requests (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, listing_id INT NOT NULL, listing_title VARCHAR(200), reason TEXT, duration_days INT DEFAULT 30, contact VARCHAR(200), status VARCHAR(20) DEFAULT 'pending', admin_note VARCHAR(500) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (listing_id) REFERENCES marketplace(id) ON DELETE CASCADE)");
+    await patch("CREATE TABLE IF NOT EXISTS daily_challenges (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(200) NOT NULL, description TEXT, emoji VARCHAR(10) DEFAULT '🎯', challenge_date DATE NOT NULL, created_by INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_date (challenge_date))");
+    await patch("CREATE TABLE IF NOT EXISTS challenge_completions (id INT AUTO_INCREMENT PRIMARY KEY, challenge_id INT NOT NULL, user_id INT NOT NULL, post_id INT DEFAULT NULL, completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_completion (challenge_id, user_id), FOREIGN KEY (challenge_id) REFERENCES daily_challenges(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)");
     res.send(results + "<h1>✅ Database completely patched! Go back to your app!</h1>");
 });
 
