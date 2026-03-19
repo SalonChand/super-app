@@ -16,7 +16,7 @@ if (!window._superAppSocket) {
         window._superAppSocket.on('connect_error', () => {});
         window._superAppSocket.on('error', () => {});
     } catch(e) {
-        window._superAppSocket = { emit: () => {}, on: () => {}, on: () => {}, off: () => {} };
+        window._superAppSocket = { emit: () => {}, on: () => {}, off: () => {} };
     }
 }
 const socket = window._superAppSocket;
