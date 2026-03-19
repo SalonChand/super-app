@@ -285,7 +285,7 @@ export default function AdminUsers() {
                             </div>
                         ))
                     }
-                </>}
+                </>)}
             </div>
 
             {/* Delete confirm modal */}
