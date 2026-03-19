@@ -95,6 +95,10 @@ function VerifiedBadge({ isVerified, verifyType, size = 14 }) {
 
 function Feed({ onlineUsers = new Set() }) {
     const[posts, setPosts] = useState([]);
+    const [challenge, setChallenge] = useState(null);
+    const [challengeCompleting, setChallengeCompleting] = useState(false);
+    const [challengeCompletions, setChallengeCompletions] = useState([]);
+    const [showChallengeBoard, setShowChallengeBoard] = useState(false);
     const[savedPosts, setSavedPosts] = useState(new Set());
     const[currentUserInfo, setCurrentUserInfo] = useState(null);
     const[activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -227,6 +231,10 @@ function Feed({ onlineUsers = new Set() }) {
                 if (Array.isArray(friendsRes.data)) setFriendsList(friendsRes.data);
             }
         } catch (err) { console.error('Friends error:', err); }
+        // Fetch daily challenge
+        axios.get(`${BACKEND_URL}/api/challenge/today?userId=${userId||0}`)
+            .then(res => setChallenge(res.data))
+            .catch(() => {});
         setIsRefreshing(false);
         setInitialLoading(false);
     };
@@ -486,6 +494,22 @@ function Feed({ onlineUsers = new Set() }) {
             closeStoryEditor(); fetchData();
         } catch (err) { console.error('Story upload failed:', err); alert('Failed to post story. Please try again.'); }
         finally { setUploadingStory(false); }
+    };
+
+    const handleCompleteChallenge = async () => {
+        if (!challenge || challenge.user_completed) return;
+        setChallengeCompleting(true);
+        try {
+            await axios.post(`${BACKEND_URL}/api/challenge/complete`, {
+                userId, challengeId: challenge.id, postId: null
+            });
+            setChallenge(prev => ({ ...prev, user_completed: 1, completion_count: (prev.completion_count || 0) + 1 }));
+            // Load completions for leaderboard
+            const res = await axios.get(`${BACKEND_URL}/api/challenge/${challenge.id}/completions`);
+            setChallengeCompletions(res.data || []);
+            setShowChallengeBoard(true);
+        } catch(e) {}
+        setChallengeCompleting(false);
     };
 
     const handleStoryLike = async (storyId) => {
@@ -784,6 +808,88 @@ function Feed({ onlineUsers = new Set() }) {
                     </div>
                 ))}
             </div>
+
+            {/* ===== DAILY CHALLENGE BANNER ===== */}
+            {challenge && (
+                <div className="mx-4 my-3">
+                    <div className={`relative overflow-hidden rounded-2xl border transition-all ${challenge.user_completed ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30' : 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'}`}>
+                        {/* Shimmer effect */}
+                        {!challenge.user_completed && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-500/5 to-transparent animate-[shimmer_2s_infinite]" />
+                        )}
+                        <div className="relative p-4">
+                            <div className="flex items-start gap-3">
+                                <div className="text-3xl flex-shrink-0 mt-0.5">{challenge.emoji || '🎯'}</div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-xs font-black uppercase tracking-widest ${challenge.user_completed ? 'text-green-400' : 'text-yellow-400'}`}>
+                                            {challenge.user_completed ? '✅ COMPLETED' : '🔥 DAILY CHALLENGE'}
+                                        </span>
+                                        <span className="text-zinc-600 text-xs">· {challenge.completion_count || 0} done</span>
+                                    </div>
+                                    <p className="text-white font-bold text-sm leading-snug">{challenge.title}</p>
+                                    {challenge.description && <p className="text-zinc-400 text-xs mt-1">{challenge.description}</p>}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 mt-3">
+                                {!challenge.user_completed ? (
+                                    <button onClick={handleCompleteChallenge} disabled={challengeCompleting}
+                                        className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-sm py-2 rounded-xl transition-all disabled:opacity-60 shadow-lg shadow-yellow-500/20">
+                                        {challengeCompleting ? 'Marking...' : '✓ Mark as Complete'}
+                                    </button>
+                                ) : (
+                                    <div className="flex-1 bg-green-500/20 border border-green-500/30 text-green-400 font-bold text-sm py-2 rounded-xl text-center">
+                                        🏆 Challenge Done!
+                                    </div>
+                                )}
+                                <button onClick={async () => {
+                                    const res = await axios.get(`${BACKEND_URL}/api/challenge/${challenge.id}/completions`).catch(() => ({data:[]}));
+                                    setChallengeCompletions(res.data || []);
+                                    setShowChallengeBoard(true);
+                                }} className="px-3 py-2 bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-white rounded-xl text-sm font-semibold transition-all">
+                                    Board
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Challenge leaderboard modal */}
+            {showChallengeBoard && challenge && (
+                <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowChallengeBoard(false)}>
+                    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b border-zinc-800 flex items-center gap-3">
+                            <span className="text-2xl">{challenge.emoji}</span>
+                            <div className="flex-1">
+                                <h3 className="text-white font-black text-base">{challenge.title}</h3>
+                                <p className="text-zinc-500 text-xs">{challengeCompletions.length} people completed this</p>
+                            </div>
+                            <button onClick={() => setShowChallengeBoard(false)} className="text-zinc-500 hover:text-white p-1"><X size={20}/></button>
+                        </div>
+                        <div className="overflow-y-auto max-h-80 p-3 space-y-2">
+                            {challengeCompletions.length === 0 ? (
+                                <p className="text-center text-zinc-600 py-8 text-sm">No completions yet. Be the first! 🏆</p>
+                            ) : challengeCompletions.map((cc, i) => (
+                                <div key={cc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800/50 transition">
+                                    <span className="text-sm font-black w-5 text-center" style={{color: i===0?'#FFD700':i===1?'#C0C0C0':i===2?'#CD7F32':'#71717a'}}>
+                                        {i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
+                                    </span>
+                                    <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-700 flex-shrink-0">
+                                        {cc.profile_pic_url ? <img src={cc.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-white font-bold text-sm">{cc.username?.charAt(0).toUpperCase()}</span>}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-white font-semibold text-sm">{cc.username}</p>
+                                        <p className="text-zinc-600 text-xs">{new Date(cc.completed_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</p>
+                                    </div>
+                                    <span className="text-green-400 text-xs font-bold">✓</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ===== POSTS ===== */}
             <div>

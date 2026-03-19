@@ -652,6 +652,26 @@ app.get('/api/setup-cloud-db', async (req, res) => {
         await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
         await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, type VARCHAR(50) NOT NULL, content TEXT, from_user_id INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`).catch(()=>{});
         await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS from_user_id INT DEFAULT NULL`).catch(()=>{});
+        await pool.query(`CREATE TABLE IF NOT EXISTS daily_challenges (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(200) NOT NULL,
+            description TEXT,
+            emoji VARCHAR(10) DEFAULT '🎯',
+            challenge_date DATE NOT NULL,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_date (challenge_date)
+        )`).catch(()=>{});
+        await pool.query(`CREATE TABLE IF NOT EXISTS challenge_completions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            challenge_id INT NOT NULL,
+            user_id INT NOT NULL,
+            post_id INT DEFAULT NULL,
+            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_completion (challenge_id, user_id),
+            FOREIGN KEY (challenge_id) REFERENCES daily_challenges(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`).catch(()=>{});
         await pool.query(`CREATE TABLE IF NOT EXISTS story_likes (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS story_views (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS reels (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, video_url VARCHAR(255) NOT NULL, caption TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
@@ -1867,6 +1887,121 @@ async function getOrCreateStreak(uid1, uid2) {
     const [r] = await pool.query('SELECT * FROM streaks WHERE user1_id = ? AND user2_id = ?', [a, b]);
     return r[0];
 }
+
+// ===== DAILY CHALLENGE ROUTES =====
+
+// Get today's challenge
+app.get('/api/challenge/today', async (req, res) => {
+    try {
+        const userId = req.query.userId || 0;
+        const today = new Date().toISOString().slice(0, 10);
+        const [rows] = await pool.query(`
+            SELECT dc.*,
+                COUNT(DISTINCT cc.id) AS completion_count,
+                MAX(CASE WHEN cc.user_id = ? THEN 1 ELSE 0 END) AS user_completed,
+                (SELECT cc2.post_id FROM challenge_completions cc2 WHERE cc2.challenge_id = dc.id AND cc2.user_id = ? LIMIT 1) AS user_post_id
+            FROM daily_challenges dc
+            LEFT JOIN challenge_completions cc ON cc.challenge_id = dc.id
+            WHERE dc.challenge_date = ?
+            GROUP BY dc.id
+        `, [userId, userId, today]);
+        if (!rows[0]) return res.json(null);
+        res.json(rows[0]);
+    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get challenge completions
+app.get('/api/challenge/:id/completions', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT cc.*, COALESCE(u.display_name, u.username) AS username,
+                u.profile_pic_url, COALESCE(u.is_verified,0) AS is_verified, u.verify_type
+            FROM challenge_completions cc
+            JOIN users u ON u.id = cc.user_id
+            WHERE cc.challenge_id = ?
+            ORDER BY cc.completed_at ASC
+        `, [req.params.id]);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Complete a challenge
+app.post('/api/challenge/complete', async (req, res) => {
+    try {
+        const { userId, challengeId, postId } = req.body;
+        await pool.query(
+            'INSERT IGNORE INTO challenge_completions (challenge_id, user_id, post_id) VALUES (?, ?, ?)',
+            [challengeId, userId, postId || null]
+        );
+        const [challenge] = await pool.query('SELECT title, emoji FROM daily_challenges WHERE id = ?', [challengeId]);
+        if (challenge[0]) {
+            await pool.query(
+                'INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)',
+                [userId, userId, 'challenge', `${challenge[0].emoji} You completed: ${challenge[0].title}!`]
+            ).catch(()=>{});
+            await sendPush(userId, {
+                title: `${challenge[0].emoji} Challenge Complete!`,
+                body: `You completed: ${challenge[0].title}`,
+                url: '/', tag: `challenge-${challengeId}`, type: 'challenge'
+            });
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: create/update challenge
+app.post('/api/admin/challenge', async (req, res) => {
+    try {
+        const { adminId, title, description, emoji, challenge_date } = req.body;
+        const [admin] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+        const date = challenge_date || new Date().toISOString().slice(0, 10);
+        await pool.query(
+            `INSERT INTO daily_challenges (title, description, emoji, challenge_date, created_by)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE title=VALUES(title), description=VALUES(description), emoji=VALUES(emoji)`,
+            [title, description || '', emoji || '🎯', date, adminId]
+        );
+        const [users] = await pool.query('SELECT id FROM users WHERE id != ?', [adminId]);
+        for (const user of users) {
+            await sendPush(user.id, {
+                title: `${emoji || '🎯'} New Daily Challenge!`,
+                body: title, url: '/', tag: 'daily-challenge', type: 'challenge'
+            });
+        }
+        res.json({ success: true });
+    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: get all challenges
+app.get('/api/admin/challenges', async (req, res) => {
+    try {
+        const { adminId } = req.query;
+        const [admin] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(`
+            SELECT dc.*, COUNT(cc.id) AS completion_count
+            FROM daily_challenges dc
+            LEFT JOIN challenge_completions cc ON cc.challenge_id = dc.id
+            GROUP BY dc.id ORDER BY dc.challenge_date DESC LIMIT 30
+        `);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Admin: delete challenge
+app.delete('/api/admin/challenge/:id', async (req, res) => {
+    try {
+        const { adminId } = req.body;
+        const [admin] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [adminId]);
+        const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
+        if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+        await pool.query('DELETE FROM daily_challenges WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: 'Server error' }); }
+});
 
 // GET all friends with their streak data (streak_count=0 for new friends)
 app.get('/api/streaks/incoming/:userId', async (req, res) => {

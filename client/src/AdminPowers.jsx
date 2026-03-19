@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, Zap, Megaphone, Pin, VolumeX, Ghost, Send, Trash2, Search, X, Clock } from 'lucide-react';
+import { ChevronLeft, Zap, Megaphone, Pin, VolumeX, Ghost, Send, Trash2, Search, X, Clock, Trophy, Plus, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
@@ -49,6 +49,7 @@ export default function AdminPowers() {
     useEffect(() => {
         if (!isAdmin) return;
         loadBroadcasts();
+        loadChallenges();
         loadPinnedPost();
     }, []);
 
@@ -87,6 +88,7 @@ export default function AdminPowers() {
             setBMsg('✅ Sent to all users!');
             setBTitle(''); setBMessage(''); setBType('info');
             loadBroadcasts();
+        loadChallenges();
         } catch (e) { setBMsg('❌ Failed to send'); }
         setBSending(false);
         setTimeout(() => setBMsg(''), 3000);
@@ -148,11 +150,50 @@ export default function AdminPowers() {
         u.display_name?.toLowerCase().includes(userSearch.toLowerCase())
     );
 
+    // Daily Challenge
+    const [challenges, setChallenges] = useState([]);
+    const [cTitle, setCTitle] = useState('');
+    const [cDesc, setCDesc] = useState('');
+    const [cEmoji, setCEmoji] = useState('🎯');
+    const [cDate, setCDate] = useState(new Date().toISOString().slice(0,10));
+    const [cSending, setCsending] = useState(false);
+    const [cMsg, setCMsg] = useState('');
+
+    const loadChallenges = async () => {
+        try {
+            const res = await axios.get(`${BACKEND_URL}/api/admin/challenges?adminId=${adminId}`);
+            setChallenges(res.data || []);
+        } catch(e) {}
+    };
+
+    const sendChallenge = async () => {
+        if (!cTitle.trim()) return;
+        setCsending(true); setCMsg('');
+        try {
+            await axios.post(`${BACKEND_URL}/api/admin/challenge`, {
+                adminId, title: cTitle, description: cDesc, emoji: cEmoji, challenge_date: cDate
+            });
+            setCMsg('✅ Challenge set & push sent!');
+            setCTitle(''); setCDesc('');
+            loadChallenges();
+        } catch(e) { setCMsg('❌ Failed'); }
+        setCsending(false);
+    };
+
+    const deleteChallenge = async (id) => {
+        if (!window.confirm('Delete this challenge?')) return;
+        try {
+            await axios.delete(`${BACKEND_URL}/api/admin/challenge/${id}`, { data: { adminId } });
+            setChallenges(p => p.filter(c => c.id !== id));
+        } catch(e) {}
+    };
+
     const tabs = [
         { id: 'broadcast', icon: Megaphone, label: 'Broadcast',  activeClass: 'border-blue-400 text-blue-400' },
         { id: 'pin',       icon: Pin,       label: 'Pin Post',   activeClass: 'border-yellow-400 text-yellow-400' },
         { id: 'silence',   icon: VolumeX,   label: 'Silence',    activeClass: 'border-orange-400 text-orange-400' },
         { id: 'shadowban', icon: Ghost,      label: 'Shadowban',  activeClass: 'border-purple-400 text-purple-400' },
+        { id: 'challenge',  icon: Trophy,    label: 'Challenge',  activeClass: 'border-yellow-400 text-yellow-400' },
     ];
 
     if (!isAdmin) return (
@@ -386,6 +427,60 @@ export default function AdminPowers() {
                             )}
                         </>
                     )}
+
+                {tab === 'challenge' && (
+                    <>
+                        <div className="space-y-3 mb-4">
+                            <p className="text-zinc-400 text-xs">Set today's daily challenge. All users get a push notification and see it on their feed.</p>
+
+                            {/* Emoji + Date row */}
+                            <div className="flex gap-2">
+                                <input value={cEmoji} onChange={e => setCEmoji(e.target.value)}
+                                    className="w-16 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-center text-xl outline-none focus:border-yellow-500/60"
+                                    maxLength={2} placeholder="🎯" />
+                                <input type="date" value={cDate} onChange={e => setCDate(e.target.value)}
+                                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-yellow-500/60" />
+                            </div>
+
+                            {/* Title */}
+                            <input value={cTitle} onChange={e => setCTitle(e.target.value)}
+                                placeholder="Challenge title e.g. Post a sunset photo 🌅"
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-yellow-500/60 transition" />
+
+                            {/* Description */}
+                            <textarea value={cDesc} onChange={e => setCDesc(e.target.value)}
+                                placeholder="Optional description or rules..."
+                                rows={2}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-yellow-500/60 transition resize-none" />
+
+                            <button onClick={sendChallenge} disabled={cSending || !cTitle.trim()}
+                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold py-3 rounded-xl transition disabled:opacity-50">
+                                <Trophy size={16} />
+                                {cSending ? 'Setting Challenge...' : 'Set Challenge & Notify All'}
+                            </button>
+                            {cMsg && <p className="text-center text-sm font-semibold text-green-400">{cMsg}</p>}
+                        </div>
+
+                        {/* Past challenges */}
+                        {challenges.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider px-1">Past Challenges</p>
+                                {challenges.map(ch => (
+                                    <div key={ch.id} className="flex items-center gap-3 bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-3">
+                                        <span className="text-2xl">{ch.emoji}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-white font-semibold text-sm truncate">{ch.title}</p>
+                                            <p className="text-zinc-500 text-xs">{ch.challenge_date} · {ch.completion_count} completed</p>
+                                        </div>
+                                        <button onClick={() => deleteChallenge(ch.id)} className="text-zinc-600 hover:text-red-400 transition p-1">
+                                            <Trash2 size={15}/>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
 
                 </div>
             </div>
