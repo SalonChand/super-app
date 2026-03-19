@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const pool = require('./db'); 
@@ -15,10 +14,8 @@ const webpush = require('web-push');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://super-app-wc32.vercel.app';
-
 const app = express();
-app.use(cors({ origin: FRONTEND_URL, credentials: true })); 
+app.use(cors()); 
 app.use(express.json()); 
 
 cloudinary.config({
@@ -414,7 +411,7 @@ async function sendPush(userId, { title, body, url = '/', tag = 'notification', 
 }
 
 const server = http.createServer(app); 
-const io = new Server(server, { cors: { origin: FRONTEND_URL, methods:["GET", "POST"] } });
+const io = new Server(server, { cors: { origin: "*", methods:["GET", "POST"] } });
 
 // Online users: userId -> { socketId, lastSeen }
 const onlineUsers = new Map();
@@ -640,6 +637,8 @@ app.get('/api/setup-cloud-db', async (req, res) => {
         await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
         await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_name VARCHAR(200)`).catch(()=>{});
         await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS song_url VARCHAR(500)`).catch(()=>{});
+        await pool.query(`CREATE TABLE IF NOT EXISTS notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, type VARCHAR(50) NOT NULL, content TEXT, from_user_id INT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`).catch(()=>{});
+        await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS from_user_id INT DEFAULT NULL`).catch(()=>{});
         await pool.query(`CREATE TABLE IF NOT EXISTS story_likes (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS story_views (id INT AUTO_INCREMENT PRIMARY KEY, story_id INT NOT NULL, user_id INT NOT NULL, UNIQUE(story_id, user_id), FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await pool.query(`CREATE TABLE IF NOT EXISTS reels (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, video_url VARCHAR(255) NOT NULL, caption TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);

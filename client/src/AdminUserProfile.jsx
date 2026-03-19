@@ -35,8 +35,14 @@ export default function AdminUserProfile() {
         setLoading(true);
         try {
             const res = await axios.get(`${BACKEND_URL}/api/admin/users/${userId}/profile?adminId=${adminId}`);
-            setProfile(res.data);
-        } catch(e) {}
+            if (res.data && !res.data.error) {
+                setProfile(res.data);
+            } else {
+                console.error('Profile error:', res.data);
+            }
+        } catch(e) {
+            console.error('Failed to load profile:', e.response?.data || e.message);
+        }
         setLoading(false);
     };
 
@@ -81,7 +87,8 @@ export default function AdminUserProfile() {
 
     if (!isAdmin) return <div className="min-h-screen bg-black flex items-center justify-center"><p className="text-red-400">Access Denied</p></div>;
     if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><p className="text-zinc-500">Loading...</p></div>;
-    if (!profile) return <div className="min-h-screen bg-black flex items-center justify-center"><p className="text-red-400">User not found</p></div>;
+    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-2 border-zinc-700 border-t-blue-500 rounded-full animate-spin"/></div>;
+    if (!profile) return <div className="min-h-screen bg-black flex items-center justify-center flex-col gap-3"><p className="text-red-400 font-bold">Failed to load profile</p><p className="text-zinc-500 text-sm">Check console for details. AdminId: {adminId}, UserId: {userId}</p><button onClick={loadProfile} className="px-4 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 mt-2">Retry</button></div>;
 
     const filteredFriends = friends.filter(f =>
         f.display_name?.toLowerCase().includes(friendSearch.toLowerCase()) ||
