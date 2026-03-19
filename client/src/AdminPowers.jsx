@@ -176,7 +176,7 @@ export default function AdminPowers() {
             setCMsg('✅ Challenge set & push sent!');
             setCTitle(''); setCDesc('');
             loadChallenges();
-        } catch(e) { setCMsg('❌ Failed'); }
+        } catch(e) { setCMsg('❌ ' + (e.response?.data?.error || e.message || 'Failed')); }
         setCsending(false);
     };
 
@@ -458,7 +458,7 @@ export default function AdminPowers() {
                                 <Trophy size={16} />
                                 {cSending ? 'Setting Challenge...' : 'Set Challenge & Notify All'}
                             </button>
-                            {cMsg && <p className="text-center text-sm font-semibold text-green-400">{cMsg}</p>}
+                            {cMsg && <p className={`text-center text-sm font-semibold ${cMsg.startsWith("✅") ? "text-green-400" : "text-red-400"}`}>{cMsg}</p>}
                         </div>
 
                         {/* Past challenges */}
