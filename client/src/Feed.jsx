@@ -811,48 +811,29 @@ function Feed({ onlineUsers = new Set() }) {
 
             {/* ===== DAILY CHALLENGE BANNER ===== */}
             {challenge && (
-                <div className="mx-4 my-3">
-                    <div className={`relative overflow-hidden rounded-2xl border transition-all ${challenge.user_completed ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30' : 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30'}`}>
-                        {/* Shimmer effect */}
-                        {!challenge.user_completed && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-500/5 to-transparent animate-[shimmer_2s_infinite]" />
-                        )}
-                        <div className="relative p-4">
-                            <div className="flex items-start gap-3">
-                                <div className="text-3xl flex-shrink-0 mt-0.5">{challenge.emoji || '🎯'}</div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-xs font-black uppercase tracking-widest ${challenge.user_completed ? 'text-green-400' : 'text-yellow-400'}`}>
-                                            {challenge.user_completed ? '✅ COMPLETED' : '🔥 DAILY CHALLENGE'}
-                                        </span>
-                                        <span className="text-zinc-600 text-xs">· {challenge.completion_count || 0} done</span>
-                                    </div>
-                                    <p className="text-white font-bold text-sm leading-snug">{challenge.title}</p>
-                                    {challenge.description && <p className="text-zinc-400 text-xs mt-1">{challenge.description}</p>}
-                                </div>
-                            </div>
-
-                            <div className="flex gap-2 mt-3">
-                                {!challenge.user_completed ? (
-                                    <button onClick={handleCompleteChallenge} disabled={challengeCompleting}
-                                        className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-sm py-2 rounded-xl transition-all disabled:opacity-60 shadow-lg shadow-yellow-500/20">
-                                        {challengeCompleting ? 'Marking...' : '✓ Mark as Complete'}
-                                    </button>
-                                ) : (
-                                    <div className="flex-1 bg-green-500/20 border border-green-500/30 text-green-400 font-bold text-sm py-2 rounded-xl text-center">
-                                        🏆 Challenge Done!
-                                    </div>
-                                )}
-                                <button onClick={async () => {
-                                    const res = await axios.get(`${BACKEND_URL}/api/challenge/${challenge.id}/completions`).catch(() => ({data:[]}));
-                                    setChallengeCompletions(res.data || []);
-                                    setShowChallengeBoard(true);
-                                }} className="px-3 py-2 bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-white rounded-xl text-sm font-semibold transition-all">
-                                    Board
-                                </button>
-                            </div>
-                        </div>
+                <div className={`mx-4 mt-3 mb-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border transition-all ${challenge.user_completed ? 'bg-green-500/8 border-green-500/20' : 'bg-yellow-500/8 border-yellow-500/20'}`}>
+                    <span className="text-xl flex-shrink-0">{challenge.emoji || '🎯'}</span>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-white font-bold text-sm truncate">{challenge.title}</p>
+                        <p className={`text-xs font-semibold ${challenge.user_completed ? 'text-green-400' : 'text-yellow-500'}`}>
+                            {challenge.user_completed ? '✅ Completed' : '🔥 Daily Challenge'} · {challenge.completion_count || 0} done
+                        </p>
                     </div>
+                    {!challenge.user_completed ? (
+                        <button onClick={handleCompleteChallenge} disabled={challengeCompleting}
+                            className="flex-shrink-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold text-xs px-3 py-1.5 rounded-xl transition-all disabled:opacity-60">
+                            {challengeCompleting ? '...' : '✓ Done'}
+                        </button>
+                    ) : (
+                        <span className="flex-shrink-0 text-green-400 text-lg">🏆</span>
+                    )}
+                    <button onClick={async () => {
+                        const res = await axios.get(`${BACKEND_URL}/api/challenge/${challenge.id}/completions`).catch(() => ({data:[]}));
+                        setChallengeCompletions(res.data || []);
+                        setShowChallengeBoard(true);
+                    }} className="flex-shrink-0 text-zinc-500 hover:text-white text-xs font-semibold transition-all">
+                        Board
+                    </button>
                 </div>
             )}
 
