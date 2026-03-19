@@ -367,6 +367,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const displayedPosts = canSeeDetails ? userPosts : userPosts.slice(0, 1);
 
     return (
+        <>
         <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
             {/* Friends / Followers Modal */}
             {showPeopleModal && (
@@ -442,20 +443,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     </div>
                 </div>
             )}
-            {/* QR Code Modal */}
-            {showQR && (
-                <div className="fixed inset-0 z-[150] bg-black/90 flex items-center justify-center animate-fade-in" onClick={() => setShowQR(false)}>
-                    <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-white font-bold text-xl">My Profile QR Code</h3>
-                        <p className="text-zinc-500 text-sm text-center">Scan to visit <span className="text-white font-bold">@{profileData?.username}</span>'s profile</p>
-                        <div className="bg-white p-4 rounded-2xl shadow-lg">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + '/profile/' + id)}`} alt="Profile QR Code" className="w-48 h-48 rounded-xl" />
-                        </div>
-                        <p className="text-zinc-600 text-xs">{window.location.origin}/profile/{id}</p>
-                        <button onClick={() => setShowQR(false)} className="text-zinc-400 hover:text-white transition text-sm">Close</button>
-                    </div>
-                </div>
-            )}
+
             {viewingImage && (
                 <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
                     <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button>
@@ -820,6 +808,22 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 )}
             </div>
         </div>
+
+            {/* QR Code Modal */}
+            {showQR && (
+                <div className="fixed inset-0 z-[500] bg-black/90 flex items-center justify-center animate-fade-in" onClick={() => setShowQR(false)}>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-white font-bold text-xl">My Profile QR Code</h3>
+                        <p className="text-zinc-500 text-sm text-center">Scan to visit <span className="text-white font-bold">@{profileData?.username}</span>'s profile</p>
+                        <div className="bg-white p-4 rounded-2xl shadow-lg">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + '/profile/' + id)}`} alt="Profile QR Code" className="w-48 h-48 rounded-xl" />
+                        </div>
+                        <p className="text-zinc-600 text-xs">{window.location.origin}/profile/{id}</p>
+                        <button onClick={() => setShowQR(false)} className="text-zinc-400 hover:text-white transition text-sm">Close</button>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
