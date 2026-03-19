@@ -75,49 +75,61 @@ app.get('/api/admin/users/:userId/profile', async (req, res) => {
         const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
         if (!isAdmin) return res.status(403).json({ error: 'Access denied.' });
         const uid = req.params.userId;
-        const [users] = await pool.query(`
-            SELECT u.*,
-                COUNT(DISTINCT p.id) AS post_count,
-                COUNT(DISTINCT f.id) AS friend_count,
-                COUNT(DISTINCT s.id) AS story_count,
-                COUNT(DISTINCT lk.id) AS total_likes_received
-            FROM users u
-            LEFT JOIN posts p ON p.user_id = u.id
-            LEFT JOIN likes lk ON lk.post_id = p.id
-            LEFT JOIN connections f ON (f.requester_id = u.id OR f.receiver_id = u.id) AND f.status = 'accepted'
-            LEFT JOIN stories s ON s.user_id = u.id
-            WHERE u.id = ?
-            GROUP BY u.id
-        `, [uid]);
+
+        // Core user info — simple query first, no complex joins
+        const [users] = await pool.query(`SELECT * FROM users WHERE id = ?`, [uid]);
         if (!users[0]) return res.status(404).json({ error: 'User not found.' });
         const profile = users[0];
 
-        // total comments received
-        const [[cmtRow]] = await pool.query(
-            `SELECT COUNT(*) AS cnt FROM comments c JOIN posts pp ON c.post_id = pp.id WHERE pp.user_id = ?`, [uid]);
-        profile.total_comments_received = cmtRow.cnt || 0;
+        // counts — each in its own try/catch so one failure doesn't kill the whole endpoint
+        try {
+            const [[pc]] = await pool.query(`SELECT COUNT(*) AS cnt FROM posts WHERE user_id = ?`, [uid]);
+            profile.post_count = pc.cnt || 0;
+        } catch(e) { profile.post_count = 0; }
 
-        // recent posts
-        const [recent_posts] = await pool.query(`
-            SELECT p.id, p.content, p.image_url, p.created_at, p.view_count,
-                COUNT(DISTINCT lk.id) AS like_count,
-                COUNT(DISTINCT c.id) AS comment_count
-            FROM posts p
-            LEFT JOIN likes lk ON lk.post_id = p.id
-            LEFT JOIN comments c ON c.post_id = p.id
-            WHERE p.user_id = ? GROUP BY p.id ORDER BY p.created_at DESC LIMIT 5
-        `, [uid]);
-        profile.recent_posts = recent_posts;
+        try {
+            const [[fc]] = await pool.query(`SELECT COUNT(*) AS cnt FROM connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'`, [uid, uid]);
+            profile.friend_count = fc.cnt || 0;
+        } catch(e) { profile.friend_count = 0; }
 
-        // warnings (stored as notifications of type 'warning')
-        const [warnings] = await pool.query(`
-            SELECT n.id, n.content AS message, n.created_at,
-                COALESCE(u.display_name, u.username) AS admin_name
-            FROM notifications n LEFT JOIN users u ON u.id = n.from_user_id
-            WHERE n.user_id = ? AND n.type = 'warning'
-            ORDER BY n.created_at DESC
-        `, [uid]);
-        profile.warnings = warnings;
+        try {
+            const [[sc]] = await pool.query(`SELECT COUNT(*) AS cnt FROM stories WHERE user_id = ?`, [uid]);
+            profile.story_count = sc.cnt || 0;
+        } catch(e) { profile.story_count = 0; }
+
+        try {
+            const [[lk]] = await pool.query(`SELECT COUNT(*) AS cnt FROM likes l JOIN posts p ON l.post_id = p.id WHERE p.user_id = ?`, [uid]);
+            profile.total_likes_received = lk.cnt || 0;
+        } catch(e) { profile.total_likes_received = 0; }
+
+        try {
+            const [[cm]] = await pool.query(`SELECT COUNT(*) AS cnt FROM comments c JOIN posts p ON c.post_id = p.id WHERE p.user_id = ?`, [uid]);
+            profile.total_comments_received = cm.cnt || 0;
+        } catch(e) { profile.total_comments_received = 0; }
+
+        try {
+            const [recent_posts] = await pool.query(`
+                SELECT p.id, p.content, p.image_url, p.created_at, p.view_count,
+                    COUNT(DISTINCT lk.id) AS like_count,
+                    COUNT(DISTINCT c.id) AS comment_count
+                FROM posts p
+                LEFT JOIN likes lk ON lk.post_id = p.id
+                LEFT JOIN comments c ON c.post_id = p.id
+                WHERE p.user_id = ? GROUP BY p.id ORDER BY p.created_at DESC LIMIT 5
+            `, [uid]);
+            profile.recent_posts = recent_posts;
+        } catch(e) { profile.recent_posts = []; }
+
+        try {
+            const [warnings] = await pool.query(`
+                SELECT n.id, n.content AS message, n.created_at,
+                    COALESCE(u.display_name, u.username) AS admin_name
+                FROM notifications n LEFT JOIN users u ON u.id = n.from_user_id
+                WHERE n.user_id = ? AND n.type = 'warning'
+                ORDER BY n.created_at DESC
+            `, [uid]);
+            profile.warnings = warnings;
+        } catch(e) { profile.warnings = []; }
 
         res.json(profile);
     } catch(e) { console.error('admin profile error:', e); res.status(500).json({ error: e.message }); }
