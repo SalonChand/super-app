@@ -1895,6 +1895,8 @@ async function getOrCreateStreak(uid1, uid2) {
 // Get today's challenge
 app.get('/api/challenge/today', async (req, res) => {
     try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS daily_challenges (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(200) NOT NULL, description TEXT, emoji VARCHAR(10) DEFAULT '🎯', challenge_date DATE NOT NULL, created_by INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_date (challenge_date))`).catch(()=>{});
+        await pool.query(`CREATE TABLE IF NOT EXISTS challenge_completions (id INT AUTO_INCREMENT PRIMARY KEY, challenge_id INT NOT NULL, user_id INT NOT NULL, post_id INT DEFAULT NULL, completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_completion (challenge_id, user_id), FOREIGN KEY (challenge_id) REFERENCES daily_challenges(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`).catch(()=>{});
         const userId = req.query.userId || 0;
         const today = new Date().toISOString().slice(0, 10);
         const [rows] = await pool.query(`
@@ -1959,6 +1961,9 @@ app.post('/api/admin/challenge', async (req, res) => {
         const isAdmin = admin[0] && (admin[0].role === 'superadmin' || admin[0].username === 'superadmin' || String(adminId) === '1');
         if (!isAdmin) return res.status(403).json({ error: 'Unauthorized' });
         if (!title?.trim()) return res.status(400).json({ error: 'Title is required' });
+        // Create tables if they don't exist yet
+        await pool.query(`CREATE TABLE IF NOT EXISTS daily_challenges (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(200) NOT NULL, description TEXT, emoji VARCHAR(10) DEFAULT '🎯', challenge_date DATE NOT NULL, created_by INT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_date (challenge_date))`).catch(()=>{});
+        await pool.query(`CREATE TABLE IF NOT EXISTS challenge_completions (id INT AUTO_INCREMENT PRIMARY KEY, challenge_id INT NOT NULL, user_id INT NOT NULL, post_id INT DEFAULT NULL, completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_completion (challenge_id, user_id), FOREIGN KEY (challenge_id) REFERENCES daily_challenges(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`).catch(()=>{});
         const date = challenge_date || new Date().toISOString().slice(0, 10);
         await pool.query(
             `INSERT INTO daily_challenges (title, description, emoji, challenge_date, created_by)
