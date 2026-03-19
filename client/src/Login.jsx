@@ -136,11 +136,6 @@ function Login() {
             />
 
             <div className="w-full max-w-md relative animate-fade-in">
-                {/* Back to landing */}
-                <Link to="/landing" className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm mb-6 transition-colors">
-                    <ArrowLeft size={14} />
-                    Back to home
-                </Link>
 
                 {/* Card */}
                 <div className="bg-zinc-950/90 backdrop-blur-xl border border-zinc-800/80 rounded-3xl p-8 shadow-2xl shadow-black/60">
