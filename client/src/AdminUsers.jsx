@@ -28,10 +28,10 @@ export default function AdminUsers() {
     const [actionMsg, setActionMsg] = useState({});
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [badgePickerUserId, setBadgePickerUserId] = useState(null);
-    const [activeTab, setActiveTab] = useState('users'); // 'users' | 'monetization'
+    const [activeTab, setActiveTab] = useState('users');
     const [monoApps, setMonoApps] = useState([]);
     const [monoLoading, setMonoLoading] = useState(false);
-    const [monoAction, setMonoAction] = useState({}); // { userId: 'loading' }
+    const [monoAction, setMonoAction] = useState({});
     const [monoNote, setMonoNote] = useState({});
     const [monoTag, setMonoTag] = useState({});
     const [expandedApp, setExpandedApp] = useState(null);
@@ -144,6 +144,20 @@ export default function AdminUsers() {
                 <button onClick={loadUsers} className="text-zinc-400 hover:text-white p-1"><RefreshCw size={18} className={loading ? 'animate-spin' : ''}/></button>
             </div>
 
+            {/* Tab bar */}
+            <div className="flex border-b border-zinc-800 bg-zinc-950">
+                <button onClick={() => setActiveTab('users')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition ${activeTab === 'users' ? 'border-blue-500 text-white' : 'border-transparent text-zinc-500'}`}>
+                    <Users size={14}/> Users
+                </button>
+                <button onClick={() => setActiveTab('monetization')} className={`flex-1 py-3 text-sm font-bold border-b-2 flex items-center justify-center gap-2 transition ${activeTab === 'monetization' ? 'border-yellow-500 text-white' : 'border-transparent text-zinc-500'}`}>
+                    <DollarSign size={14}/> Monetize
+                    {monoApps.filter(a => a.status === 'pending').length > 0 && (
+                        <span className="bg-yellow-500 text-black text-xs font-black px-1.5 py-0.5 rounded-full">{monoApps.filter(a => a.status === 'pending').length}</span>
+                    )}
+                </button>
+            </div>
+
+            {activeTab === 'users' && (
             <div className="max-w-2xl mx-auto px-4 pt-4 space-y-3">
                 {error ? <p className="text-red-400 text-center py-10">{error}</p> : <>
                     <div className="relative">
@@ -288,73 +302,61 @@ export default function AdminUsers() {
                     </div>
                 </div>
             )}
-        </>}
+        </div>
+            )}
 
-            {/* Monetization Applications Tab */}
+            {/* Monetization Tab */}
             {activeTab === 'monetization' && (
-                <div className="p-4 space-y-4">
+                <div className="p-4 space-y-3 max-w-2xl mx-auto">
                     {monoLoading ? (
-                        <div className="text-center py-12 text-zinc-500">Loading...</div>
+                        <div className="text-center py-12 text-zinc-500 text-sm">Loading applications...</div>
                     ) : monoApps.length === 0 ? (
                         <div className="text-center py-12 text-zinc-600">
                             <DollarSign size={32} className="mx-auto mb-3 opacity-30"/>
-                            <p className="font-semibold text-sm">No applications yet</p>
+                            <p className="font-semibold text-sm">No monetization applications yet</p>
                         </div>
                     ) : monoApps.map(app => (
                         <div key={app.user_id} className={`bg-zinc-900/60 border rounded-2xl overflow-hidden ${app.status === 'pending' ? 'border-yellow-500/30' : app.status === 'approved' ? 'border-green-500/30' : 'border-zinc-800'}`}>
-                            {/* User info row */}
-                            <div className="p-4 flex items-center gap-3" onClick={() => setExpandedApp(expandedApp === app.user_id ? null : app.user_id)}>
+                            <div className="p-4 flex items-center gap-3 cursor-pointer" onClick={() => setExpandedApp(expandedApp === app.user_id ? null : app.user_id)}>
                                 <div className="w-11 h-11 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
                                     {app.profile_pic_url ? <img src={app.profile_pic_url} className="w-full h-full object-cover"/> : <span className="flex items-center justify-center h-full text-white font-bold">{app.username?.charAt(0).toUpperCase()}</span>}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-white font-bold text-sm">{app.username}</p>
                                     <p className="text-zinc-500 text-xs">{app.email}</p>
+                                    <p className="text-zinc-600 text-xs mt-0.5">Applied {new Date(app.applied_at).toLocaleDateString()}</p>
                                 </div>
                                 <span className={`text-xs font-black px-2.5 py-1 rounded-full ${app.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : app.status === 'approved' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                     {app.status.toUpperCase()}
                                 </span>
                             </div>
-
-                            {/* Expanded details */}
                             {expandedApp === app.user_id && (
                                 <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
-                                    {/* Stats */}
                                     <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { label: 'Posts', value: app.post_count },
-                                            { label: 'Likes', value: app.total_likes },
-                                            { label: 'Followers', value: app.follower_count },
-                                        ].map(s => (
+                                        {[{label:'Posts',value:app.post_count},{label:'Likes',value:app.total_likes},{label:'Followers',value:app.follower_count}].map(s => (
                                             <div key={s.label} className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
                                                 <p className="text-white font-black text-sm">{s.value || 0}</p>
                                                 <p className="text-zinc-500 text-xs">{s.label}</p>
                                             </div>
                                         ))}
                                     </div>
-                                    <p className="text-zinc-500 text-xs">Applied: {new Date(app.applied_at).toLocaleDateString()}</p>
                                     <Link to={`/admin/users/${app.user_id}/profile`} className="flex items-center gap-2 text-sky-400 text-sm font-semibold hover:text-sky-300 transition">
                                         <Eye size={14}/> View Full Profile & Stats
                                     </Link>
-
-                                    {/* Actions for pending */}
                                     {app.status === 'pending' && (
                                         <div className="space-y-2">
                                             <input value={monoTag[app.user_id] || ''} onChange={e => setMonoTag(p => ({...p, [app.user_id]: e.target.value}))}
                                                 placeholder="Creator tag (e.g. Top Creator)"
-                                                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-yellow-500/60" />
+                                                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-yellow-500/60"/>
                                             <textarea value={monoNote[app.user_id] || ''} onChange={e => setMonoNote(p => ({...p, [app.user_id]: e.target.value}))}
-                                                placeholder="Admin note (optional, shown to user on rejection)"
-                                                rows={2}
-                                                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-zinc-600 resize-none" />
+                                                placeholder="Note to user (shown on rejection)..." rows={2}
+                                                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm outline-none resize-none"/>
                                             <div className="flex gap-2">
-                                                <button onClick={() => handleMonoDecision(app.user_id, 'approve')}
-                                                    disabled={monoAction[app.user_id] === 'loading'}
+                                                <button onClick={() => handleMonoDecision(app.user_id, 'approve')} disabled={monoAction[app.user_id] === 'loading'}
                                                     className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-xl transition text-sm disabled:opacity-50">
                                                     <Check size={15}/> Approve
                                                 </button>
-                                                <button onClick={() => handleMonoDecision(app.user_id, 'reject')}
-                                                    disabled={monoAction[app.user_id] === 'loading'}
+                                                <button onClick={() => handleMonoDecision(app.user_id, 'reject')} disabled={monoAction[app.user_id] === 'loading'}
                                                     className="flex-1 flex items-center justify-center gap-2 bg-red-600/80 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl transition text-sm disabled:opacity-50">
                                                     <XCircle size={15}/> Reject
                                                 </button>
