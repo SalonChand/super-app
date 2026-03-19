@@ -56,14 +56,18 @@ function Notifications() {
     };
 
     return (
-        <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in relative">
-            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10 flex items-center gap-3 backdrop-blur-md">
-                <Bell size={24} className="text-white" />
-                <h2 className="text-2xl font-bold text-white">Notifications</h2>
+        <div className="w-full bg-zinc-950 min-h-screen pb-20 sm:pb-0 animate-fade-in relative">
+            <div className="px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/90 sticky top-0 z-10 flex items-center justify-between backdrop-blur-xl">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500/20 to-rose-500/20 border border-sky-500/20 flex items-center justify-center">
+                        <Bell size={16} className="text-sky-400" />
+                    </div>
+                    <h2 className="text-xl font-black text-white tracking-tight">Notifications</h2>
+                </div>
             </div>
 
             {birthdayFriends.length > 0 && (
-                <div className="mx-4 mt-4 bg-gradient-to-r from-pink-500/20 to-yellow-500/20 border border-pink-500/30 rounded-2xl p-4">
+                <div className="mx-4 mt-4 bg-gradient-to-r from-pink-500/10 to-amber-500/10 border border-pink-500/20 rounded-2xl p-4 shadow-lg shadow-pink-500/5">
                     <div className="flex items-center gap-2 mb-3">
                         <Cake size={18} className="text-pink-400"/>
                         <h3 className="text-white font-bold text-sm">🎂 Birthdays Today!</h3>
@@ -86,12 +90,12 @@ function Notifications() {
 
             {suggestions.length > 0 && (
                 <div className="px-4 pt-4">
-                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <Users size={13} /> People You May Know
+                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Users size={12} className="text-zinc-500"/> People You May Know
                     </h3>
                     <div className="flex gap-3 overflow-x-auto pb-3">
                         {suggestions.map(user => (
-                            <div key={user.id} className="flex-shrink-0 w-36 bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex flex-col items-center gap-2">
+                            <div key={user.id} className="flex-shrink-0 w-36 bg-zinc-900/80 border border-zinc-800/60 rounded-2xl p-3 flex flex-col items-center gap-2 hover:border-zinc-700 transition-all">
                                 <Link to={`/profile/${user.id}`}>
                                     <div className="w-14 h-14 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">
                                         {user.profile_pic_url
@@ -103,7 +107,7 @@ function Notifications() {
                                 <p className="text-zinc-500 text-xs">{user.mutual_count} mutual</p>
                                 {addedIds.has(user.id)
                                     ? <span className="text-green-400 text-xs font-bold">Added!</span>
-                                    : <button onClick={() => sendRequest(user.id)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded-full transition">Add Friend</button>
+                                    : <button onClick={() => sendRequest(user.id)} className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-bold py-1.5 rounded-full transition shadow-md shadow-blue-500/20">Add Friend</button>
                                 }
                             </div>
                         ))}
@@ -145,16 +149,19 @@ function Notifications() {
                         ))}
                     </>
                 ) : activity.length === 0 ? (
-                    <div className="text-center p-10 text-zinc-500">
-                        <Bell size={48} className="mx-auto mb-4 opacity-30" />
-                        <p>No recent activity.</p>
+                    <div className="text-center p-16 text-zinc-600">
+                        <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-4">
+                            <Bell size={28} className="opacity-40" />
+                        </div>
+                        <p className="font-semibold text-sm">All caught up!</p>
+                        <p className="text-xs mt-1 text-zinc-700">No recent activity</p>
                     </div>
                 ) : (
                     activity.map((item, i) => {
                         const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG['message'];
                         const { color, Icon, link } = cfg;
                         return (
-                            <Link to={link} key={i} className="flex items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-2xl hover:bg-zinc-800 transition shadow-md">
+                            <Link to={link} key={i} className="flex items-center gap-4 bg-zinc-900/60 border border-zinc-800/50 p-4 rounded-2xl hover:bg-zinc-900 hover:border-zinc-700/60 transition-all shadow-sm">
                                 <div className="relative flex-shrink-0">
                                     <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center">
                                         {item.profile_pic_url
@@ -169,8 +176,8 @@ function Notifications() {
                                     <p className="text-white text-sm leading-snug">{item.content || `${item.username} interacted with you.`}</p>
                                     <p className="text-zinc-600 text-[10px] mt-1">{formatTimeFriendly(item.created_at)}</p>
                                 </div>
-                                <div className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition text-white flex-shrink-0">
-                                    <Check size={18} />
+                                <div className="bg-zinc-800/80 hover:bg-zinc-700 p-2 rounded-xl transition text-zinc-400 flex-shrink-0">
+                                    <Check size={14} />
                                 </div>
                             </Link>
                         );

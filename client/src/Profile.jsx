@@ -368,11 +368,11 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
 
     return (
         <>
-        <div className="w-full pb-20 sm:pb-0 animate-fade-in relative">
+        <div className="w-full pb-20 sm:pb-0 animate-fade-in relative bg-zinc-950">
             {/* Friends / Followers Modal */}
             {showPeopleModal && (
-                <div className="fixed inset-0 z-[200] bg-black/85 flex items-end sm:items-center justify-center" onClick={() => setShowPeopleModal(null)}>
-                    <div className="bg-zinc-950 border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowPeopleModal(null)}>
+                    <div className="bg-zinc-900 border border-zinc-800/60 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
                         {/* Header */}
                         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-800 flex-shrink-0">
                             <h2 className="text-white font-bold text-lg">{showPeopleModal === 'friends' ? 'Friends' : 'Followers'}</h2>
@@ -408,7 +408,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                             <p className="font-bold text-white text-sm truncate">{user.username}</p>
                                             <VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={13}/>
                                         </div>
-                                        <p className="text-zinc-500 text-xs">@{user.username?.toLowerCase()}</p>
+                                        <p className="text-zinc-500 text-xs font-medium tracking-wide">@{user.username?.toLowerCase()}</p>
                                     </a>
                                     {/* 3 dot menu */}
                                     <div className="relative flex-shrink-0">
@@ -452,12 +452,12 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
             )}
 
             <div className="h-32 sm:h-48 w-full relative overflow-hidden bg-zinc-900">
-                {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-r from-blue-900 to-purple-900"></div>}
+                {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-br from-sky-900/60 via-zinc-900 to-rose-900/40"></div>}
                 {isMyProfile && !isEditing && ( <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link> )}
                 {isEditing && ( <div onClick={() => coverInputRef.current.click()} className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer hover:bg-black/70 transition z-10"><Camera size={32} className="text-white drop-shadow-md" /><span className="text-white font-bold drop-shadow-md mt-1 text-sm">Edit Cover</span><input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => setEditCover(e.target.files[0])}/></div> )}
             </div>
 
-            <div className="px-4 relative pb-4 border-b border-zinc-800">
+            <div className="px-4 relative pb-4 border-b border-zinc-800/50">
                 <div className="flex justify-between items-start">
                     <div className="relative -mt-12 sm:-mt-16 z-20 w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0">
                         <div className="w-full h-full rounded-full border-4 border-black bg-zinc-800 flex items-center justify-center overflow-hidden">
@@ -474,8 +474,8 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         {isMyProfile ? (
                             isEditing ? <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-full transition"><Check size={18} /> Save</button>
                             : <>
-                                <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800"><Edit3 size={18} /> Edit Profile</button>
-                                <button onClick={() => setShowQR(true)} title="Show QR Code" className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-3 rounded-full hover:bg-zinc-800">📱 QR</button>
+                                <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 hover:border-zinc-600 transition-all text-sm"><Edit3 size={15} /> Edit Profile</button>
+                                <button onClick={() => setShowQR(true)} title="Show QR Code" className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-700/60 text-white font-semibold py-2 px-3 rounded-xl hover:bg-zinc-800 hover:border-zinc-600 transition-all text-sm">📱</button>
                                 <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 text-white font-bold py-1.5 px-4 rounded-full hover:bg-zinc-800 transition">📊 Dashboard</button>
                               </>
                         ) : (
@@ -558,7 +558,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                         <Ghost size={18} className="text-purple-400"/>
                                         <div>
                                             <p className="text-white text-sm font-semibold">Ghost Mode</p>
-                                            <p className="text-zinc-500 text-xs">Hide your active status from everyone including friends</p>
+                                            <p className="text-zinc-500 text-xs font-medium tracking-wide">Hide your active status from everyone including friends</p>
                                         </div>
                                     </div>
                                     <button type="button" onClick={async () => {
@@ -757,9 +757,9 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                 )}
                                 {showAnalyticsPostId === post.id && postAnalytics[post.id] && (
                                     <div className="flex gap-4 bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-3 text-sm">
-                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].view_count || 0}</p><p className="text-zinc-500 text-xs">Views</p></div>
-                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].like_count || 0}</p><p className="text-zinc-500 text-xs">Likes</p></div>
-                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].comment_count || 0}</p><p className="text-zinc-500 text-xs">Comments</p></div>
+                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].view_count || 0}</p><p className="text-zinc-500 text-xs font-medium tracking-wide">Views</p></div>
+                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].like_count || 0}</p><p className="text-zinc-500 text-xs font-medium tracking-wide">Likes</p></div>
+                                        <div className="text-center"><p className="font-bold text-white">{postAnalytics[post.id].comment_count || 0}</p><p className="text-zinc-500 text-xs font-medium tracking-wide">Comments</p></div>
                                     </div>
                                 )}
                                     </div>

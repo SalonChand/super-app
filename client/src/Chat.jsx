@@ -465,17 +465,17 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
         const pinnedMessage = messages.slice().reverse().find(m => m.is_pinned);
 
         return (
-            <div className="flex flex-col w-full relative bg-black h-[calc(100dvh-70px)] sm:h-screen">
+            <div className="flex flex-col w-full relative bg-zinc-950 h-[calc(100dvh-70px)] sm:h-screen">
                 {viewingImage && ( <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 hover:bg-zinc-700 transition"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-full object-contain p-4" onClick={(e) => e.stopPropagation()} /></div> )}
                 {forwardingMessage ? ( <div className="absolute inset-0 z-50 bg-black/90 flex flex-col p-4 animate-fade-in"><div className="flex justify-between items-center mb-6"><h3 className="text-white font-bold text-xl">Forward to...</h3><button onClick={() => setForwardingMessage(null)} className="text-white bg-zinc-800 rounded-full p-2"><X size={20}/></button></div><div className="space-y-2 overflow-y-auto">{friends.map(friend => (<div key={friend.id} onClick={() => executeForward(friend.id)} className="flex items-center gap-4 bg-zinc-900 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition"><div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800">{friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <User className="m-auto mt-2 text-zinc-500" />}</div><div className="flex items-center gap-1"><span className="text-white font-bold">{friend.username}</span>{<VerifiedBadge isVerified={!!friend.is_verified} verifyType={friend.verify_type} size={13}/>}</div><Send size={18} className="ml-auto text-blue-500" /></div>))}</div></div> ) : null}
 
-                <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
+                <div className="px-4 py-3 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-xl sticky top-0 z-10 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setSelectedUser(null)} className="p-1 hover:bg-zinc-800 rounded-full transition text-white"><ArrowLeft size={24} /></button>
                         <button onClick={() => setShowChatSettings(true)} className="flex items-center gap-3 hover:opacity-80 transition cursor-pointer text-left">
                             {(() => { const fs = friendStories[selectedUser.id]; return (
     <div onClick={fs?.hasStory ? (e) => { e.preventDefault(); e.stopPropagation(); setViewingStory(fs.story); setFriendStories(prev => ({...prev, [selectedUser.id]: {...prev[selectedUser.id], viewed: true}})); axios.post(`${BACKEND_URL}/api/stories/${fs.story.id}/view`, { userId }).catch(()=>{}); } : undefined}
-        className={"w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 " + (fs?.hasStory ? ("cursor-pointer p-0.5 " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+        className={"w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 " + (fs?.hasStory ? ("cursor-pointer p-0.5 " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-sky-500 to-blue-500 shadow-[0_0_10px_rgba(14,165,233,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
         <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-zinc-800 " + (fs?.hasStory ? "border-2 border-black" : "")}>
             {selectedUser.profile_pic_url ? <img src={`${selectedUser.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold">{selectedUser.username.charAt(0).toUpperCase()}</span>}
         </div>
@@ -497,7 +497,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 
                 {/* Search bar in conversation */}
                 {searchOpen && (
-                    <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-2 flex items-center gap-3 animate-fade-in">
+                    <div className="bg-zinc-900/80 border-b border-zinc-800/60 px-4 py-2.5 flex items-center gap-3 animate-fade-in backdrop-blur-sm">
                         <Search size={16} className="text-zinc-400 flex-shrink-0" />
                         <input
                             autoFocus
@@ -514,7 +514,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 {/* Chat Settings Panel */}
                 {showChatSettings && (
                     <div className="absolute inset-0 z-50 flex flex-col animate-fade-in" style={{background:'rgba(0,0,0,0.6)'}}>
-                        <div className="mt-auto bg-zinc-950 border-t border-zinc-800 rounded-t-3xl shadow-2xl overflow-y-auto max-h-[85vh]">
+                        <div className="mt-auto bg-zinc-900 border-t border-zinc-800/60 rounded-t-3xl shadow-2xl shadow-black/80 overflow-y-auto max-h-[85vh] backdrop-blur-xl">
                             {/* Handle bar */}
                             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-zinc-700 rounded-full" /></div>
 
@@ -943,7 +943,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     <div onClick={() => handleSelectUser(friend)} onContextMenu={e => { e.preventDefault(); setFolderAssigning(folderAssigning === friend.id ? null : friend.id); }} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-900 transition cursor-pointer select-none">
                                         {(() => { const fs = friendStories[friend.id]; return (
                                             <div onClick={fs?.hasStory ? (e) => { e.stopPropagation(); setViewingStory(fs.story); setFriendStories(prev => ({...prev, [friend.id]: {...prev[friend.id], viewed: true}})); axios.post(`${BACKEND_URL}/api/stories/${fs.story.id}/view`, { userId }).catch(()=>{}); } : undefined}
-                                                className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center " + (fs?.hasStory ? ("p-0.5 cursor-pointer " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+                                                className={"w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center " + (fs?.hasStory ? ("p-0.5 cursor-pointer " + (fs.viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-sky-500 to-blue-500 shadow-[0_0_10px_rgba(14,165,233,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
                                                 <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-zinc-800 " + (fs?.hasStory ? "border-2 border-black" : "")}>
                                                     {friend.profile_pic_url ? <img src={`${friend.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{friend.username.charAt(0).toUpperCase()}</span>}
                                                 </div>
