@@ -1,25 +1,74 @@
 // ============================================================
-//  Connect Service Worker — Push Notifications (no caching)
-//  No static caching = always loads fresh code on every deploy
+//  Connect Service Worker — Push + Offline Fallback
 // ============================================================
 
-// ── Install & Activate: skip waiting, claim clients immediately ──
-self.addEventListener('install', () => self.skipWaiting());
+const CACHE_NAME = 'connect-shell-v1';
+const OFFLINE_URL = '/offline.html';
 
-self.addEventListener('activate', (e) => {
-    // Clear ALL old caches on every deploy
+// ── Install: cache the app shell ──────────────────────────────
+self.addEventListener('install', (e) => {
     e.waitUntil(
-        caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-        .then(() => self.clients.claim())
+        caches.open(CACHE_NAME).then(cache =>
+            cache.addAll(['/', '/logo.png'])
+                .catch(() => {}) // don't fail install if network is down
+        ).then(() => self.skipWaiting())
     );
 });
 
-// ── Force update when main.jsx sends SKIP_WAITING ────────────
+// ── Activate: clean old caches ────────────────────────────────
+self.addEventListener('activate', (e) => {
+    e.waitUntil(
+        caches.keys()
+            .then(keys => Promise.all(
+                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+            ))
+            .then(() => self.clients.claim())
+    );
+});
+
+// ── Force update ──────────────────────────────────────────────
 self.addEventListener('message', (e) => {
     if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
+// ── Fetch: network-first, offline fallback ────────────────────
+self.addEventListener('fetch', (e) => {
+    // Only handle GET requests
+    if (e.request.method !== 'GET') return;
 
+    const url = new URL(e.request.url);
+
+    // Skip API calls and external requests — always live
+    if (url.origin !== self.location.origin) return;
+    if (url.pathname.startsWith('/api/')) return;
+
+    e.respondWith(
+        fetch(e.request)
+            .then(res => {
+                // Cache static assets (logo, icons)
+                if (url.pathname.match(/\.(png|jpg|jpeg|svg|ico|webp)$/)) {
+                    const clone = res.clone();
+                    caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+                }
+                return res;
+            })
+            .catch(async () => {
+                // Offline: try cache first
+                const cached = await caches.match(e.request);
+                if (cached) return cached;
+                // For navigation requests, return cached root
+                if (e.request.mode === 'navigate') {
+                    const root = await caches.match('/');
+                    return root || new Response('Connect is offline. Please check your internet connection.', {
+                        status: 503,
+                        headers: { 'Content-Type': 'text/plain' }
+                    });
+                }
+            })
+    );
+});
+
+// ── Push Notifications ────────────────────────────────────────
 self.addEventListener('push', (e) => {
     if (!e.data) return;
 
@@ -36,19 +85,19 @@ self.addEventListener('push', (e) => {
         type   = 'general',
     } = data;
 
-    // Pick emoji prefix by type
     const typeIcons = {
         message:         '💬',
         like:            '❤️',
         comment:         '🗨️',
         friend_request:  '👥',
         friend_accepted: '🤝',
-        mention:         '@️',
+        mention:         '@ ',
         streak:          '🔥',
         verified:        '✅',
         broadcast:       '📢',
         community:       '🌐',
         marketplace:     '🛍️',
+        challenge:       '🎯',
     };
     const prefix = typeIcons[type] || '🔔';
 
@@ -56,8 +105,8 @@ self.addEventListener('push', (e) => {
         body,
         icon,
         badge,
-        tag,                    // same tag = replace previous notif of same type
-        renotify: true,         // vibrate even if replacing
+        tag,
+        renotify: true,
         requireInteraction: type === 'message' || type === 'friend_request',
         vibrate: [100, 50, 100],
         data: { url },
@@ -81,8 +130,6 @@ self.addEventListener('notificationclick', (e) => {
     e.notification.close();
 
     const url = e.notification.data?.url || '/';
-
-    // Map action clicks to specific URLs
     let targetUrl = url;
     if (e.action === 'reply')  targetUrl = '/chat';
     if (e.action === 'view')   targetUrl = '/friends';
@@ -90,7 +137,6 @@ self.addEventListener('notificationclick', (e) => {
 
     e.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
-            // If app is already open, focus it and navigate
             for (const client of windowClients) {
                 if (client.url.includes(self.location.origin) && 'focus' in client) {
                     client.focus();
@@ -98,11 +144,9 @@ self.addEventListener('notificationclick', (e) => {
                     return;
                 }
             }
-            // Otherwise open a new window
             if (clients.openWindow) return clients.openWindow(targetUrl);
         })
     );
 });
 
-// ── Notification Close (optional analytics) ──────────────────
 self.addEventListener('notificationclose', () => {});
