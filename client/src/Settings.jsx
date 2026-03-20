@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck, BadgeCheck, Send, Settings } from 'lucide-react';
+import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck, BadgeCheck, Send, Settings as SettingsIcon } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Helper to convert VAPID keys
@@ -286,7 +286,7 @@ function Settings() {
         <div className="w-full bg-zinc-950 min-h-screen pb-20 sm:pb-0 animate-fade-in">
             <div className="px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/90 sticky top-0 z-10 backdrop-blur-xl flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-zinc-700/50 to-zinc-600/30 border border-zinc-700/40 flex items-center justify-center">
-                    <Settings size={15} className="text-zinc-300"/>
+                    <SettingsIcon size={15} className="text-zinc-300"/>
                 </div>
                 <h2 className="text-xl font-black text-white tracking-tight">Settings</h2>
             </div>
