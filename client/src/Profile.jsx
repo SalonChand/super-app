@@ -517,35 +517,8 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleAvatarChange(e.target.files[0])}/>
                     </div>
 
-
                     <div className="mt-4">
-                        {isMyProfile ? (
-                            isEditing ? (
-                                <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-2 px-6 rounded-xl transition">
-                                    <Check size={16}/> Save Changes
-                                </button>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {/* Row 1: Edit Info + QR + Monetize */}
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 hover:border-zinc-600 transition-all text-sm flex-1 justify-center">
-                                            <Edit3 size={14}/> Edit Info
-                                        </button>
-                                        <button onClick={() => setShowQR(true)} title="QR Code" className="flex items-center justify-center bg-zinc-900 border border-zinc-700/60 text-white py-2 px-3 rounded-xl hover:bg-zinc-800 transition-all text-sm">
-                                            📱
-                                        </button>
-                                        <Link to="/monetization" className={`flex items-center gap-1.5 py-2 px-3 rounded-xl font-semibold text-sm transition-all border justify-center ${profileData?.is_monetized ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' : 'bg-zinc-900 border-zinc-700/60 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}>
-                                            <DollarSign size={14}/>
-                                            {profileData?.is_monetized ? 'Monetized' : 'Monetize'}
-                                        </Link>
-                                    </div>
-                                    {/* Row 2: Dashboard */}
-                                    <button onClick={() => navigate('/dashboard')} className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 transition-all text-sm w-full">
-                                        📊 Dashboard
-                                    </button>
-                                </div>
-                            )
-                        ) : (
+                        {!isMyProfile && (
                             <>
                                 {isVerifiedProfile ? (
                                     <>
@@ -605,7 +578,32 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     </div>
 
                     {profileData.created_at && (
-                        <p className="text-zinc-500 text-xs mt-1 mb-1">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
+                        <p className="text-zinc-500 text-xs mt-1 mb-3">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
+
+                    {/* ── Action buttons below join date ── */}
+                    {isMyProfile && (
+                        isEditing ? (
+                            <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-2 px-6 rounded-xl transition">
+                                <Check size={16}/> Save Changes
+                            </button>
+                        ) : (
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 transition-all text-sm">
+                                    <Edit3 size={14}/> Edit Info
+                                </button>
+                                <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 transition-all text-sm">
+                                    📊 Dashboard
+                                </button>
+                                <Link to="/monetization" className={"flex items-center gap-1.5 py-2 px-4 rounded-xl font-semibold text-sm transition-all border " + (profileData?.is_monetized ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' : 'bg-zinc-900 border-zinc-700/60 text-zinc-400 hover:text-white hover:bg-zinc-800')}>
+                                    <DollarSign size={14}/>
+                                    {profileData?.is_monetized ? 'Monetized' : 'Monetize'}
+                                </Link>
+                                <button onClick={() => setShowQR(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-zinc-400 hover:text-white py-2 px-3 rounded-xl hover:bg-zinc-800 transition-all text-sm">
+                                    📱
+                                </button>
+                            </div>
+                        )
+                    )}
                     )}
                     {!isMyProfile && mutualFriends.length > 0 && (
                         <div className="flex items-center gap-2 mt-2 mb-1">
