@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck, BadgeCheck, Send } from 'lucide-react';
+import { User, Lock, Bell, Shield, LogOut, ChevronRight, Moon, Trash2, Palette, ShieldCheck, BadgeCheck, Send, Settings } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 // Helper to convert VAPID keys
@@ -283,24 +283,29 @@ function Settings() {
     };
 
     return (
-        <div className="w-full bg-black min-h-screen pb-20 sm:pb-0 animate-fade-in">
-            <div className="p-4 border-b border-zinc-800 bg-zinc-950/80 sticky top-0 z-10"><h2 className="text-2xl font-bold text-white">Settings</h2></div>
-            <div className="p-4 space-y-6">
+        <div className="w-full bg-zinc-950 min-h-screen pb-20 sm:pb-0 animate-fade-in">
+            <div className="px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/90 sticky top-0 z-10 backdrop-blur-xl flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-zinc-700/50 to-zinc-600/30 border border-zinc-700/40 flex items-center justify-center">
+                    <Settings size={15} className="text-zinc-300"/>
+                </div>
+                <h2 className="text-xl font-black text-white tracking-tight">Settings</h2>
+            </div>
+            <div className="p-4 space-y-5">
                 <div>
                     {!adminClaimed && localStorage.getItem('userRole') !== 'superadmin' && (
                         <div className="mb-6">
-                            <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">🔑 Owner Setup</h3>
-                            <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
+                            <p className="text-[10px] font-black text-yellow-500/70 uppercase tracking-widest mb-2 px-1 flex items-center gap-1.5">🔑 Owner Setup</p>
+                            <div className="bg-zinc-900/50 border border-yellow-500/20 rounded-2xl overflow-hidden">
                                 <div onClick={() => setShowClaimForm(!showClaimForm)}
-                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors">
                                     <div className="flex items-center gap-4">
                                         <span className="text-2xl">👑</span>
                                         <div>
-                                            <h3 className="text-white font-medium">Claim Owner Account</h3>
+                                            <h3 className="text-white font-semibold text-sm">Claim Owner Account</h3>
                                             <p className="text-zinc-500 text-xs">Enter your OWNER_SECRET from Render env vars</p>
                                         </div>
                                     </div>
-                                    <ChevronRight className={`text-zinc-600 transition-transform ${showClaimForm ? 'rotate-90' : ''}`} size={20}/>
+                                    <ChevronRight className={`text-zinc-700 transition-transform ${showClaimForm ? 'rotate-90' : ''}`} size={20}/>
                                 </div>
                                 {showClaimForm && (
                                     <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
@@ -324,18 +329,18 @@ function Settings() {
                     )}
                     {isAdmin && (
                         <div className="mb-6">
-                            <h3 className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 ml-2">👑 Admin Panel</h3>
-                            <div className="bg-zinc-900 border border-yellow-500/30 rounded-2xl overflow-hidden">
+                            <p className="text-[10px] font-black text-yellow-500/70 uppercase tracking-widest mb-2 px-1 flex items-center gap-1.5">👑 Admin Panel</p>
+                            <div className="bg-zinc-900/50 border border-yellow-500/20 rounded-2xl overflow-hidden">
                                 <div onClick={() => navigate('/admin')}
-                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors">
                                     <div className="flex items-center gap-4">
                                         <BadgeCheck className="text-yellow-400" size={22}/>
                                         <div>
-                                            <h3 className="text-white font-medium">Admin Dashboard</h3>
+                                            <h3 className="text-white font-semibold text-sm">Admin Dashboard</h3>
                                             <p className="text-zinc-500 text-xs">Review and approve badge requests</p>
                                         </div>
                                     </div>
-                                    <ChevronRight className="text-zinc-600" size={20}/>
+                                    <ChevronRight className="text-zinc-700" size={20}/>
                                 </div>
                                 <div className="border-t border-zinc-800 p-4 space-y-2">
                                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Your Display Name</p>
@@ -360,17 +365,17 @@ function Settings() {
                             </div>
                         </div>
                     )}
-                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Account</h3>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                        <div onClick={() => navigate(`/profile/${currentUserId}`)} className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50"><div className="flex items-center gap-4"><User className="text-blue-500" size={22} /><div><h3 className="text-white font-medium">Edit Profile</h3></div></div><ChevronRight className="text-zinc-600" size={20} /></div>
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Account</p>
+                    <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl overflow-hidden">
+                        <div onClick={() => navigate(`/profile/${currentUserId}`)} className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors border-b border-zinc-800/40"><div className="flex items-center gap-4"><User className="text-blue-500" size={22} /><div><h3 className="text-white font-semibold text-sm">Edit Profile</h3></div></div><ChevronRight className="text-zinc-700" size={20} /></div>
                         <div className="flex flex-col border-b border-zinc-800/50">
-                            <div onClick={() => setShowPasswordForm(!showPasswordForm)} className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition"><div className="flex items-center gap-4"><Lock className="text-zinc-400" size={22} /><div><h3 className="text-white font-medium">Password & Security</h3></div></div><ChevronRight className={`text-zinc-600 transition-transform ${showPasswordForm ? 'rotate-90' : ''}`} size={20} /></div>
+                            <div onClick={() => setShowPasswordForm(!showPasswordForm)} className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors"><div className="flex items-center gap-4"><Lock className="text-zinc-400" size={22} /><div><h3 className="text-white font-semibold text-sm">Password & Security</h3></div></div><ChevronRight className={`text-zinc-700 transition-transform ${showPasswordForm ? 'rotate-90' : ''}`} size={20} /></div>
                             {showPasswordForm && (<form onSubmit={handleChangePassword} className="p-4 bg-zinc-950 border-t border-zinc-800"><input type="password" placeholder="Current Password" required value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 mb-2 text-white outline-none" /><input type="password" placeholder="New Password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 mb-3 text-white outline-none" /><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg">Update Password</button>{passwordMsg && <p className="text-center text-sm mt-2">{passwordMsg}</p>}</form>)}
                             {/* Birthday */}
                             <div className="p-4 border-t border-zinc-800/50">
                                 <div className="flex items-center gap-4 mb-3">
                                     <span className="text-xl">🎂</span>
-                                    <div><h3 className="text-white font-medium">Birthday</h3><p className="text-zinc-500 text-xs">Friends will be notified on your birthday</p></div>
+                                    <div><h3 className="text-white font-semibold text-sm">Birthday</h3><p className="text-zinc-500 text-xs">Friends will be notified on your birthday</p></div>
                                 </div>
                                 <div className="flex gap-2">
                                     <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)}
@@ -383,15 +388,15 @@ function Settings() {
                     </div>
                 </div>
                 <div>
-                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Preferences</h3>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={handlePrivateToggle}><div className="flex items-center gap-4"><Shield className="text-green-500" size={22} /><div><h3 className="text-white font-medium">Private Account</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${privateAccount ? 'bg-green-500' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${privateAccount ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Preferences</p>
+                    <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl overflow-hidden">
+                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors border-b border-zinc-800/40" onClick={handlePrivateToggle}><div className="flex items-center gap-4"><Shield className="text-green-500" size={22} /><div><h3 className="text-white font-semibold text-sm">Private Account</h3></div></div><div className={`w-11 h-6 rounded-full flex items-center p-0.5 transition-all ${privateAccount ? 'bg-green-500 shadow-lg shadow-green-500/30' : 'bg-zinc-700'}`}><div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${privateAccount ? 'translate-x-5' : 'translate-x-0'}`}></div></div></div>
                         
                         {/* Accent Color */}
                         <div className="p-4 border-b border-zinc-800/50">
                             <div className="flex items-center gap-4 mb-3">
                                 <Palette className="text-pink-400" size={22} />
-                                <div><h3 className="text-white font-medium">Accent Color</h3><p className="text-zinc-500 text-xs">Applied everywhere across the app</p></div>
+                                <div><h3 className="text-white font-semibold text-sm">Accent Color</h3><p className="text-zinc-500 text-xs">Applied everywhere across the app</p></div>
                                 <div className="ml-auto w-7 h-7 rounded-full border-2 border-zinc-600" style={{backgroundColor: accentColor}}/>
                             </div>
                             <div className="flex flex-wrap gap-2 pl-[38px]">
@@ -403,23 +408,23 @@ function Settings() {
                         </div>
                         
                         {/* 🔥 EXPLICIT OS NOTIFICATION BUTTON 🔥 */}
-                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={enableOSNotifications}><div className="flex items-center gap-4"><Bell className="text-pink-500" size={22} /><div><h3 className="text-white font-medium">Enable Desktop Alerts</h3></div></div></div>
+                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors border-b border-zinc-800/40" onClick={enableOSNotifications}><div className="flex items-center gap-4"><Bell className="text-pink-500" size={22} /><div><h3 className="text-white font-semibold text-sm">Enable Desktop Alerts</h3></div></div></div>
                         
-                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50" onClick={handleNotifToggle}><div className="flex items-center gap-4"><Bell className="text-zinc-500" size={22} /><div><h3 className="text-white font-medium">In-App Sounds</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${notifications ? 'bg-zinc-300' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-black rounded-full transition-transform ${notifications ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
-                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition" onClick={toggleDarkMode}><div className="flex items-center gap-4"><Moon className="text-purple-500" size={22} /><div><h3 className="text-white font-medium">Dark Mode</h3></div></div><div className={`w-12 h-6 rounded-full flex items-center p-1 transition-colors ${darkMode ? 'bg-purple-500' : 'bg-zinc-700'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-0'}`}></div></div></div>
+                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors border-b border-zinc-800/40" onClick={handleNotifToggle}><div className="flex items-center gap-4"><Bell className="text-zinc-500" size={22} /><div><h3 className="text-white font-semibold text-sm">In-App Sounds</h3></div></div><div className={`w-11 h-6 rounded-full flex items-center p-0.5 transition-all ${notifications ? 'bg-sky-500 shadow-lg shadow-sky-500/20' : 'bg-zinc-700'}`}><div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${notifications ? 'translate-x-5' : 'translate-x-0'}`}></div></div></div>
+                        <div className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition" onClick={toggleDarkMode}><div className="flex items-center gap-4"><Moon className="text-purple-500" size={22} /><div><h3 className="text-white font-semibold text-sm">Dark Mode</h3></div></div><div className={`w-11 h-6 rounded-full flex items-center p-0.5 transition-all ${darkMode ? 'bg-purple-500 shadow-lg shadow-purple-500/20' : 'bg-zinc-700'}`}><div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${darkMode ? 'translate-x-5' : 'translate-x-0'}`}></div></div></div>
                     </div>
                 </div>
 
                 {/* 2FA Section */}
                 <div>
-                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Security</h3>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Security</p>
+                    <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl overflow-hidden">
                         <div className="p-4 border-b border-zinc-800/50">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-4">
                                     <ShieldCheck className={twoFactorEnabled ? "text-green-400" : "text-zinc-400"} size={22} />
                                     <div>
-                                        <h3 className="text-white font-medium">Two-Factor Authentication</h3>
+                                        <h3 className="text-white font-semibold text-sm">Two-Factor Authentication</h3>
                                         <p className="text-zinc-500 text-xs">{twoFactorEnabled ? '✅ 2FA is active on this account' : 'Add an extra layer of security'}</p>
                                     </div>
                                 </div>
@@ -449,8 +454,8 @@ function Settings() {
                     </div>
                 </div>
                 <div>
-                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 ml-2">Verification</h3>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden mb-6">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Verification</p>
+                    <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl overflow-hidden mb-6">
                         {verificationStatus?.is_verified ? (
                             <div className="flex items-center gap-4 p-4">
                                 <BadgeCheck className="text-blue-400 flex-shrink-0" size={26} />
@@ -462,11 +467,11 @@ function Settings() {
                         ) : (
                             <>
                                 <div onClick={() => setShowVerifyForm(!showVerifyForm)}
-                                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition">
+                                    className="flex items-center justify-between p-4 hover:bg-zinc-800/60 cursor-pointer transition-colors">
                                     <div className="flex items-center gap-4">
                                         <BadgeCheck className="text-zinc-400" size={22} />
                                         <div>
-                                            <h3 className="text-white font-medium">Request Verification</h3>
+                                            <h3 className="text-white font-semibold text-sm">Request Verification</h3>
                                             {verificationStatus?.request ? (
                                                 <p className="text-xs text-yellow-400">Request {verificationStatus.request.status}</p>
                                             ) : (
@@ -474,7 +479,7 @@ function Settings() {
                                             )}
                                         </div>
                                     </div>
-                                    <ChevronRight className={`text-zinc-600 transition-transform ${showVerifyForm ? 'rotate-90' : ''}`} size={20} />
+                                    <ChevronRight className={`text-zinc-700 transition-transform ${showVerifyForm ? 'rotate-90' : ''}`} size={20} />
                                 </div>
                                 {showVerifyForm && (
                                     <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
@@ -567,10 +572,10 @@ function Settings() {
                     </div>
                 </div>
                 <div>
-                    <h3 className="text-xs font-bold text-red-500/80 uppercase tracking-wider mb-2 ml-2">Danger Zone</h3>
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                        <div onClick={handleLogout} className="flex items-center p-4 hover:bg-red-500/10 cursor-pointer transition border-b border-zinc-800/50"><LogOut className="text-red-500 mr-4" size={22} /><h3 className="font-bold text-red-500">Log Out</h3></div>
-                        <div onClick={handleDeleteAccount} className="flex items-center p-4 hover:bg-red-500/10 cursor-pointer transition"><Trash2 className="text-red-500/70 mr-4" size={22} /><h3 className="font-bold text-red-500/70">Delete Account</h3></div>
+                    <p className="text-[10px] font-black text-red-500/60 uppercase tracking-widest mb-2 px-1">Danger Zone</p>
+                    <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-2xl overflow-hidden">
+                        <div onClick={handleLogout} className="flex items-center p-4 hover:bg-red-500/8 cursor-pointer transition-colors border-b border-zinc-800/40"><LogOut className="text-red-500 mr-4" size={22} /><h3 className="font-bold text-red-500">Log Out</h3></div>
+                        <div onClick={handleDeleteAccount} className="flex items-center p-4 hover:bg-red-500/8 cursor-pointer transition-colors"><Trash2 className="text-red-500/70 mr-4" size={22} /><h3 className="font-bold text-red-500/70">Delete Account</h3></div>
                     </div>
                 </div>
             </div>
