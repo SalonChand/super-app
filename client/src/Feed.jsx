@@ -873,7 +873,7 @@ function Feed({ onlineUsers = new Set() }) {
             )}
 
             {/* ===== POSTS ===== */}
-            <div>
+            <div className="py-1">
                 {/* ===== SHARE TO STORY MODAL ===== */}
                 {sharingToStory && (
                     <div className="fixed inset-0 z-[200] bg-black/80 flex items-end sm:items-center justify-center animate-fade-in p-4">
@@ -940,7 +940,7 @@ function Feed({ onlineUsers = new Set() }) {
                     /* ── Skeleton: posts only ── */
                     <>
                         {[...Array(4)].map((_, i) => (
-                            <div key={i} className="p-4 border-b border-zinc-800 flex gap-4">
+                            <div key={i} className="mx-3 my-2.5 p-4 rounded-2xl border border-zinc-800/50 bg-zinc-900/40 flex gap-4">
                                 <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse flex-shrink-0"/>
                                 <div className="flex-1 space-y-2 pt-1">
                                     <div className="flex gap-2 items-center">
@@ -962,13 +962,14 @@ function Feed({ onlineUsers = new Set() }) {
                     </>
                 ) : (
                     <>
-                {posts.length === 0 && <p className="text-center text-zinc-500 mt-10">No posts yet.</p>}
+                {posts.length === 0 && <div className="text-center py-16 text-zinc-600"><div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-3"><MessageCircle size={24} className="opacity-40"/></div><p className="font-semibold text-sm">No posts yet</p><p className="text-xs mt-1 text-zinc-700">Be the first to share something</p></div>}
                 {posts.map((post) => (
-                    <div key={post.id} id={`post-${post.id}`} className={`p-4 border-b border-zinc-800/50 hover:bg-zinc-900/20 transition-colors flex gap-4 ${highlightPostId === post.id ? "bg-sky-500/10 border-l-2 border-l-sky-500" : ""}`}>
+                    <div key={post.id} id={`post-${post.id}`} className={`mx-3 my-2.5 rounded-2xl border transition-all ${highlightPostId === post.id ? "bg-sky-500/8 border-sky-500/30" : "bg-zinc-900/40 border-zinc-800/50 hover:border-zinc-700/60"}`}>
+                    <div className="p-4 flex gap-3">
                         {(() => { const userStory = stories.find(s => s.user_id == post.user_id); const hasStory = !!userStory; const viewed = userStory?.user_has_viewed; return (
     <div className="relative flex-shrink-0" style={{width: '48px', height: '48px'}}>
         <button onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setPostAvatarMenu({ postId: post.id, userId: post.user_id, username: post.username, storyId: hasStory, x: rect.left, y: rect.bottom + 8 }); }}
-            className={"w-12 h-12 rounded-full flex items-center justify-center overflow-hidden transition " + (hasStory ? ("p-0.5 " + (viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]")) : "bg-zinc-800 border border-zinc-700")}>
+            className={"w-12 h-12 rounded-full flex items-center justify-center overflow-hidden transition " + (hasStory ? ("p-0.5 " + (viewed ? "bg-zinc-500" : "bg-gradient-to-tr from-sky-400 via-blue-500 to-rose-400 shadow-[0_0_12px_rgba(14,165,233,0.4)]")) : "bg-zinc-800 border border-zinc-700")}>
             <div className={"w-full h-full rounded-full overflow-hidden flex items-center justify-center " + (hasStory ? "border-2 border-black" : "")}>
                 {post.profile_pic_url ? <img src={`${post.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-xl text-zinc-500 font-bold">{post.username.charAt(0).toUpperCase()}</span>}
             </div>
@@ -981,14 +982,20 @@ function Feed({ onlineUsers = new Set() }) {
                         <div className="w-full min-w-0">
                             
                             {/* 🔥 THE POST HEADER W/ MORE OPTIONS MENU 🔥 */}
-                            <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <div className="flex items-center gap-1"><Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:underline truncate">{post.username}</Link>{<VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={14}/>}</div>
-                                        {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><Link to={`/profile/${post.co_author_id}`} className="font-bold text-yellow-300 text-sm hover:underline">& {post.co_author_username}</Link></>}
-                                        <span className="text-zinc-500 text-sm truncate">@{post.username.toLowerCase()}</span>
-                                        {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'}</span>}
-                                        <span className="text-zinc-600 text-sm hidden sm:inline">·</span><span className="text-zinc-500 text-xs w-full sm:w-auto">{formatTimeFriendly(post.created_at)}</span>
-                                        {post.tagged_users && (() => { try { const tags = JSON.parse(post.tagged_users); return tags.length > 0 ? <span className="text-blue-400 text-xs w-full">👥 with {tags.length} friend{tags.length>1?'s':''}</span> : null; } catch(e) { return null; } })()}
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex flex-col gap-0.5 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <Link to={`/profile/${post.user_id}`} className="font-black text-white hover:text-sky-400 transition-colors text-sm leading-tight">{post.username}</Link>
+                                        <VerifiedBadge isVerified={!!post.is_verified} verifyType={post.verify_type} size={13}/>
+                                        {post.co_author_username && post.co_author_status === 'accepted' && <><span className="text-zinc-600 text-xs">with</span><Link to={`/profile/${post.co_author_id}`} className="font-bold text-yellow-300 text-xs hover:underline">& {post.co_author_username}</Link></>}
+                                        {post.visibility && post.visibility !== 'public' && <span className="text-[10px] bg-zinc-800/80 text-zinc-500 px-1.5 py-0.5 rounded-full border border-zinc-700/50">{post.visibility === 'friends' ? '👥' : post.visibility === 'close_friends' ? '⭐' : '🔒'}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-zinc-600 text-xs">@{post.username.toLowerCase()}</span>
+                                        <span className="text-zinc-700 text-xs">·</span>
+                                        <span className="text-zinc-600 text-xs">{formatTimeFriendly(post.created_at)}</span>
+                                        {post.tagged_users && (() => { try { const tags = JSON.parse(post.tagged_users); return tags.length > 0 ? <span className="text-sky-500/70 text-xs">· 👥 {tags.length}</span> : null; } catch(e) { return null; } })()}
+                                    </div>
                                 </div>
                                 
                                 {/* 3 Dots Menu Button */}
@@ -998,14 +1005,14 @@ function Feed({ onlineUsers = new Set() }) {
                                     </button>
                                     
                                     {menuOpenPostId === post.id && (
-                                        <div className="absolute right-0 mt-2 w-32 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
-                                            <button onClick={() => copyPostLink(post.id)} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><LinkIcon size={14}/> Copy Link</button>
+                                        <div className="absolute right-0 mt-2 w-36 bg-zinc-900 border border-zinc-700/60 rounded-2xl shadow-2xl shadow-black/60 z-50 overflow-hidden animate-fade-in backdrop-blur-xl">
+                                            <button onClick={() => copyPostLink(post.id)} className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-zinc-300 flex items-center gap-2 text-sm transition"><LinkIcon size={14}/> Copy Link</button>
                                             
                                             {/* Only show Edit/Delete if you own the post! */}
                                             {post.user_id == userId && (
                                                 <>
-                                                    <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-white flex items-center gap-2 text-sm"><Edit2 size={14}/> Edit</button>
-                                                    <button onClick={() => { deletePost(post.id); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2 hover:bg-zinc-700 text-red-500 flex items-center gap-2 text-sm border-t border-zinc-700"><Trash2 size={14}/> Delete</button>
+                                                    <button onClick={() => { setEditingPostId(post.id); setEditContent(post.content); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-zinc-300 flex items-center gap-2 text-sm transition"><Edit2 size={14}/> Edit</button>
+                                                    <button onClick={() => { deletePost(post.id); setMenuOpenPostId(null); }} className="w-full text-left px-4 py-2.5 hover:bg-red-500/10 text-red-400 flex items-center gap-2 text-sm transition border-t border-zinc-800"><Trash2 size={14}/> Delete</button>
                                                 </>
                                             )}
                                         </div>
@@ -1016,14 +1023,14 @@ function Feed({ onlineUsers = new Set() }) {
                             {/* 🔥 EDITING MODE vs VIEWING MODE 🔥 */}
                             {editingPostId === post.id ? (
                                 <div className="mt-2 mb-3">
-                                    <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white outline-none focus:border-blue-500 transition" rows="3" />
+                                    <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-sky-500/50 transition text-sm" rows="3" />
                                     <div className="flex justify-end gap-2 mt-2">
                                         <button onClick={() => setEditingPostId(null)} className="text-zinc-400 hover:text-white px-4 py-1.5 rounded-full text-sm font-bold transition">Cancel</button>
                                         <button onClick={() => saveEdit(post.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1 transition"><Check size={16}/> Save</button>
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-zinc-100 text-[15px] leading-relaxed break-words whitespace-pre-wrap mb-3">{renderPostText(post.content)}</p>
+                                <p className="text-zinc-200 text-[15px] leading-relaxed break-words whitespace-pre-wrap mb-3 font-light">{renderPostText(post.content)}</p>
                             )}
 
                             {/* Collage or single image */}
@@ -1041,7 +1048,7 @@ function Feed({ onlineUsers = new Set() }) {
                             
                             {/* Music player */}
                             {post.song_url && (
-                                <div className="mt-3 flex items-center gap-2.5 bg-zinc-900/80 border border-zinc-800/60 rounded-2xl px-3 py-2.5">
+                                <div className="mt-3 flex items-center gap-2.5 bg-zinc-950/80 border border-zinc-800/40 rounded-xl px-3 py-2">
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center flex-shrink-0">
                                         <Music size={14} className="text-white"/>
                                     </div>
@@ -1057,39 +1064,56 @@ function Feed({ onlineUsers = new Set() }) {
                                 </div>
                             )}
 
-                            <div className="flex justify-between items-center text-zinc-500 mt-3 max-w-sm pr-6">
-                                <div className="flex items-center gap-1 group"><button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 transition-all ${post.user_liked === 1 ? 'text-pink-500' : 'hover:text-pink-400'}`}><div className="p-2 rounded-full group-hover:bg-pink-500/10"><Heart size={18} className={post.user_liked === 1 ? "fill-pink-600" : ""} /></div></button><span onClick={() => toggleLikes(post.id)} className="text-sm font-medium hover:text-pink-500 hover:underline cursor-pointer">{post.like_count > 0 ? post.like_count : ''}</span></div>
-                                <div className="flex items-center gap-1 group"><button onClick={() => toggleComments(post.id)} className="flex items-center gap-2 hover:text-sky-400 transition-all"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><MessageCircle size={18} /></div></button><span onClick={() => toggleComments(post.id)} className="text-sm font-medium hover:text-blue-500 hover:underline cursor-pointer">{post.comment_count > 0 ? post.comment_count : ''}</span></div>
-                                <button onClick={() => { setSharingToStory(post); setStoryShareCaption(''); }} className="flex items-center gap-2 hover:text-blue-500 group transition"><div className="p-2 rounded-full group-hover:bg-blue-500/10"><Share size={18} /></div></button>
-                                <button onClick={() => handleBookmark(post.id)} className={`flex items-center transition group ${savedPosts.has(post.id) ? 'text-yellow-400' : 'hover:text-yellow-400'}`}><div className="p-2 rounded-full group-hover:bg-yellow-400/10"><Bookmark size={18} className={savedPosts.has(post.id) ? 'fill-yellow-400' : ''} /></div></button>
+                            <div className="flex items-center gap-1 mt-3 -mx-1">
+                                {/* Like */}
+                                <button onClick={() => handleLike(post.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all text-sm font-semibold ${post.user_liked === 1 ? 'text-pink-400 bg-pink-500/10' : 'text-zinc-500 hover:text-pink-400 hover:bg-pink-500/8'}`}>
+                                    <Heart size={16} className={post.user_liked === 1 ? "fill-pink-400" : ""}/>
+                                    {post.like_count > 0 && <span onClick={e => { e.stopPropagation(); toggleLikes(post.id); }} className="text-xs">{post.like_count}</span>}
+                                </button>
+                                {/* Comment */}
+                                <button onClick={() => toggleComments(post.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-zinc-500 hover:text-sky-400 hover:bg-sky-500/8 transition-all text-sm font-semibold">
+                                    <MessageCircle size={16}/>
+                                    {post.comment_count > 0 && <span className="text-xs">{post.comment_count}</span>}
+                                </button>
+                                {/* Share to story */}
+                                <button onClick={() => { setSharingToStory(post); setStoryShareCaption(''); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-zinc-500 hover:text-blue-400 hover:bg-blue-500/8 transition-all">
+                                    <Share size={16}/>
+                                </button>
+                                {/* Spacer */}
+                                <div className="flex-1"/>
+                                {/* Bookmark */}
+                                <button onClick={() => handleBookmark(post.id)} className={`flex items-center px-3 py-1.5 rounded-xl transition-all ${savedPosts.has(post.id) ? 'text-yellow-400 bg-yellow-400/8' : 'text-zinc-500 hover:text-yellow-400 hover:bg-yellow-400/8'}`}>
+                                    <Bookmark size={16} className={savedPosts.has(post.id) ? 'fill-yellow-400' : ''}/>
+                                </button>
                             </div>
                             
                             {/* Comments and Likes panels remain exactly the same below... */}
                             {activeLikesPostId === post.id && (
-                                <div className="mt-3 pt-3 border-t border-zinc-800 animate-fade-in"><h4 className="text-xs font-bold text-zinc-600 uppercase tracking-widest mb-2">Liked by</h4><div className="flex flex-wrap gap-2">{likesData[post.id]?.length === 0 && <p className="text-sm text-zinc-500">No likes yet.</p>}{likesData[post.id]?.map(user => (<Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800 hover:bg-zinc-800 transition">{user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-white">{user.username.charAt(0).toUpperCase()}</div>}<span className="text-sm text-zinc-300 inline-flex items-center gap-1 flex-wrap">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={12}/></span></Link>))}</div></div>
+                                <div className="mt-3 pt-3 border-t border-zinc-800/40 animate-fade-in"><h4 className="text-xs font-bold text-zinc-600 uppercase tracking-widest mb-2">Liked by</h4><div className="flex flex-wrap gap-2">{likesData[post.id]?.length === 0 && <p className="text-sm text-zinc-500">No likes yet.</p>}{likesData[post.id]?.map(user => (<Link key={user.id} to={`/profile/${user.id}`} className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800 hover:bg-zinc-800 transition">{user.profile_pic_url ? <img src={`${user.profile_pic_url}`} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-white">{user.username.charAt(0).toUpperCase()}</div>}<span className="text-sm text-zinc-300 inline-flex items-center gap-1 flex-wrap">{user.username}<VerifiedBadge isVerified={!!user.is_verified} verifyType={user.verify_type} size={12}/></span></Link>))}</div></div>
                             )}
 
                             {activeCommentPostId === post.id && (
-                                <div className="mt-3 pt-3 border-t border-zinc-800 animate-fade-in">
-                                    <form onSubmit={(e) => submitComment(e, post.id)} className="flex gap-3 mb-4"><div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{currentUserInfo?.profile_pic_url ? <img src={`${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</div><div className="w-full flex bg-zinc-900/80 border border-zinc-800/60 rounded-full overflow-hidden focus-within:border-sky-500/60 transition-all"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Post your reply..." className="w-full bg-transparent px-4 py-2 text-sm text-white outline-none placeholder-zinc-500" /><button type="submit" disabled={!newComment.trim()} className="px-4 text-sky-500 hover:text-sky-400 disabled:opacity-50 transition-colors"><Send size={16} /></button></div></form>
-                                    <div className="space-y-4">{commentsData[post.id] && commentsData[post.id].map(comment => (<div key={comment.id} className="flex gap-3"><Link to={`/profile/${comment.user_id}`} className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{comment.profile_pic_url ? <img src={`${comment.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</Link><div className="bg-zinc-900/50 p-3 rounded-2xl rounded-tl-sm w-full border border-zinc-800/50"><div className="flex items-center gap-2 mb-1"><div className="flex items-center gap-1"><Link to={`/profile/${comment.user_id}`} className="font-bold text-white text-sm hover:underline">{comment.username}</Link>{<VerifiedBadge isVerified={!!comment.is_verified} verifyType={comment.verify_type} size={12}/>}</div><span className="text-zinc-600 text-xs">{formatTimeFriendly(comment.created_at)}</span></div><p className="text-zinc-200 text-sm">{comment.content}</p></div></div>))}</div>
+                                <div className="mt-3 pt-3 border-t border-zinc-800/40 animate-fade-in px-1">
+                                    <form onSubmit={(e) => submitComment(e, post.id)} className="flex gap-3 mb-4"><div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{currentUserInfo?.profile_pic_url ? <img src={`${currentUserInfo.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</div><div className="w-full flex bg-zinc-950/80 border border-zinc-800/40 rounded-xl overflow-hidden focus-within:border-sky-500/40 transition-all"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Post your reply..." className="w-full bg-transparent px-4 py-2 text-sm text-white outline-none placeholder-zinc-500" /><button type="submit" disabled={!newComment.trim()} className="px-4 text-sky-500 hover:text-sky-400 disabled:opacity-50 transition-colors"><Send size={16} /></button></div></form>
+                                    <div className="space-y-4">{commentsData[post.id] && commentsData[post.id].map(comment => (<div key={comment.id} className="flex gap-3"><Link to={`/profile/${comment.user_id}`} className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">{comment.profile_pic_url ? <img src={`${comment.profile_pic_url}`} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-2 text-zinc-500" />}</Link><div className="bg-zinc-950/60 p-3 rounded-xl w-full border border-zinc-800/30"><div className="flex items-center gap-2 mb-1"><div className="flex items-center gap-1"><Link to={`/profile/${comment.user_id}`} className="font-bold text-white text-sm hover:underline">{comment.username}</Link>{<VerifiedBadge isVerified={!!comment.is_verified} verifyType={comment.verify_type} size={12}/>}</div><span className="text-zinc-600 text-xs">{formatTimeFriendly(comment.created_at)}</span></div><p className="text-zinc-200 text-sm">{comment.content}</p></div></div>))}</div>
                                 </div>
                             )}
                         </div>
+                    </div>
                     </div>
                 ))}
                 {/* Load more */}
                 {hasMorePosts && (
                     <div className="flex justify-center py-6">
                         <button onClick={loadMorePosts} disabled={loadingMore}
-                            className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white text-sm font-semibold px-6 py-2.5 rounded-full transition disabled:opacity-50">
+                            className="flex items-center gap-2 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800/60 text-zinc-500 hover:text-white text-sm font-semibold px-6 py-2.5 rounded-full transition disabled:opacity-50">
                             {loadingMore ? <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin"/> : null}
                             {loadingMore ? 'Loading…' : 'Load more posts'}
                         </button>
                     </div>
                 )}
                 {!hasMorePosts && posts.length > 0 && (
-                    <p className="text-center text-zinc-700 text-xs py-8">You're all caught up ✓</p>
+                    <p className="text-center text-zinc-700 text-xs py-8 flex items-center justify-center gap-2"><span className="w-8 h-px bg-zinc-800 inline-block"/><span>You're all caught up</span><span className="w-8 h-px bg-zinc-800 inline-block"/></p>
                 )}
                     </>
                 )}
