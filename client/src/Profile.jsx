@@ -579,6 +579,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
 
                     {profileData.created_at && (
                         <p className="text-zinc-500 text-xs mt-1 mb-3">📅 Joined {new Date(profileData.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })}</p>
+                    )}
 
                     {/* ── Action buttons below join date ── */}
                     {isMyProfile && (
