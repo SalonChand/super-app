@@ -584,22 +584,22 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                     {/* ── Action buttons below join date ── */}
                     {isMyProfile && (
                         isEditing ? (
-                            <button onClick={handleSaveProfile} className="flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-500 font-bold py-2 px-6 rounded-xl transition">
-                                <Check size={16}/> Save Changes
+                            <button onClick={handleSaveProfile} className="flex items-center gap-1.5 text-white bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-4 rounded-lg transition text-xs">
+                                <Check size={13}/> Save Changes
                             </button>
                         ) : (
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 transition-all text-sm">
-                                    <Edit3 size={14}/> Edit Info
+                            <div className="flex gap-1.5 flex-wrap mt-1">
+                                <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700/60 text-white font-medium py-1.5 px-3 rounded-lg hover:bg-zinc-800 transition-all text-xs">
+                                    <Edit3 size={12}/> Edit Info
                                 </button>
-                                <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 transition-all text-sm">
+                                <button onClick={() => navigate('/dashboard')} className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700/60 text-white font-medium py-1.5 px-3 rounded-lg hover:bg-zinc-800 transition-all text-xs">
                                     📊 Dashboard
                                 </button>
-                                <Link to="/monetization" className={"flex items-center gap-1.5 py-2 px-4 rounded-xl font-semibold text-sm transition-all border " + (profileData?.is_monetized ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' : 'bg-zinc-900 border-zinc-700/60 text-zinc-400 hover:text-white hover:bg-zinc-800')}>
-                                    <DollarSign size={14}/>
+                                <Link to="/monetization" className={"flex items-center gap-1 py-1.5 px-3 rounded-lg font-medium text-xs transition-all border " + (profileData?.is_monetized ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' : 'bg-zinc-900 border-zinc-700/60 text-zinc-400 hover:text-white hover:bg-zinc-800')}>
+                                    <DollarSign size={12}/>
                                     {profileData?.is_monetized ? 'Monetized' : 'Monetize'}
                                 </Link>
-                                <button onClick={() => setShowQR(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-zinc-400 hover:text-white py-2 px-3 rounded-xl hover:bg-zinc-800 transition-all text-sm">
+                                <button onClick={() => setShowQR(true)} className="flex items-center bg-zinc-900 border border-zinc-700/60 text-zinc-400 hover:text-white py-1.5 px-2.5 rounded-lg hover:bg-zinc-800 transition-all text-xs">
                                     📱
                                 </button>
                             </div>
