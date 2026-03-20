@@ -299,6 +299,15 @@ export default function AdminVerification() {
                                             <a href={req.proof_url} target="_blank" rel="noreferrer" className="text-blue-400 text-xs hover:underline">🔗 View submitted proof</a>
                                         </div>
                                     )}
+                                    {req.payment_proof_url && (
+                                        <div className="px-4 pb-3">
+                                            <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-2">💳 Payment Proof — Rs. {req.payment_amount || 199}</p>
+                                            <a href={req.payment_proof_url} target="_blank" rel="noreferrer">
+                                                <img src={req.payment_proof_url} className="w-full max-h-48 object-contain rounded-xl border border-zinc-700 hover:border-yellow-500/50 transition"/>
+                                            </a>
+                                            <p className="text-zinc-500 text-xs mt-1">Tap to open full size</p>
+                                        </div>
+                                    )}
                                     {actionMsg[req.user_id] && (
                                         <div className="px-4 pb-3">
                                             <p className={`text-sm font-semibold text-center py-2 rounded-xl border border-zinc-800 bg-zinc-950 ${actionMsg[req.user_id].startsWith('✅') ? 'text-green-400' : actionMsg[req.user_id].startsWith('❌') ? 'text-red-400' : 'text-zinc-400'}`}>{actionMsg[req.user_id]}</p>

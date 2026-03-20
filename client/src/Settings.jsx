@@ -55,6 +55,11 @@ function Settings() {
     const [badgeMsg, setBadgeMsg] = useState('');
     const [verifyType, setVerifyType] = useState('blue');
     const [proofUrl, setProofUrl] = useState('');
+    const [paymentProofFile, setPaymentProofFile] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState('esewa');
+    const [paymentSettings, setPaymentSettings] = useState(null);
+    const [blueSlotsFull, setBlueSlotsFull] = useState(false);
+    const [verifyLoading, setVerifyLoading] = useState(false);
 
     useEffect(() => {
         if (!currentUserId) return;
@@ -67,6 +72,8 @@ function Settings() {
             if (res.data.theme_color) setAccentColor(res.data.theme_color);
             setTwoFactorEnabled(!!res.data.two_factor_enabled);
         }).catch(err => console.error(err));
+        axios.get(`${BACKEND_URL}/api/marketplace/payment-settings`)
+            .then(res => setPaymentSettings(res.data)).catch(() => {});
         axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`)
             .then(res => setVerificationStatus(res.data))
             .catch(() => {});
@@ -199,13 +206,24 @@ function Settings() {
 
     const requestVerification = async () => {
         if (!verifyReason.trim()) { setVerifyMsg('Please explain why you should be verified.'); return; }
+        if (blueSlotsFull && !paymentProofFile) { setVerifyMsg('Please upload payment proof (Rs. 199).'); return; }
+        setVerifyLoading(true);
         try {
-            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, { reason: verifyReason, verify_type: verifyType, proof_url: proofUrl });
+            const fd = new FormData();
+            fd.append('reason', verifyReason);
+            fd.append('verify_type', verifyType);
+            if (proofUrl) fd.append('proof_url', proofUrl);
+            if (blueSlotsFull && paymentProofFile) {
+                fd.append('payment_proof', paymentProofFile);
+                fd.append('payment_amount', paymentSettings?.verify_price || '199');
+            }
+            await axios.post(`${BACKEND_URL}/api/users/${currentUserId}/request-verification`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             setVerifyMsg('✅ Request submitted! We will review it shortly.');
-            setVerifyReason('');
+            setVerifyReason(''); setPaymentProofFile(null);
             const res = await axios.get(`${BACKEND_URL}/api/users/${currentUserId}/verification-status`);
             setVerificationStatus(res.data);
-        } catch(e) { setVerifyMsg('Something went wrong. Try again.'); }
+        } catch(e) { setVerifyMsg(e.response?.data?.error || 'Something went wrong. Try again.'); }
+        setVerifyLoading(false);
     };
 
     const verify2FA = async () => {
@@ -460,7 +478,16 @@ function Settings() {
                                 </div>
                                 {showVerifyForm && (
                                     <div className="px-4 pb-4 border-t border-zinc-800 pt-3 space-y-3">
-                                        <p className="text-zinc-500 text-xs">Tell us why your account should be verified (e.g. public figure, creator, business).</p>
+
+                                        {/* Slots full notice */}
+                                        {blueSlotsFull && (
+                                            <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-3">
+                                                <p className="text-yellow-400 font-bold text-xs mb-1">🔒 Free slots are full</p>
+                                                <p className="text-zinc-400 text-xs">The free giveaway is over. To get verified, pay <span className="text-white font-bold">Rs. {paymentSettings?.verify_price || '199'}/month</span> via eSewa or Khalti and upload proof below.</p>
+                                            </div>
+                                        )}
+
+                                        <p className="text-zinc-500 text-xs">Tell us why your account should be verified.</p>
                                         <textarea
                                             value={verifyReason}
                                             onChange={e => setVerifyReason(e.target.value)}
@@ -468,11 +495,71 @@ function Settings() {
                                             className="w-full bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500 transition resize-none"
                                             rows={3}
                                         />
-                                        <button onClick={requestVerification}
-                                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2 rounded-xl text-sm transition">
-                                            <Send size={14}/> Submit Request
+
+                                        {/* Payment section - shown when slots full */}
+                                        {blueSlotsFull && (
+                                            <div className="space-y-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3">
+                                                <p className="text-white font-bold text-sm">💳 Payment Details — Rs. 199/month</p>
+
+                                                {/* Payment method tabs */}
+                                                <div className="flex gap-2">
+                                                    {['esewa', 'khalti'].map(m => (
+                                                        <button key={m} onClick={() => setPaymentMethod(m)}
+                                                            className={"flex-1 py-1.5 rounded-lg text-xs font-bold transition border " + (paymentMethod === m ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'bg-zinc-900 border-zinc-700 text-zinc-400')}>
+                                                            {m === 'esewa' ? '🟢 eSewa' : '🟣 Khalti'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Payment info */}
+                                                <div className="bg-zinc-900 rounded-xl p-3 space-y-2">
+                                                    {paymentMethod === 'esewa' ? (
+                                                        <>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-zinc-400">eSewa ID</span>
+                                                                <span className="text-white font-bold">{paymentSettings?.esewa_number || 'N/A'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-zinc-400">Name</span>
+                                                                <span className="text-white">{paymentSettings?.esewa_name || 'N/A'}</span>
+                                                            </div>
+                                                            {paymentSettings?.esewa_qr && <img src={paymentSettings.esewa_qr} className="w-32 h-32 mx-auto rounded-xl mt-2"/>}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-zinc-400">Khalti ID</span>
+                                                                <span className="text-white font-bold">{paymentSettings?.khalti_number || 'N/A'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-zinc-400">Name</span>
+                                                                <span className="text-white">{paymentSettings?.khalti_name || 'N/A'}</span>
+                                                            </div>
+                                                            {paymentSettings?.khalti_qr && <img src={paymentSettings.khalti_qr} className="w-32 h-32 mx-auto rounded-xl mt-2"/>}
+                                                        </>
+                                                    )}
+                                                    <p className="text-yellow-400 font-black text-center text-lg">Rs. {paymentSettings?.verify_price || '199'}</p>
+                                                </div>
+
+                                                {/* Upload proof */}
+                                                <div>
+                                                    <label className="block text-zinc-400 text-xs font-bold mb-1.5">Upload Payment Screenshot *</label>
+                                                    <label className={"flex items-center gap-2 border rounded-xl px-3 py-2.5 cursor-pointer transition " + (paymentProofFile ? 'border-green-500/50 bg-green-500/10' : 'border-zinc-700 bg-zinc-900 hover:border-zinc-600')}>
+                                                        <span className="text-lg">{paymentProofFile ? '✅' : '📷'}</span>
+                                                        <span className={"text-sm truncate " + (paymentProofFile ? 'text-green-400' : 'text-zinc-400')}>
+                                                            {paymentProofFile ? paymentProofFile.name : 'Tap to upload screenshot'}
+                                                        </span>
+                                                        <input type="file" accept="image/*" className="hidden" onChange={e => setPaymentProofFile(e.target.files[0])}/>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button onClick={requestVerification} disabled={verifyLoading}
+                                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold px-5 py-2 rounded-xl text-sm transition">
+                                            <Send size={14}/> {verifyLoading ? 'Submitting...' : blueSlotsFull ? `Submit with Payment (Rs. ${paymentSettings?.verify_price || '199'})` : 'Submit Request'}
                                         </button>
-                                        {verifyMsg && <p className="text-xs text-green-400">{verifyMsg}</p>}
+                                        {verifyMsg && <p className={"text-xs font-semibold " + (verifyMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400')}>{verifyMsg}</p>}
                                     </div>
                                 )}
                             </>

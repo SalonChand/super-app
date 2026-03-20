@@ -609,6 +609,9 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN is_active TINYINT(1) DEFAULT 1");
     await patch("ALTER TABLE verification_requests ADD COLUMN verify_type VARCHAR(20) DEFAULT 'blue'");
     await patch("ALTER TABLE verification_requests ADD COLUMN proof_url VARCHAR(500) DEFAULT NULL");
+    await patch("ALTER TABLE verification_requests ADD COLUMN payment_proof_url VARCHAR(500) DEFAULT NULL");
+    await patch("ALTER TABLE verification_requests ADD COLUMN payment_amount INT DEFAULT NULL");
+    await patch("ALTER TABLE payment_settings ADD COLUMN verify_price VARCHAR(20) DEFAULT '199'");
     await patch("CREATE TABLE IF NOT EXISTS verification_slots (id INT AUTO_INCREMENT PRIMARY KEY, type VARCHAR(20) NOT NULL UNIQUE, total_slots INT NOT NULL DEFAULT 50, used_slots INT NOT NULL DEFAULT 0)");
     await patch("INSERT IGNORE INTO verification_slots (type, total_slots, used_slots) VALUES ('blue', 50, 0), ('green', 999, 0), ('yellow', 999, 0)");
     await patch("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
@@ -1134,7 +1137,7 @@ app.post('/api/admin/payment-settings', upload.fields([
     { name: 'bank_qr_file', maxCount: 1 },
 ]), async (req, res) => {
     try {
-        const { adminId, esewa_number, esewa_name, khalti_number, khalti_name, bank_name, bank_account, bank_holder, boost_price } = req.body;
+        const { adminId, esewa_number, esewa_name, khalti_number, khalti_name, bank_name, bank_account, bank_holder, boost_price, verify_price } = req.body;
         const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
         if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
 
@@ -1147,14 +1150,14 @@ app.post('/api/admin/payment-settings', upload.fields([
         const bank_qr = req.files?.bank_qr_file?.[0]?.path || req.body.bank_qr || curr.bank_qr || null;
 
         await pool.query(
-            `INSERT INTO payment_settings (id, esewa_number, esewa_name, esewa_qr, khalti_number, khalti_name, khalti_qr, bank_name, bank_account, bank_holder, bank_qr, boost_price)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO payment_settings (id, esewa_number, esewa_name, esewa_qr, khalti_number, khalti_name, khalti_qr, bank_name, bank_account, bank_holder, bank_qr, boost_price, verify_price)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
              esewa_number=VALUES(esewa_number), esewa_name=VALUES(esewa_name), esewa_qr=VALUES(esewa_qr),
              khalti_number=VALUES(khalti_number), khalti_name=VALUES(khalti_name), khalti_qr=VALUES(khalti_qr),
              bank_name=VALUES(bank_name), bank_account=VALUES(bank_account), bank_holder=VALUES(bank_holder),
-             bank_qr=VALUES(bank_qr), boost_price=VALUES(boost_price)`,
-            [esewa_number||null, esewa_name||null, esewa_qr, khalti_number||null, khalti_name||null, khalti_qr, bank_name||null, bank_account||null, bank_holder||null, bank_qr, boost_price||'200']
+             bank_qr=VALUES(bank_qr), boost_price=VALUES(boost_price), verify_price=VALUES(verify_price)`,
+            [esewa_number||null, esewa_name||null, esewa_qr, khalti_number||null, khalti_name||null, khalti_qr, bank_name||null, bank_account||null, bank_holder||null, bank_qr, boost_price||'200', verify_price||'199']
         );
         res.json({ message: 'Payment settings saved' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
@@ -1403,21 +1406,28 @@ app.get('/api/close-friends/:userId', async (req, res) => { try { const [rows] =
 app.post('/api/close-friends', async (req, res) => { try { const { userId, friendId } = req.body; const [ex] = await pool.query('SELECT id FROM close_friends WHERE user_id = ? AND friend_id = ?', [userId, friendId]); if (ex.length > 0) { await pool.query('DELETE FROM close_friends WHERE user_id = ? AND friend_id = ?', [userId, friendId]); return res.json({ added: false }); } await pool.query('INSERT INTO close_friends (user_id, friend_id) VALUES (?, ?)', [userId, friendId]); res.json({ added: true }); } catch(e) { res.status(500).json({ error: "Server error." }); } });
 
 // ===== VERIFIED BADGE =====
-app.post('/api/users/:id/request-verification', async (req, res) => {
+app.post('/api/users/:id/request-verification', upload.single('payment_proof'), async (req, res) => {
     try {
         const { reason } = req.body;
         const verifyType = req.body.verify_type || 'blue';
         const proofUrl = req.body.proof_url || null;
+        const paymentProofUrl = req.file ? req.file.path : (req.body.payment_proof_url || null);
+        const paymentAmount = req.body.payment_amount || null;
         // Check blue slot availability
         if (verifyType === 'blue') {
             const [slots] = await pool.query("SELECT total_slots, used_slots FROM verification_slots WHERE type = 'blue'");
-            if (slots[0] && slots[0].used_slots >= slots[0].total_slots) {
-                return res.status(400).json({ error: 'All blue verification slots are full. No more applications accepted.' });
+            const slotsLeft = slots[0] ? slots[0].total_slots - slots[0].used_slots : 1;
+            // If no slots left, payment proof is required
+            if (slotsLeft <= 0 && !paymentProofUrl) {
+                return res.status(400).json({ error: 'All free slots are full. Please submit with payment proof (Rs. 199).', slots_full: true });
             }
         }
-        await pool.query('INSERT INTO verification_requests (user_id, reason, verify_type, proof_url, status) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason), verify_type = VALUES(verify_type), proof_url = VALUES(proof_url), status = \'pending\', created_at = NOW()', [req.params.id, reason || '', verifyType, proofUrl, 'pending']);
+        await pool.query(
+            'INSERT INTO verification_requests (user_id, reason, verify_type, proof_url, payment_proof_url, payment_amount, status) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE reason=VALUES(reason), verify_type=VALUES(verify_type), proof_url=VALUES(proof_url), payment_proof_url=VALUES(payment_proof_url), payment_amount=VALUES(payment_amount), status=\'pending\', created_at=NOW()',
+            [req.params.id, reason || '', verifyType, proofUrl, paymentProofUrl, paymentAmount, 'pending']
+        );
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
+    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
 app.get('/api/users/:id/verification-status', async (req, res) => {
     try {
