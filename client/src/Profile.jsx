@@ -488,43 +488,13 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-br from-sky-900/60 via-zinc-900 to-rose-900/40"></div>}
                 <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link>
                 {isMyProfile && (
-                    <button onClick={() => setShowCoverMenu(true)} className="absolute inset-0 w-full h-full opacity-0 group-hover:opacity-100 bg-black/30 flex items-center justify-center transition-all cursor-pointer z-10">
-                        <div className="bg-black/60 backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-2">
-                            <Camera size={18} className="text-white"/><span className="text-white text-sm font-semibold">Edit Cover</span>
-                        </div>
+                    <button onClick={() => setShowCoverMenu(true)} className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-white text-xs font-semibold hover:bg-black/80 transition z-10">
+                        <Camera size={13}/> Edit Cover
                     </button>
                 )}
                 <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleCoverChange(e.target.files[0])}/>
             </div>
 
-            {/* Cover photo menu */}
-            {showCoverMenu && (
-                <div className="fixed inset-0 z-[400] bg-black/70 flex items-end justify-center" onClick={() => setShowCoverMenu(false)}>
-                    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-4 pb-8 space-y-2" onClick={e => e.stopPropagation()}>
-                        <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-4"/>
-                        <p className="text-white font-bold text-base text-center mb-3">Cover Photo</p>
-                        {coverUrl && (
-                            <button onClick={() => { setViewingCover(true); setShowCoverMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
-                                <Eye size={20} className="text-zinc-400"/> View Cover Photo
-                            </button>
-                        )}
-                        <button onClick={() => coverInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
-                            <Camera size={20} className="text-sky-400"/> Select New Cover Photo
-                        </button>
-                        <button onClick={() => setShowCoverMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-zinc-400 font-semibold">
-                            <X size={20}/> Cancel
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Cover photo viewer */}
-            {viewingCover && coverUrl && (
-                <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center" onClick={() => setViewingCover(false)}>
-                    <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2"><X size={22}/></button>
-                    <img src={coverUrl} className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()}/>
-                </div>
-            )}
 
             <div className="px-4 relative pb-4 border-b border-zinc-800/50">
                 <div className="flex justify-between items-start">
@@ -547,34 +517,6 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                         <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleAvatarChange(e.target.files[0])}/>
                     </div>
 
-                    {/* Avatar menu */}
-                    {showAvatarMenu && (
-                        <div className="fixed inset-0 z-[400] bg-black/70 flex items-end justify-center" onClick={() => setShowAvatarMenu(false)}>
-                            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-4 pb-8 space-y-2" onClick={e => e.stopPropagation()}>
-                                <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-4"/>
-                                <p className="text-white font-bold text-base text-center mb-3">Profile Photo</p>
-                                {avatarUrl && (
-                                    <button onClick={() => { setViewingAvatar(true); setShowAvatarMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
-                                        <Eye size={20} className="text-zinc-400"/> See Profile Picture
-                                    </button>
-                                )}
-                                <button onClick={() => avatarInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
-                                    <Camera size={20} className="text-sky-400"/> Select New Profile Picture
-                                </button>
-                                <button onClick={() => setShowAvatarMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-zinc-400 font-semibold">
-                                    <X size={20}/> Cancel
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Avatar viewer */}
-                    {viewingAvatar && avatarUrl && (
-                        <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center" onClick={() => setViewingAvatar(false)}>
-                            <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2"><X size={22}/></button>
-                            <img src={avatarUrl} className="w-72 h-72 sm:w-96 sm:h-96 rounded-full object-cover shadow-2xl" onClick={e => e.stopPropagation()}/>
-                        </div>
-                    )}
 
                     <div className="mt-4">
                         {isMyProfile ? (
@@ -584,10 +526,10 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                 </button>
                             ) : (
                                 <div className="flex flex-col gap-2">
-                                    {/* Row 1: main actions */}
+                                    {/* Row 1: Edit Info + QR + Monetize */}
                                     <div className="flex gap-2">
                                         <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 hover:border-zinc-600 transition-all text-sm flex-1 justify-center">
-                                            <Edit3 size={14}/> Edit Profile
+                                            <Edit3 size={14}/> Edit Info
                                         </button>
                                         <button onClick={() => setShowQR(true)} title="QR Code" className="flex items-center justify-center bg-zinc-900 border border-zinc-700/60 text-white py-2 px-3 rounded-xl hover:bg-zinc-800 transition-all text-sm">
                                             📱
@@ -597,7 +539,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                             {profileData?.is_monetized ? 'Monetized' : 'Monetize'}
                                         </Link>
                                     </div>
-                                    {/* Row 2: dashboard */}
+                                    {/* Row 2: Dashboard */}
                                     <button onClick={() => navigate('/dashboard')} className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-700/60 text-white font-semibold py-2 px-4 rounded-xl hover:bg-zinc-800 transition-all text-sm w-full">
                                         📊 Dashboard
                                     </button>
@@ -938,6 +880,60 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 )}
             </div>
         </div>
+
+            {/* Avatar menu */}
+            {showAvatarMenu && (
+                <div className="fixed inset-0 z-[400] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowAvatarMenu(false)}>
+                    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-4 pb-8 space-y-1" onClick={e => e.stopPropagation()}>
+                        <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-3"/>
+                        <p className="text-white font-bold text-base text-center mb-2">Profile Photo</p>
+                        {avatarUrl && (
+                            <button onClick={() => { setViewingAvatar(true); setShowAvatarMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                                <Eye size={20} className="text-zinc-400"/> See Profile Picture
+                            </button>
+                        )}
+                        <button onClick={() => { avatarInputRef.current.click(); setShowAvatarMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                            <Camera size={20} className="text-sky-400"/> Select New Profile Picture
+                        </button>
+                        <button onClick={() => setShowAvatarMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-zinc-500">
+                            <X size={18}/> Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+            {viewingAvatar && avatarUrl && (
+                <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center" onClick={() => setViewingAvatar(false)}>
+                    <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 z-10" onClick={() => setViewingAvatar(false)}><X size={22}/></button>
+                    <img src={avatarUrl} className="w-72 h-72 sm:w-96 sm:h-96 rounded-full object-cover shadow-2xl" onClick={e => e.stopPropagation()}/>
+                </div>
+            )}
+
+            {/* Cover menu */}
+            {showCoverMenu && (
+                <div className="fixed inset-0 z-[400] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowCoverMenu(false)}>
+                    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-4 pb-8 space-y-1" onClick={e => e.stopPropagation()}>
+                        <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-3"/>
+                        <p className="text-white font-bold text-base text-center mb-2">Cover Photo</p>
+                        {coverUrl && (
+                            <button onClick={() => { setViewingCover(true); setShowCoverMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                                <Eye size={20} className="text-zinc-400"/> View Cover Photo
+                            </button>
+                        )}
+                        <button onClick={() => { coverInputRef.current.click(); setShowCoverMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                            <Camera size={20} className="text-sky-400"/> Select New Cover Photo
+                        </button>
+                        <button onClick={() => setShowCoverMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-zinc-500">
+                            <X size={18}/> Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+            {viewingCover && coverUrl && (
+                <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center" onClick={() => setViewingCover(false)}>
+                    <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2 z-10" onClick={() => setViewingCover(false)}><X size={22}/></button>
+                    <img src={coverUrl} className="max-w-full max-h-[90vh] object-contain rounded-xl" onClick={e => e.stopPropagation()}/>
+                </div>
+            )}
 
             {/* QR Code Modal */}
             {showQR && (
