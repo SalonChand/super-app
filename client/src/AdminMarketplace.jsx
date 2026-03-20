@@ -35,6 +35,7 @@ export default function AdminMarketplace() {
         khalti_number: '', khalti_name: '', khalti_qr: '',
         bank_name: '', bank_account: '', bank_holder: '', bank_qr: '',
         boost_price: '200',
+        verify_price: '199',
     });
     const [payQrPreviews, setPayQrPreviews] = useState({ esewa: '', khalti: '', bank: '' });
     const [payQrFiles, setPayQrFiles] = useState({ esewa: null, khalti: null, bank: null });
@@ -455,6 +456,21 @@ export default function AdminMarketplace() {
                                     onChange={e => setPaySettings(s => ({ ...s, boost_price: e.target.value }))}
                                     placeholder="200"
                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-yellow-500/50"/>
+                            </div>
+                        </div>
+
+                        {/* Verification Price */}
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">✅</span>
+                                <p className="text-white font-bold text-sm">Verification Price</p>
+                            </div>
+                            <div>
+                                <label className="text-zinc-500 text-xs mb-1 block">Amount (NPR) — charged per month after free slots fill up</label>
+                                <input value={paySettings.verify_price || '199'}
+                                    onChange={e => setPaySettings(s => ({ ...s, verify_price: e.target.value }))}
+                                    placeholder="199"
+                                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-blue-500/50"/>
                             </div>
                         </div>
 
