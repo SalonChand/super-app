@@ -16,6 +16,28 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 app.use(cors()); 
+
+// ── Rate Limiting ────────────────────────────────────────────────────────────
+let rateLimit;
+try { rateLimit = require('express-rate-limit'); } catch(e) { rateLimit = null; }
+
+const makeLimit = (max, windowMs, message) => {
+    if (!rateLimit) return (req, res, next) => next(); // skip if not installed
+    return rateLimit({ windowMs, max, message: { error: message }, standardHeaders: true, legacyHeaders: false });
+};
+
+// 5 login attempts per 15 minutes per IP
+const loginLimiter    = makeLimit(5,   15 * 60 * 1000, 'Too many login attempts. Please wait 15 minutes.');
+// 3 registrations per hour per IP
+const registerLimiter = makeLimit(3,   60 * 60 * 1000, 'Too many accounts created. Please try again later.');
+// 30 posts per hour per IP
+const postLimiter     = makeLimit(30,  60 * 60 * 1000, 'You are posting too fast. Please slow down.');
+// 20 friend requests per hour per IP
+const friendLimiter   = makeLimit(20,  60 * 60 * 1000, 'Too many friend requests. Please slow down.');
+// 10 comment/like per minute per IP
+const interactLimiter = makeLimit(60,  60 * 1000,       'You are doing that too fast. Please slow down.');
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.use(express.json()); 
 
 cloudinary.config({
@@ -609,9 +631,6 @@ app.get('/api/patch-cloud-db', async (req, res) => {
     await patch("ALTER TABLE users ADD COLUMN is_active TINYINT(1) DEFAULT 1");
     await patch("ALTER TABLE verification_requests ADD COLUMN verify_type VARCHAR(20) DEFAULT 'blue'");
     await patch("ALTER TABLE verification_requests ADD COLUMN proof_url VARCHAR(500) DEFAULT NULL");
-    await patch("ALTER TABLE verification_requests ADD COLUMN payment_proof_url VARCHAR(500) DEFAULT NULL");
-    await patch("ALTER TABLE verification_requests ADD COLUMN payment_amount INT DEFAULT NULL");
-    await patch("ALTER TABLE payment_settings ADD COLUMN verify_price VARCHAR(20) DEFAULT '199'");
     await patch("CREATE TABLE IF NOT EXISTS verification_slots (id INT AUTO_INCREMENT PRIMARY KEY, type VARCHAR(20) NOT NULL UNIQUE, total_slots INT NOT NULL DEFAULT 50, used_slots INT NOT NULL DEFAULT 0)");
     await patch("INSERT IGNORE INTO verification_slots (type, total_slots, used_slots) VALUES ('blue', 50, 0), ('green', 999, 0), ('yellow', 999, 0)");
     await patch("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
@@ -715,8 +734,8 @@ app.post('/api/users/:id/display-name', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/register', async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
-app.post('/api/login', async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" });
+app.post('/api/register', registerLimiter, async (req, res) => { try { const hash = await bcrypt.hash(req.body.password, 10); await pool.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',[req.body.username, req.body.email, hash]); res.status(201).json({ message: "Registered!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
+app.post('/api/login', loginLimiter, async (req, res) => { try { const[users] = await pool.query('SELECT * FROM users WHERE email = ?',[req.body.email]); if (users.length === 0 || !(await bcrypt.compare(req.body.password, users[0].password_hash))) return res.status(401).json({ error: "Invalid credentials" });
         const u = users[0];
         if (u.is_active === 0) return res.status(403).json({ error: "This account has been deactivated by an administrator." });
         let role = 'user'; try { role = u.role || 'user'; } catch(e) {}
@@ -1137,7 +1156,7 @@ app.post('/api/admin/payment-settings', upload.fields([
     { name: 'bank_qr_file', maxCount: 1 },
 ]), async (req, res) => {
     try {
-        const { adminId, esewa_number, esewa_name, khalti_number, khalti_name, bank_name, bank_account, bank_holder, boost_price, verify_price } = req.body;
+        const { adminId, esewa_number, esewa_name, khalti_number, khalti_name, bank_name, bank_account, bank_holder, boost_price } = req.body;
         const [admin] = await pool.query("SELECT role FROM users WHERE id = ?", [adminId]);
         if (!admin[0] || !['admin','superadmin'].includes(admin[0].role)) return res.status(403).json({ error: 'Unauthorized' });
 
@@ -1150,14 +1169,14 @@ app.post('/api/admin/payment-settings', upload.fields([
         const bank_qr = req.files?.bank_qr_file?.[0]?.path || req.body.bank_qr || curr.bank_qr || null;
 
         await pool.query(
-            `INSERT INTO payment_settings (id, esewa_number, esewa_name, esewa_qr, khalti_number, khalti_name, khalti_qr, bank_name, bank_account, bank_holder, bank_qr, boost_price, verify_price)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO payment_settings (id, esewa_number, esewa_name, esewa_qr, khalti_number, khalti_name, khalti_qr, bank_name, bank_account, bank_holder, bank_qr, boost_price)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
              esewa_number=VALUES(esewa_number), esewa_name=VALUES(esewa_name), esewa_qr=VALUES(esewa_qr),
              khalti_number=VALUES(khalti_number), khalti_name=VALUES(khalti_name), khalti_qr=VALUES(khalti_qr),
              bank_name=VALUES(bank_name), bank_account=VALUES(bank_account), bank_holder=VALUES(bank_holder),
-             bank_qr=VALUES(bank_qr), boost_price=VALUES(boost_price), verify_price=VALUES(verify_price)`,
-            [esewa_number||null, esewa_name||null, esewa_qr, khalti_number||null, khalti_name||null, khalti_qr, bank_name||null, bank_account||null, bank_holder||null, bank_qr, boost_price||'200', verify_price||'199']
+             bank_qr=VALUES(bank_qr), boost_price=VALUES(boost_price)`,
+            [esewa_number||null, esewa_name||null, esewa_qr, khalti_number||null, khalti_name||null, khalti_qr, bank_name||null, bank_account||null, bank_holder||null, bank_qr, boost_price||'200']
         );
         res.json({ message: 'Payment settings saved' });
     } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
@@ -1281,7 +1300,7 @@ app.get('/api/notifications/:userId', async (req, res) => {
 app.get('/api/activity/:userId', async (req, res) => { try { const uid = req.params.userId; const [msgs] = await pool.query(`SELECT m.id, m.content, COALESCE(u.display_name,u.username) as username, u.profile_pic_url, COALESCE(u.is_verified,0) as is_verified, u.verify_type, m.created_at, 'message' as type FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.receiver_id = ? AND m.is_read = FALSE ORDER BY m.created_at DESC`, [uid]); const [reqs] = await pool.query(`SELECT c.id, 'Sent you a friend request' as content, u.username, u.profile_pic_url, c.created_at, 'request' as type FROM connections c JOIN users u ON c.requester_id = u.id WHERE c.receiver_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC`,[uid]); let activity =[...msgs, ...reqs]; activity.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); res.json({ feed: activity, unread_messages: msgs.length, pending_requests: reqs.length, total_notifications: msgs.length + reqs.length }); } catch (err) { res.status(500).json({ error: "Server error" }); } });
 
 // POSTS
-app.post('/api/posts', upload.fields([{ name: 'images', maxCount: 10 }, { name: 'song', maxCount: 1 }]), async (req, res) => {
+app.post('/api/posts', postLimiter, upload.fields([{ name: 'images', maxCount: 10 }, { name: 'song', maxCount: 1 }]), async (req, res) => {
     try {
         // Support both single 'image' (legacy) and multiple 'images' (carousel)
         let image_url = null;
@@ -1406,28 +1425,21 @@ app.get('/api/close-friends/:userId', async (req, res) => { try { const [rows] =
 app.post('/api/close-friends', async (req, res) => { try { const { userId, friendId } = req.body; const [ex] = await pool.query('SELECT id FROM close_friends WHERE user_id = ? AND friend_id = ?', [userId, friendId]); if (ex.length > 0) { await pool.query('DELETE FROM close_friends WHERE user_id = ? AND friend_id = ?', [userId, friendId]); return res.json({ added: false }); } await pool.query('INSERT INTO close_friends (user_id, friend_id) VALUES (?, ?)', [userId, friendId]); res.json({ added: true }); } catch(e) { res.status(500).json({ error: "Server error." }); } });
 
 // ===== VERIFIED BADGE =====
-app.post('/api/users/:id/request-verification', upload.single('payment_proof'), async (req, res) => {
+app.post('/api/users/:id/request-verification', async (req, res) => {
     try {
         const { reason } = req.body;
         const verifyType = req.body.verify_type || 'blue';
         const proofUrl = req.body.proof_url || null;
-        const paymentProofUrl = req.file ? req.file.path : (req.body.payment_proof_url || null);
-        const paymentAmount = req.body.payment_amount || null;
         // Check blue slot availability
         if (verifyType === 'blue') {
             const [slots] = await pool.query("SELECT total_slots, used_slots FROM verification_slots WHERE type = 'blue'");
-            const slotsLeft = slots[0] ? slots[0].total_slots - slots[0].used_slots : 1;
-            // If no slots left, payment proof is required
-            if (slotsLeft <= 0 && !paymentProofUrl) {
-                return res.status(400).json({ error: 'All free slots are full. Please submit with payment proof (Rs. 199).', slots_full: true });
+            if (slots[0] && slots[0].used_slots >= slots[0].total_slots) {
+                return res.status(400).json({ error: 'All blue verification slots are full. No more applications accepted.' });
             }
         }
-        await pool.query(
-            'INSERT INTO verification_requests (user_id, reason, verify_type, proof_url, payment_proof_url, payment_amount, status) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE reason=VALUES(reason), verify_type=VALUES(verify_type), proof_url=VALUES(proof_url), payment_proof_url=VALUES(payment_proof_url), payment_amount=VALUES(payment_amount), status=\'pending\', created_at=NOW()',
-            [req.params.id, reason || '', verifyType, proofUrl, paymentProofUrl, paymentAmount, 'pending']
-        );
+        await pool.query('INSERT INTO verification_requests (user_id, reason, verify_type, proof_url, status) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason), verify_type = VALUES(verify_type), proof_url = VALUES(proof_url), status = \'pending\', created_at = NOW()', [req.params.id, reason || '', verifyType, proofUrl, 'pending']);
         res.json({ success: true });
-    } catch(e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
+    } catch(e) { res.status(500).json({ error: 'Server error.' }); }
 });
 app.get('/api/users/:id/verification-status', async (req, res) => {
     try {
@@ -1577,7 +1589,7 @@ app.get('/api/users/:id', async (req, res) => {
 app.get('/api/users/:id/posts', async (req, res) => { try { const currentUserId = req.query.currentUserId || 0; const[posts] = await pool.query(`SELECT p.*, COALESCE(u.display_name,u.username) as username, COALESCE(u.is_verified,0) as is_verified, u.verify_type, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count, (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count, (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) AS user_liked FROM posts p JOIN users u ON p.user_id = u.id WHERE p.user_id = ? ORDER BY p.created_at DESC`,[currentUserId, req.params.id]); res.json(posts); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/users/edit', upload.fields([{ name: 'profile_pic', maxCount: 1 }, { name: 'cover_pic', maxCount: 1 }]), async (req, res) => { try { const { userId, bio, theme_color, anthem_url, profile_links } = req.body; let query = 'UPDATE users SET bio = ?, theme_color = ?, anthem_url = ?, profile_links = ?'; let params =[bio, theme_color || '#3b82f6', anthem_url || null, profile_links || null]; if (req.files && req.files['profile_pic']) { query += ', profile_pic_url = ?'; params.push(req.files['profile_pic'][0].path); } if (req.files && req.files['cover_pic']) { query += ', cover_pic_url = ?'; params.push(req.files['cover_pic'][0].path); } query += ' WHERE id = ?'; params.push(userId); await pool.query(query, params); res.json({ message: "Profile updated!" }); } catch(err) { res.status(500).json({ error: "Server error." }); } });
 
-app.post('/api/friends/request', async (req, res) => { try { const { requester_id, receiver_id } = req.body; if (requester_id === receiver_id) return res.status(400).json({ error: "Cannot friend yourself." }); await pool.query('INSERT IGNORE INTO connections (requester_id, receiver_id, status) VALUES (?, ?, ?)',[requester_id, receiver_id, 'pending']); io.to(receiver_id.toString()).emit('activity_updated'); res.json({ message: "Request sent!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
+app.post('/api/friends/request', friendLimiter, async (req, res) => { try { const { requester_id, receiver_id } = req.body; if (requester_id === receiver_id) return res.status(400).json({ error: "Cannot friend yourself." }); await pool.query('INSERT IGNORE INTO connections (requester_id, receiver_id, status) VALUES (?, ?, ?)',[requester_id, receiver_id, 'pending']); io.to(receiver_id.toString()).emit('activity_updated'); res.json({ message: "Request sent!" }); } catch (err) { console.error(err); res.status(500).json({ error: "Server error." }); } });
 app.post('/api/friends/remove', async (req, res) => { try { const { user1, user2 } = req.body; await pool.query(`DELETE FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); io.to(user1.toString()).emit('activity_updated'); io.to(user2.toString()).emit('activity_updated'); res.json({ message: "Unfriended" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.put('/api/friends/accept', async (req, res) => { try { const { requester_id, receiver_id } = req.body; await pool.query('UPDATE connections SET status = ? WHERE requester_id = ? AND receiver_id = ?',['accepted', requester_id, receiver_id]); await pool.query('UPDATE messages SET is_request = false WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',[requester_id, receiver_id, receiver_id, requester_id]); const [actor] = await pool.query('SELECT username FROM users WHERE id = ?', [receiver_id]); await pool.query('INSERT INTO notifications_history (user_id, actor_id, type, content) VALUES (?, ?, ?, ?)', [requester_id, receiver_id, 'friend_accepted', `${actor[0]?.username} accepted your friend request`]).catch(()=>{}); io.to(requester_id.toString()).emit('activity_updated'); res.json({ message: "Request accepted!" }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
 app.get('/api/friends/status/:user1/:user2', async (req, res) => { try { const { user1, user2 } = req.params; const[connections] = await pool.query(`SELECT * FROM connections WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,[user1, user2, user2, user1]); if (connections.length === 0) return res.json({ status: 'none' }); const conn = connections[0]; if (conn.status === 'accepted') return res.json({ status: 'friends' }); if (conn.requester_id == user1) return res.json({ status: 'sent_request' }); return res.json({ status: 'received_request', requester_id: conn.requester_id }); } catch (err) { res.status(500).json({ error: "Server error." }); } });
