@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost, Rss , DollarSign } from 'lucide-react';
+import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost, Rss, DollarSign, Eye } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
 function formatTimeFriendly(dateString) {
@@ -44,6 +44,11 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     
     // EDIT PROFILE STATES
     const[isEditing, setIsEditing] = useState(false);
+    const[showAvatarMenu, setShowAvatarMenu] = useState(false);
+    const[showCoverMenu, setShowCoverMenu] = useState(false);
+    const[viewingAvatar, setViewingAvatar] = useState(false);
+    const[viewingCover, setViewingCover] = useState(false);
+    const[savingPhoto, setSavingPhoto] = useState(false);
     const[editBio, setEditBio] = useState('');
     const[editLinks, setEditLinks] = useState([]); // [{label, url}]
     const[editAvatar, setEditAvatar] = useState(null);
@@ -206,6 +211,34 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
     const followUser = () => axios.post(`${BACKEND_URL}/api/follow`, { followerId: currentUserId, followingId: id }).then(() => { setFollowStatus(true); setFollowerCount(c => c+1); });
     const unfollowUser = () => axios.post(`${BACKEND_URL}/api/unfollow`, { followerId: currentUserId, followingId: id }).then(() => { setFollowStatus(false); setFollowerCount(c => Math.max(0,c-1)); });
     const acceptFriendRequest = () => axios.put(`${BACKEND_URL}/api/friends/accept`, { requester_id: id, receiver_id: currentUserId }).then(() => setFriendStatus('friends'));
+    const handleAvatarChange = async (file) => {
+        if (!file) return;
+        setEditAvatar(file);
+        setSavingPhoto(true);
+        try {
+            const formData = new FormData();
+            formData.append('user_id', currentUserId);
+            formData.append('profile_pic', file);
+            await axios.put(`${BACKEND_URL}/api/users/${currentUserId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        } catch(e) { console.error(e); }
+        setSavingPhoto(false);
+        setShowAvatarMenu(false);
+    };
+
+    const handleCoverChange = async (file) => {
+        if (!file) return;
+        setEditCover(file);
+        setSavingPhoto(true);
+        try {
+            const formData = new FormData();
+            formData.append('user_id', currentUserId);
+            formData.append('cover_pic', file);
+            await axios.put(`${BACKEND_URL}/api/users/${currentUserId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        } catch(e) { console.error(e); }
+        setSavingPhoto(false);
+        setShowCoverMenu(false);
+    };
+
     const unfriendUser = () => { if(window.confirm(`Are you sure you want to unfriend ${profileData.username}?`)) { axios.post(`${BACKEND_URL}/api/friends/remove`, { user1: currentUserId, user2: id }).then(() => { setFriendStatus('none'); loadProfileData(); }).catch(console.error); } };
 
     const handleSaveProfile = async () => {
@@ -451,24 +484,97 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                 </div>
             )}
 
-            <div className="h-32 sm:h-48 w-full relative overflow-hidden bg-zinc-900">
+            <div className="h-32 sm:h-48 w-full relative overflow-hidden bg-zinc-900 group">
                 {(tempCoverUrl) ? <img src={tempCoverUrl} className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-br from-sky-900/60 via-zinc-900 to-rose-900/40"></div>}
-                {isMyProfile && !isEditing && ( <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link> )}
-                {isEditing && ( <div onClick={() => coverInputRef.current.click()} className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer hover:bg-black/70 transition z-10"><Camera size={32} className="text-white drop-shadow-md" /><span className="text-white font-bold drop-shadow-md mt-1 text-sm">Edit Cover</span><input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => setEditCover(e.target.files[0])}/></div> )}
+                <Link to="/settings" className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition shadow-lg z-10 backdrop-blur-md sm:hidden"><SettingsIcon size={20} /></Link>
+                {isMyProfile && (
+                    <button onClick={() => setShowCoverMenu(true)} className="absolute inset-0 w-full h-full opacity-0 group-hover:opacity-100 bg-black/30 flex items-center justify-center transition-all cursor-pointer z-10">
+                        <div className="bg-black/60 backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-2">
+                            <Camera size={18} className="text-white"/><span className="text-white text-sm font-semibold">Edit Cover</span>
+                        </div>
+                    </button>
+                )}
+                <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleCoverChange(e.target.files[0])}/>
             </div>
+
+            {/* Cover photo menu */}
+            {showCoverMenu && (
+                <div className="fixed inset-0 z-[400] bg-black/70 flex items-end justify-center" onClick={() => setShowCoverMenu(false)}>
+                    <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-4 pb-8 space-y-2" onClick={e => e.stopPropagation()}>
+                        <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-4"/>
+                        <p className="text-white font-bold text-base text-center mb-3">Cover Photo</p>
+                        {coverUrl && (
+                            <button onClick={() => { setViewingCover(true); setShowCoverMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                                <Eye size={20} className="text-zinc-400"/> View Cover Photo
+                            </button>
+                        )}
+                        <button onClick={() => coverInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                            <Camera size={20} className="text-sky-400"/> Select New Cover Photo
+                        </button>
+                        <button onClick={() => setShowCoverMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-zinc-400 font-semibold">
+                            <X size={20}/> Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Cover photo viewer */}
+            {viewingCover && coverUrl && (
+                <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center" onClick={() => setViewingCover(false)}>
+                    <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2"><X size={22}/></button>
+                    <img src={coverUrl} className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()}/>
+                </div>
+            )}
 
             <div className="px-4 relative pb-4 border-b border-zinc-800/50">
                 <div className="flex justify-between items-start">
                     <div className="relative -mt-12 sm:-mt-16 z-20 w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0">
-                        <div className="w-full h-full rounded-full border-4 border-black bg-zinc-800 flex items-center justify-center overflow-hidden">
+                        <div
+                            className={"w-full h-full rounded-full border-4 border-black bg-zinc-800 flex items-center justify-center overflow-hidden relative group" + (isMyProfile ? " cursor-pointer" : "")}
+                            onClick={() => isMyProfile ? setShowAvatarMenu(true) : (avatarUrl ? setViewingAvatar(true) : null)}
+                        >
                             {tempAvatarUrl ? <img src={tempAvatarUrl} className="w-full h-full object-cover" /> : <span className="text-4xl text-zinc-500">{profileData.username.charAt(0).toUpperCase()}</span>}
-                            {isEditing && <div onClick={() => avatarInputRef.current.click()} className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer hover:bg-black/80 transition rounded-full"><Camera size={28} className="text-white" /><input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => setEditAvatar(e.target.files[0])}/></div>}
+                            {isMyProfile && (
+                                <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                                    <Camera size={22} className="text-white drop-shadow"/>
+                                </div>
+                            )}
                         </div>
-                        {/* Online dot — only show if user has active status ON and is actually online */}
+                        {savingPhoto && <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center z-10"><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/></div>}
                         {!!profileData.show_active_status && onlineUsers.has(String(profileData.id)) && (
                             <span style={{position:'absolute',bottom:'4px',right:'4px',width:'16px',height:'16px',background:'#4ade80',borderRadius:'50%',border:'3px solid #000',boxShadow:'0 0 8px rgba(74,222,128,0.8)',display:'block',zIndex:30}}></span>
                         )}
+                        <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleAvatarChange(e.target.files[0])}/>
                     </div>
+
+                    {/* Avatar menu */}
+                    {showAvatarMenu && (
+                        <div className="fixed inset-0 z-[400] bg-black/70 flex items-end justify-center" onClick={() => setShowAvatarMenu(false)}>
+                            <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl p-4 pb-8 space-y-2" onClick={e => e.stopPropagation()}>
+                                <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mb-4"/>
+                                <p className="text-white font-bold text-base text-center mb-3">Profile Photo</p>
+                                {avatarUrl && (
+                                    <button onClick={() => { setViewingAvatar(true); setShowAvatarMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                                        <Eye size={20} className="text-zinc-400"/> See Profile Picture
+                                    </button>
+                                )}
+                                <button onClick={() => avatarInputRef.current.click()} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-white font-semibold">
+                                    <Camera size={20} className="text-sky-400"/> Select New Profile Picture
+                                </button>
+                                <button onClick={() => setShowAvatarMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-zinc-800 transition text-zinc-400 font-semibold">
+                                    <X size={20}/> Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Avatar viewer */}
+                    {viewingAvatar && avatarUrl && (
+                        <div className="fixed inset-0 z-[500] bg-black/95 flex items-center justify-center" onClick={() => setViewingAvatar(false)}>
+                            <button className="absolute top-4 right-4 text-white bg-zinc-800 rounded-full p-2"><X size={22}/></button>
+                            <img src={avatarUrl} className="w-72 h-72 sm:w-96 sm:h-96 rounded-full object-cover shadow-2xl" onClick={e => e.stopPropagation()}/>
+                        </div>
+                    )}
 
                     <div className="mt-4">
                         {isMyProfile ? (
