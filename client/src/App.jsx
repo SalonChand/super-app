@@ -1074,7 +1074,7 @@ return (
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
 
-              <div className="sm:hidden flex items-center justify-between p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
+              <div className="sm:hidden flex items-center justify-between px-4 pb-3 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30" style={{paddingTop: "max(16px, env(safe-area-inset-top))"}}>
 
                 <div className="flex items-center gap-3">
 
@@ -1192,7 +1192,7 @@ return (
 
         {/* 🔥 MOBILE BOTTOM NAV (ABSOLUTELY FIXED TO SCREEN BOTTOM) 🔥 */}
 
-        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-zinc-800 flex justify-around items-center px-1 py-3 pb-safe z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-zinc-800 flex justify-around items-center px-1 pt-3 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" style={{paddingBottom: "max(12px, env(safe-area-inset-bottom))"}}>
 
           {currentUserId ? (
 

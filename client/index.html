@@ -67,6 +67,10 @@
       body { height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; }
       /* pb-safe utility for bottom nav above home indicator */
       .pb-safe { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+      /* pt-safe utility for top headers below status bar */
+      .pt-safe { padding-top: max(16px, env(safe-area-inset-top)); }
+      /* Full safe area for standalone PWA */
+      .safe-top { padding-top: env(safe-area-inset-top); }
     </style>
 
     <!-- ── Microsoft ── -->
