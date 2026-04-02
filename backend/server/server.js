@@ -1342,6 +1342,23 @@ app.post('/api/posts', postLimiter, upload.fields([{ name: 'images', maxCount: 1
                 }
             } catch(e) {}
         }
+        // Broadcast the new post to all connected clients in real-time (skip drafts and scheduled posts)
+        if (is_draft !== 'true' && !scheduled_at) {
+            try {
+                const [newPostRows] = await pool.query(
+                    `SELECT p.*, COALESCE(u.display_name,u.username) as username, u.profile_pic_url,
+                     COALESCE(u.is_verified,0) as is_verified, u.verify_type,
+                     COALESCE(u.show_active_status,1) as show_active_status,
+                     0 AS like_count, 0 AS comment_count, 0 AS user_liked,
+                     NULL as co_author_username, NULL as co_author_pic
+                     FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?`,
+                    [result.insertId]
+                );
+                if (newPostRows.length > 0) {
+                    io.emit('new_post', newPostRows[0]);
+                }
+            } catch(e) { console.error('Failed to broadcast new_post event:', e); }
+        }
         res.status(201).json({ message: "Post created!", postId: result.insertId });
     } catch (err) { res.status(500).json({ error: "Server error." }); }
 });
