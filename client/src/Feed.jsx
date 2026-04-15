@@ -35,7 +35,7 @@ function CollagePost({ images, onImageClick }) {
     return (
         <div className="mb-3 rounded-2xl overflow-hidden border border-zinc-800/50">
             {n === 1
-                ? <img src={images[0]} onClick={() => setViewIdx(0)} className="w-full max-h-[500px] object-contain bg-zinc-900/40 cursor-pointer hover:opacity-95 transition" alt=""/>
+                ? <img src={images[0]} onClick={() => setViewIdx(0)} className="w-full max-h-[70vh] object-cover bg-zinc-900/40 cursor-pointer hover:opacity-95 transition" alt=""/>
                 : <div className={gridClass}>
                     {images.slice(0, 4).map((img, i) => {
                         const isOverlay = i === 3 && n > 4;
