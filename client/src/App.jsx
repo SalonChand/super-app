@@ -980,7 +980,7 @@ function AppContent() {
 
 return (
 
-      <div className="h-screen bg-black text-zinc-50 font-sans flex justify-center overflow-hidden">
+      <div className="bg-black text-zinc-50 font-sans flex justify-center overflow-hidden" style={{ height: '100dvh' }}>
 
         
 
@@ -990,7 +990,7 @@ return (
 
         {/* DESKTOP SIDEBAR */}
 
-        <header className="hidden sm:flex flex-col justify-between w-56 border-r border-zinc-800 h-screen sticky top-0 py-4 px-4 z-40 bg-black overflow-y-auto">
+        <header className="hidden sm:flex flex-col justify-between w-56 border-r border-zinc-800 sticky top-0 py-4 px-4 z-40 bg-black overflow-y-auto" style={{ height: '100dvh' }}>
 
           <div className="flex flex-col gap-2">
 
@@ -1070,7 +1070,7 @@ return (
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
 
-        <main className={`w-full max-w-[600px] border-x border-zinc-800 h-screen relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`}>
+        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`} style={{ height: '100dvh' }}>
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
 

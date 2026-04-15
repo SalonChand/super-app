@@ -679,7 +679,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                     </div>
                                 )}
                                 <div className="relative max-w-[85%] sm:max-w-[70%] flex flex-col">
-                                    {msg.reply_to_id ? ( <div className={`text-xs p-2 mb-1 w-fit rounded-t-xl rounded-br-none border-l-4 opacity-80 ${isMyMessage ? 'bg-zinc-800 border-zinc-500 text-zinc-300 self-end' : 'bg-zinc-800 border-zinc-500 text-zinc-300 self-start'}`}><span className="font-bold block">{msg.reply_username}</span><span className="truncate block max-w-[200px]">{msg.reply_content || "Media"}</span></div> ) : null}
+                                    {msg.reply_to_id ? ( <div className={`text-xs p-2 mb-1 w-fit max-w-full rounded-t-xl rounded-br-none border-l-4 opacity-80 ${isMyMessage ? 'bg-zinc-800 border-zinc-500 text-zinc-300 self-end' : 'bg-zinc-800 border-zinc-500 text-zinc-300 self-start'}`}><span className="font-bold block">{msg.reply_username}</span><span className="truncate block max-w-[60vw] sm:max-w-[200px]">{msg.reply_content || "Media"}</span></div> ) : null}
                                     
                                     {tttData ? (
                                         <div className={`w-48 bg-zinc-950 p-2 rounded-2xl border-2 shadow-xl ${isMyMessage ? 'self-end' : 'self-start'}`} style={{ borderColor: isMyMessage ? activeColor : '#27272a' }}>
@@ -709,12 +709,12 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                             )}
                                         </div>
                                     ) : (
-                                        <div className={`px-4 py-2 text-left w-fit whitespace-pre-wrap break-words relative shadow-sm ${isCallLog ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-full mx-auto my-2 text-sm px-4 py-2' : isMyMessage ? (msg.reply_to_id ? 'text-white rounded-tr-sm rounded-tl-2xl rounded-b-2xl self-end' : 'text-white rounded-2xl rounded-br-sm self-end') : (msg.reply_to_id ? 'bg-zinc-800 text-zinc-100 rounded-tl-sm rounded-tr-2xl rounded-b-2xl self-start' : 'bg-zinc-800 text-zinc-100 rounded-2xl rounded-bl-sm self-start')} ${msg.content ? 'px-4 py-2' : 'p-1'}`} style={isMyMessage && !isCallLog ? { backgroundColor: activeColor } : {}}>
+                                        <div className={`px-4 py-2 text-left w-fit max-w-[80vw] sm:max-w-[420px] whitespace-pre-wrap break-words relative shadow-sm ${isCallLog ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-full mx-auto my-2 text-sm px-4 py-2' : isMyMessage ? (msg.reply_to_id ? 'text-white rounded-tr-sm rounded-tl-2xl rounded-b-2xl self-end' : 'text-white rounded-2xl rounded-br-sm self-end') : (msg.reply_to_id ? 'bg-zinc-800 text-zinc-100 rounded-tl-sm rounded-tr-2xl rounded-b-2xl self-start' : 'bg-zinc-800 text-zinc-100 rounded-2xl rounded-bl-sm self-start')} ${msg.content ? 'px-4 py-2' : 'p-1'}`} style={isMyMessage && !isCallLog ? { backgroundColor: activeColor } : {}}>
                                             {msg.is_forwarded === 1 ? <div className="text-[10px] text-white/70 italic flex items-center gap-1 mb-1 px-2 pt-1"><Forward size={10}/> Forwarded</div> : null}
                                             {msg.media_url ? ( 
                                                 <div className="mb-1 mt-1">
-                                                    {msg.media_type === 'image' ? <img onClick={() => setViewingImage(`${msg.media_url}`)} src={`${msg.media_url}`} className="rounded-xl max-w-[250px] sm:max-w-[300px] w-full cursor-pointer hover:opacity-90 transition object-cover" /> 
-                                                    : msg.media_type === 'video' ? <video src={`${msg.media_url}`} controls className="rounded-xl max-w-[250px] sm:max-w-[300px] w-full" /> 
+                                                    {msg.media_type === 'image' ? <img onClick={() => setViewingImage(`${msg.media_url}`)} src={`${msg.media_url}`} className="rounded-xl max-w-[65vw] sm:max-w-[300px] w-full cursor-pointer hover:opacity-90 transition object-cover" /> 
+                                                    : msg.media_type === 'video' ? <video src={`${msg.media_url}`} controls className="rounded-xl max-w-[65vw] sm:max-w-[300px] w-full" /> 
                                                     : msg.media_type === 'audio' ? (() => {
                                                         const msgId = msg.id;
                                                         const prog = audioProgress[msgId] || 0;
@@ -736,7 +736,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                             }
                                                         };
                                                         return (
-                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[180px] max-w-[240px]">
+                                                        <div className="flex items-center gap-2 py-1 px-1 min-w-[140px] sm:min-w-[180px] max-w-[240px]">
                                                             <button type="button" onClick={togglePlay}
                                                                 className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white/20 hover:bg-white/30 transition">
                                                                 <span className="text-sm">{isPlaying ? '⏸' : '▶'}</span>
@@ -795,7 +795,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                 </div>
                 
                 <div className="flex-shrink-0 w-full bg-zinc-950 border-t border-zinc-800 flex flex-col z-20">
-                    {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: activeColor }}><div><p className="text-xs font-bold" style={{ color: activeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate max-w-[250px]">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1"><X size={18}/></button></div> ) : null}
+                    {replyingTo ? ( <div className="flex items-center justify-between bg-zinc-900 border-l-4 p-2 px-4 shadow-md" style={{ borderColor: activeColor }}><div className="min-w-0 flex-1"><p className="text-xs font-bold" style={{ color: activeColor }}>Replying to {replyingTo.username}</p><p className="text-zinc-400 text-sm truncate">{replyingTo.content || "Media attachment"}</p></div><button onClick={() => setReplyingTo(null)} className="text-zinc-500 hover:text-white p-1 flex-shrink-0 ml-2"><X size={18}/></button></div> ) : null}
                     {uploadingMedia && <p className="text-xs mb-2 animate-pulse pl-4 pt-2" style={{ color: activeColor }}>Uploading...</p>}
                     
                     {mentionResults.length > 0 && (
@@ -821,10 +821,10 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                             </div>
                         ) : (
                             <>
-                                <div className="flex gap-3 sm:gap-4 px-1 text-zinc-500 relative">
-                                    <input type="file" ref={imageInputRef} accept="image/*" onChange={handleMediaUpload} className="hidden" /><ImageIcon size={22} className="cursor-pointer hover:text-white transition" onClick={() => imageInputRef.current.click()} />
-                                    <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleMediaUpload} className="hidden" /><Camera size={22} className="cursor-pointer hover:text-white transition hidden sm:block" onClick={() => cameraInputRef.current.click()} />
-                                    <input type="file" ref={docInputRef} accept=".pdf,.doc,.docx,.txt" onChange={handleMediaUpload} className="hidden" /><Paperclip size={22} className="cursor-pointer hover:text-white transition" onClick={() => docInputRef.current.click()} />
+                                <div className="flex gap-1.5 sm:gap-3 px-1 text-zinc-500 relative flex-shrink-0">
+                                    <input type="file" ref={imageInputRef} accept="image/*" onChange={handleMediaUpload} className="hidden" /><ImageIcon size={20} className="cursor-pointer hover:text-white transition sm:w-[22px] sm:h-[22px]" onClick={() => imageInputRef.current.click()} />
+                                    <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleMediaUpload} className="hidden" /><Camera size={20} className="cursor-pointer hover:text-white transition hidden sm:block sm:w-[22px] sm:h-[22px]" onClick={() => cameraInputRef.current.click()} />
+                                    <input type="file" ref={docInputRef} accept=".pdf,.doc,.docx,.txt" onChange={handleMediaUpload} className="hidden" /><Paperclip size={20} className="cursor-pointer hover:text-white transition sm:w-[22px] sm:h-[22px]" onClick={() => docInputRef.current.click()} />
                                     <div className="relative">
                                         <button type="button" onClick={() => setShowGameMenu(!showGameMenu)} className="hover:scale-110 transition cursor-pointer text-zinc-500 hover:text-white"><Gamepad2 size={22} /></button>
                                         {showGameMenu && (
@@ -846,7 +846,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
                                                 axios.get(`${BACKEND_URL}/api/search?q=${q}&userId=${userId}`).then(r => setMentionResults(r.data.slice(0,4))).catch(()=>{});
                                             } else { setMentionResults([]); }
                                         } else { setMentionQuery(''); setMentionResults([]); }
-                                    }} placeholder="Type a message..." className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-3 px-5 text-white placeholder-zinc-500 outline-none transition shadow-inner" />
+                                    }} placeholder="Type a message..." className="w-full min-w-0 bg-zinc-900 border border-zinc-800 rounded-full py-2.5 sm:py-3 px-4 sm:px-5 text-sm sm:text-base text-white placeholder-zinc-500 outline-none transition shadow-inner" />
                                 {currentMessage.trim() === '' ? ( <button type="button" onClick={startRecording} className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-full flex-shrink-0 transition shadow-lg"><Mic size={20} /></button> ) : ( <button type="submit" className="text-white p-3 rounded-full flex-shrink-0 transition shadow-lg shadow-black/20" style={{ backgroundColor: activeColor }}><Send size={20} /></button> )}
                             </>
                         )}
@@ -909,7 +909,7 @@ function Chat({ themeColor, onStartCall, onlineUsers: onlineUsersProp }) {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-4">
                 {/* Message requests */}
                 {requests.length > 0 && !filterRequests && (
-                    <div><h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2"><BellRing size={16} className="text-pink-500" /> Message Requests ({requests.length})</h3><div className="space-y-2">{requests.map((req, index) => (<div key={index} onClick={() => handleSelectUser({ id: req.sender_id, username: req.username, profile_pic_url: req.profile_pic_url })} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition"><div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center">{req.profile_pic_url ? <img src={`${req.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-xl">{req.username.charAt(0).toUpperCase()}</span>}</div><div><h4 className="font-bold text-white">{req.username}</h4><p className="text-sm text-zinc-400 truncate max-w-[200px]">{req.content}</p></div><div className="ml-auto w-3 h-3 bg-blue-500 rounded-full"></div></div>))}</div></div>
+                    <div><h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2"><BellRing size={16} className="text-pink-500" /> Message Requests ({requests.length})</h3><div className="space-y-2">{requests.map((req, index) => (<div key={index} onClick={() => handleSelectUser({ id: req.sender_id, username: req.username, profile_pic_url: req.profile_pic_url })} className="flex items-center gap-4 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:bg-zinc-800 transition"><div className="w-12 h-12 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center flex-shrink-0">{req.profile_pic_url ? <img src={`${req.profile_pic_url}`} className="w-full h-full object-cover" /> : <span className="text-zinc-500 font-bold text-xl">{req.username.charAt(0).toUpperCase()}</span>}</div><div className="min-w-0 flex-1"><h4 className="font-bold text-white truncate">{req.username}</h4><p className="text-sm text-zinc-400 truncate">{req.content}</p></div><div className="ml-auto w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div></div>))}</div></div>
                 )}
                 {requests.length > 0 && filterRequests && (
                     <button onClick={() => { setFilterRequests(false); setShowFolderManager(true); }} className="w-full text-left p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-sm hover:bg-zinc-900 transition">

@@ -593,7 +593,7 @@ function Feed({ onlineUsers = new Set() }) {
                     <div className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer" onClick={goToPrevStory} />
                     <div className="absolute inset-y-0 right-0 w-1/3 z-20 cursor-pointer" onClick={goToNextStory} />
 
-                    <div className="relative w-full max-w-sm h-full max-h-[90vh] flex flex-col">
+                    <div className="relative w-full sm:max-w-sm h-full max-h-[100dvh] sm:max-h-[90vh] flex flex-col">
                         {/* Multi-segment progress bars */}
                         <div className="absolute top-2 left-0 right-0 flex gap-1 px-2 z-30">
                             {viewingStoryList.map((s, i) => (

@@ -221,3 +221,39 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ── MOBILE FIXES ───────────────────────────────────────────────── */
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Prevent horizontal overflow globally */
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* Fix iOS keyboard pushing content up */
+@supports (-webkit-touch-callout: none) {
+  body { height: -webkit-fill-available; }
+  html { height: -webkit-fill-available; }
+}
+
+/* Fix tap targets on mobile - minimum 44px */
+@media (max-width: 640px) {
+  /* Ensure bottom nav tap targets are large enough */
+  nav a, nav button { min-width: 44px; min-height: 44px; }
+
+  /* Prevent text from overflowing on very small screens */
+  .break-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+  
+  /* Fix modals on small screens */
+  .fixed[class*="inset-0"] { overscroll-behavior: contain; }
+}
+
+/* Prevent pull-to-refresh on mobile when scrolling within app */
+body { overscroll-behavior-y: contain; }

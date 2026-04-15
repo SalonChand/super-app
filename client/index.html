@@ -63,8 +63,8 @@
         -webkit-font-smoothing: antialiased;
       }
       /* Prevent iOS bounce scroll */
-      html { overflow: hidden; height: 100%; }
-      body { height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; }
+      html { height: 100%; height: 100dvh; }
+      body { height: 100%; height: 100dvh; overflow: hidden; -webkit-overflow-scrolling: touch; }
       /* pb-safe utility for bottom nav above home indicator */
       .pb-safe { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
       /* pt-safe utility for top headers below status bar */
