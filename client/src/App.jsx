@@ -1070,7 +1070,7 @@ return (
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
 
-        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[72px] sm:pb-0'}`} style={{ height: '100dvh', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[56px] sm:pb-0'}`} style={{ height: '100dvh', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
 
@@ -1192,36 +1192,36 @@ return (
 
         {/* 🔥 MOBILE BOTTOM NAV 🔥 */}
 
-        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/95 backdrop-blur-xl border-t border-zinc-800/80 flex justify-around items-end px-2 pt-1.5 z-50" style={{paddingBottom: "max(6px, env(safe-area-inset-bottom))"}}>
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/95 backdrop-blur-xl border-t border-zinc-800/80 flex justify-around items-center px-2 z-50 pb-safe" style={{paddingTop: '8px', paddingBottom: 'max(4px, env(safe-area-inset-bottom))'}}>
 
           {currentUserId ? (
 
               <>
 
-                  <Link to="/" className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#71717a' }}>
-                      <Home size={24} strokeWidth={location.pathname === '/' ? 2.5 : 1.8} />
+                  <Link to="/" className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[44px] transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#71717a' }}>
+                      <Home size={22} strokeWidth={location.pathname === '/' ? 2.5 : 1.8} />
                       <span className="text-[10px] font-medium">Home</span>
                   </Link>
 
-                  <Link to="/reels" className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors" style={{ color: location.pathname === '/reels' ? userThemeColor : '#71717a' }}>
-                      <Clapperboard size={24} strokeWidth={location.pathname === '/reels' ? 2.5 : 1.8} />
+                  <Link to="/reels" className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[44px] transition-colors" style={{ color: location.pathname === '/reels' ? userThemeColor : '#71717a' }}>
+                      <Clapperboard size={22} strokeWidth={location.pathname === '/reels' ? 2.5 : 1.8} />
                       <span className="text-[10px] font-medium">Watch</span>
                   </Link>
 
-                  <Link to="/friends" onClick={clearFriendsBadge} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#71717a' }}>
-                      <Users size={24} strokeWidth={location.pathname === '/friends' ? 2.5 : 1.8} />
+                  <Link to="/friends" onClick={clearFriendsBadge} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[44px] transition-colors relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#71717a' }}>
+                      <Users size={22} strokeWidth={location.pathname === '/friends' ? 2.5 : 1.8} />
                       <span className="text-[10px] font-medium">Friends</span>
-                      {badges.pending_requests > 0 && <span className="absolute top-0.5 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black"></span>}
+                      {badges.pending_requests > 0 && <span className="absolute top-0 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black"></span>}
                   </Link> 
 
-                  <Link to="/chat" onClick={clearChatBadge} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors relative" style={{ color: location.pathname === '/chat' ? userThemeColor : '#71717a' }}>
-                      <MessageCircle size={24} strokeWidth={location.pathname === '/chat' ? 2.5 : 1.8} />
+                  <Link to="/chat" onClick={clearChatBadge} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[44px] transition-colors relative" style={{ color: location.pathname === '/chat' ? userThemeColor : '#71717a' }}>
+                      <MessageCircle size={22} strokeWidth={location.pathname === '/chat' ? 2.5 : 1.8} />
                       <span className="text-[10px] font-medium">Chat</span>
-                      {badges.unread_messages > 0 && <span className="absolute top-0.5 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black"></span>}
+                      {badges.unread_messages > 0 && <span className="absolute top-0 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black"></span>}
                   </Link>
 
-                  <Link to="/notifications" onClick={clearNotifications} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#71717a' }}>
-                      <Bell size={24} strokeWidth={location.pathname === '/notifications' ? 2.5 : 1.8} />
+                  <Link to="/notifications" onClick={clearNotifications} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[44px] transition-colors relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#71717a' }}>
+                      <Bell size={22} strokeWidth={location.pathname === '/notifications' ? 2.5 : 1.8} />
                       <span className="text-[10px] font-medium">Alerts</span>
                       {badges.total_notifications > 0 && (
                           <span className="absolute -top-0.5 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
@@ -1230,11 +1230,11 @@ return (
                       )}
                   </Link> 
 
-                  <Link to={`/profile/${currentUserId}`} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px]">
+                  <Link to={`/profile/${currentUserId}`} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[44px]">
                     {currentUser?.profile_pic_url ? ( 
-                        <img src={`${currentUser.profile_pic_url}`} className="w-[28px] h-[28px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
+                        <img src={`${currentUser.profile_pic_url}`} className="w-[26px] h-[26px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
                     ) : ( 
-                        <User size={24} strokeWidth={location.pathname.includes('/profile') ? 2.5 : 1.8} style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#71717a' }} /> 
+                        <User size={22} strokeWidth={location.pathname.includes('/profile') ? 2.5 : 1.8} style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#71717a' }} /> 
                     )}
                     <span className="text-[10px] font-medium" style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#71717a' }}>Me</span>
                   </Link>
@@ -1245,9 +1245,9 @@ return (
 
               <>
 
-                  <Link to="/login" className="flex flex-col items-center gap-0.5 py-2 px-4 text-zinc-400 hover:text-white"><LogIn size={24} /><span className="text-[10px] font-medium">Login</span></Link>
+                  <Link to="/login" className="flex flex-col items-center gap-0.5 py-1.5 px-4 text-zinc-400 hover:text-white"><LogIn size={22} /><span className="text-[10px] font-medium">Login</span></Link>
 
-                  <Link to="/register" className="flex flex-col items-center gap-0.5 py-2 px-4 text-zinc-400 hover:text-white"><UserPlus size={24} /><span className="text-[10px] font-medium">Register</span></Link>
+                  <Link to="/register" className="flex flex-col items-center gap-0.5 py-1.5 px-4 text-zinc-400 hover:text-white"><UserPlus size={22} /><span className="text-[10px] font-medium">Register</span></Link>
 
               </>
 
