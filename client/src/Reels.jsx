@@ -114,7 +114,7 @@ const ReelVideo = ({ reel, userId, currentUserInfo, onLike, onDuet }) => {
     };
 
     return (
-        <div className="w-full h-[calc(100dvh-60px)] sm:h-screen snap-start relative bg-black overflow-hidden flex flex-col justify-end group">
+        <div className="w-full sm:h-screen snap-start relative bg-black overflow-hidden flex flex-col justify-end group" style={{height: 'calc(100dvh - 52px - env(safe-area-inset-bottom, 0px))'}}>
             
             {/* The Video Layer */}
             <div className="absolute inset-0 z-0 cursor-pointer" onClick={handleScreenTap}>
@@ -353,9 +353,9 @@ function Reels() {
     };
 
     return (
-        <div className="w-full relative bg-black h-[calc(100dvh-60px)] sm:h-screen overflow-hidden">
+        <div className="w-full relative bg-black sm:h-screen overflow-hidden" style={{height: 'calc(100dvh - 52px - env(safe-area-inset-bottom, 0px))'}}>
             
-            <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-50 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full p-4 pt-2 flex justify-between items-center z-50 pointer-events-none">
                 <h2 className="text-white font-extrabold text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Watch</h2>
                 <input type="file" accept="video/mp4, video/webm, video/quicktime" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
                 <button onClick={() => fileInputRef.current.click()} className="pointer-events-auto cursor-pointer bg-black/40 backdrop-blur-md text-white p-2.5 rounded-full border border-zinc-600 hover:bg-black/60 transition shadow-lg">

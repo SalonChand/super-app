@@ -1070,7 +1070,7 @@ return (
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
 
-        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[56px] sm:pb-0'}`} style={{ height: '100dvh', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' || location.pathname === '/reels' ? 'overflow-hidden' : 'overflow-y-auto pb-14 sm:pb-0'}`} style={{ height: '100dvh', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
 
@@ -1192,7 +1192,7 @@ return (
 
         {/* 🔥 MOBILE BOTTOM NAV 🔥 */}
 
-        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/95 backdrop-blur-xl border-t border-zinc-800/80 flex justify-around items-center px-2 z-50 pb-safe" style={{paddingTop: '8px', paddingBottom: 'max(4px, env(safe-area-inset-bottom))'}}>
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/95 backdrop-blur-xl border-t border-zinc-800/80 flex justify-around items-center px-2 z-50" style={{paddingTop: '6px', paddingBottom: 'env(safe-area-inset-bottom, 4px)'}}>
 
           {currentUserId ? (
 
