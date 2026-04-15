@@ -18,6 +18,15 @@ function CollagePost({ images, onImageClick }) {
     const gridClass = n === 2 ? 'grid grid-cols-2 gap-0.5' : n === 3 ? 'grid grid-cols-3 gap-0.5' : 'grid grid-cols-2 gap-0.5';
     const aspect = n === 3 ? '0.85' : '1';
 
+    const openViewer = (i) => {
+        setViewIdx(i);
+        document.body.style.overflow = 'hidden';
+    };
+    const closeViewer = () => {
+        setViewIdx(null);
+        document.body.style.overflow = '';
+    };
+
     const onTouchStart = (e) => {
         touchStartX.current = e.touches[0].clientX;
         touchStartY.current = e.touches[0].clientY;
@@ -27,7 +36,6 @@ function CollagePost({ images, onImageClick }) {
         const dx = e.changedTouches[0].clientX - touchStartX.current;
         const dy = e.changedTouches[0].clientY - touchStartY.current;
         touchStartX.current = null;
-        // Only swipe if horizontal movement dominates
         if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
         if (dx < 0 && viewIdx < images.length - 1) setViewIdx(i => i + 1);
         if (dx > 0 && viewIdx > 0) setViewIdx(i => i - 1);
@@ -36,12 +44,12 @@ function CollagePost({ images, onImageClick }) {
     return (
         <div className="mb-3 rounded-2xl overflow-hidden border border-zinc-800/50">
             {n === 1
-                ? <img src={images[0]} onClick={() => setViewIdx(0)} className="w-full max-h-[70vh] object-cover bg-zinc-900/40 cursor-pointer hover:opacity-95 transition" alt=""/>
+                ? <img src={images[0]} onClick={() => openViewer(0)} className="w-full max-h-[70vh] object-cover bg-zinc-900/40 cursor-pointer hover:opacity-95 transition" alt=""/>
                 : <div className={gridClass}>
                     {images.slice(0, 4).map((img, i) => {
                         const isOverlay = i === 3 && n > 4;
                         return (
-                            <div key={i} className="relative overflow-hidden bg-zinc-900 cursor-pointer" style={{ aspectRatio: aspect }} onClick={() => setViewIdx(i)}>
+                            <div key={i} className="relative overflow-hidden bg-zinc-900 cursor-pointer" style={{ aspectRatio: aspect }} onClick={() => openViewer(i)}>
                                 <img src={img} className="w-full h-full object-cover hover:opacity-90 transition" alt=""/>
                                 {isOverlay && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><span className="text-white font-bold text-3xl">+{n - 4}</span></div>}
                             </div>
@@ -50,14 +58,13 @@ function CollagePost({ images, onImageClick }) {
                 </div>
             }
             {viewIdx !== null && createPortal(
-                <div className="fixed inset-0 z-[9999] bg-black/97 flex items-center justify-center"
-                    onClick={() => setViewIdx(null)}
+                <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,zIndex:99999,background:'rgba(0,0,0,0.97)',display:'flex',alignItems:'center',justifyContent:'center'}}
+                    onClick={closeViewer}
                     onTouchStart={onTouchStart}
                     onTouchEnd={onTouchEnd}>
-                    <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={() => setViewIdx(null)}><X size={20}/></button>
-                    <img src={images[viewIdx]} className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl select-none"
+                    <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={closeViewer}><X size={20}/></button>
+                    <img src={images[viewIdx]} style={{maxWidth:'95vw',maxHeight:'90vh',objectFit:'contain',borderRadius:'12px',userSelect:'none'}}
                         onClick={e => e.stopPropagation()} draggable={false} alt=""/>
-                    {/* Dot indicators */}
                     {images.length > 1 && (
                         <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
                             {images.map((_, i) => <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/35'}`}/>)}
@@ -913,8 +920,8 @@ function Feed({ onlineUsers = new Set() }) {
 
                 {/* Image lightbox modal */}
                 {viewingPostImage && createPortal(
-                    <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.97)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={() => setViewingPostImage(null)}>
-                        <button style={{position:'absolute',top:'16px',right:'16px',background:'rgba(39,39,42,0.9)',border:'none',borderRadius:'50%',padding:'8px',cursor:'pointer',zIndex:10}} onClick={() => setViewingPostImage(null)}><X size={22} color="white" /></button>
+                    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,zIndex:99999,background:'rgba(0,0,0,0.97)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={() => { setViewingPostImage(null); document.body.style.overflow = ''; }}>
+                        <button style={{position:'absolute',top:'16px',right:'16px',background:'rgba(39,39,42,0.9)',border:'none',borderRadius:'50%',padding:'8px',cursor:'pointer',zIndex:10}} onClick={() => { setViewingPostImage(null); document.body.style.overflow = ''; }}><X size={22} color="white" /></button>
                         <img src={viewingPostImage} onClick={e => e.stopPropagation()}
                             style={{maxWidth:'95vw', maxHeight:'92vh', objectFit:'contain', borderRadius:'16px', boxShadow:'0 25px 50px rgba(0,0,0,0.8)', display:'block', margin:'auto'}} />
                     </div>,
