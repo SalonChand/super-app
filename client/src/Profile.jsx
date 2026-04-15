@@ -1,9 +1,85 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { UserPlus, UserCheck, UserMinus, Clock, Edit3, Check, Camera, MessageCircle, Heart, Repeat2, Share, Lock, Image as ImageIcon, X, Music, Settings as SettingsIcon, MoreHorizontal, Edit2, Trash2, Link as LinkIcon, Film, Play, Globe, Users, EyeOff, Star, UserCheck2, ChevronDown, BadgeCheck, Ghost, Rss, DollarSign, Eye } from 'lucide-react';
 
 const BACKEND_URL = 'https://superapp-backend-6106.onrender.com';
+
+// Proper image gallery component for posts with multiple images
+function PostImageGallery({ images }) {
+    const [viewIdx, setViewIdx] = useState(null);
+    const touchStartX = useRef(null);
+    const touchStartY = useRef(null);
+    const n = images.length;
+    if (!n) return null;
+
+    const gridClass = n === 2 ? 'grid grid-cols-2 gap-0.5' : n === 3 ? 'grid grid-cols-3 gap-0.5' : 'grid grid-cols-2 gap-0.5';
+    const aspect = n === 3 ? '0.85' : '1';
+
+    const openViewer = (i) => {
+        setViewIdx(i);
+        document.body.style.overflow = 'hidden';
+    };
+    const closeViewer = () => {
+        setViewIdx(null);
+        document.body.style.overflow = '';
+    };
+
+    const onTouchStart = (e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+    };
+    const onTouchEnd = (e) => {
+        if (touchStartX.current === null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        const dy = e.changedTouches[0].clientY - touchStartY.current;
+        touchStartX.current = null;
+        if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+        if (dx < 0 && viewIdx < n - 1) setViewIdx(i => i + 1);
+        if (dx > 0 && viewIdx > 0) setViewIdx(i => i - 1);
+    };
+
+    return (
+        <div className="mb-3 rounded-2xl overflow-hidden border border-zinc-800/50">
+            {n === 1
+                ? <img src={images[0]} onClick={() => openViewer(0)} className="w-full max-h-[70vh] object-cover bg-zinc-900/40 cursor-pointer hover:opacity-95 transition" alt=""/>
+                : <div className={gridClass}>
+                    {images.slice(0, 4).map((img, i) => {
+                        const isOverlay = i === 3 && n > 4;
+                        return (
+                            <div key={i} className="relative overflow-hidden bg-zinc-900 cursor-pointer" style={{ aspectRatio: aspect }} onClick={() => openViewer(i)}>
+                                <img src={img} className="w-full h-full object-cover hover:opacity-90 transition" alt=""/>
+                                {isOverlay && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><span className="text-white font-bold text-3xl">+{n - 4}</span></div>}
+                            </div>
+                        );
+                    })}
+                </div>
+            }
+            {viewIdx !== null && createPortal(
+                <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,zIndex:99999,background:'rgba(0,0,0,0.97)',display:'flex',alignItems:'center',justifyContent:'center'}}
+                    onClick={closeViewer}
+                    onTouchStart={onTouchStart}
+                    onTouchEnd={onTouchEnd}>
+                    <button className="absolute top-4 right-4 bg-zinc-800 text-white p-2 rounded-full z-10" onClick={closeViewer}><X size={20}/></button>
+                    <img src={images[viewIdx]} style={{maxWidth:'95vw',maxHeight:'90vh',objectFit:'contain',borderRadius:'12px',userSelect:'none'}}
+                        onClick={e => e.stopPropagation()} draggable={false} alt=""/>
+                    {n > 1 && (
+                        <>
+                            {viewIdx > 0 && <button onClick={e=>{e.stopPropagation();setViewIdx(i=>i-1)}} className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full text-xl hover:bg-black/80 transition">‹</button>}
+                            {viewIdx < n-1 && <button onClick={e=>{e.stopPropagation();setViewIdx(i=>i+1)}} className="absolute right-14 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full text-xl hover:bg-black/80 transition">›</button>}
+                            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                {images.map((_, i) => <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === viewIdx ? 'bg-white scale-125' : 'bg-white/35'}`}/>)}
+                            </div>
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">{viewIdx + 1} / {n}</div>
+                        </>
+                    )}
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}
 function formatTimeFriendly(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString); const now = new Date();
@@ -798,21 +874,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
                                     const imgs = (() => { try { return post.images ? JSON.parse(post.images) : null; } catch(e) { return null; } })();
                                     const allImgs = (imgs && imgs.length > 0) ? imgs : (post.image_url ? [post.image_url] : null);
                                     if (!allImgs) return null;
-                                    if (allImgs.length === 1) return <img onClick={() => setViewingImage(allImgs[0])} src={allImgs[0]} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>;
-                                    return (
-                                        <div className="relative mb-3 bg-zinc-900/40 rounded-2xl overflow-hidden">
-                                            {(() => {
-                                                const [ci, setCi] = useState(0);
-                                                return <>
-                                                    <img src={allImgs[ci]} onClick={() => setViewingImage(allImgs[ci])} className="max-h-96 w-full object-contain cursor-pointer hover:opacity-95 transition rounded-2xl"/>
-                                                    {ci > 0 && <button onClick={e=>{e.stopPropagation();setCi(i=>i-1)}} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full">‹</button>}
-                                                    {ci < allImgs.length-1 && <button onClick={e=>{e.stopPropagation();setCi(i=>i+1)}} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-1.5 rounded-full">›</button>}
-                                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">{allImgs.map((_,i)=><div key={i} className={`w-1.5 h-1.5 rounded-full ${i===ci?'bg-white':'bg-white/40'}`}/>)}</div>
-                                                    <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">{ci+1}/{allImgs.length}</div>
-                                                </>;
-                                            })()}
-                                        </div>
-                                    );
+                                    return <PostImageGallery images={allImgs} />;
                                 })()}
                                 {/* Analytics button for own posts */}
                                 {isMyProfile && (
