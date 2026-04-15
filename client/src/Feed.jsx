@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { MessageCircle, Heart, Share, User, Send, Plus, X, Music, Type, Wand2, Eye, Paintbrush, Undo, MoreHorizontal, Edit2, Trash2, Check, Link as LinkIcon, Bookmark, Globe, Users, EyeOff, Star, ExternalLink, ChevronLeft, ChevronRight as ChevronRightIcon, BarChart2, BadgeCheck } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -48,7 +49,7 @@ function CollagePost({ images, onImageClick }) {
                     })}
                 </div>
             }
-            {viewIdx !== null && (
+            {viewIdx !== null && createPortal(
                 <div className="fixed inset-0 z-[9999] bg-black/97 flex items-center justify-center"
                     onClick={() => setViewIdx(null)}
                     onTouchStart={onTouchStart}
@@ -63,7 +64,8 @@ function CollagePost({ images, onImageClick }) {
                         </div>
                     )}
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">{viewIdx + 1} / {images.length}</div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
@@ -587,8 +589,8 @@ function Feed({ onlineUsers = new Set() }) {
             )}
 
             {/* ===== STORY VIEWER MODAL ===== */}
-            {viewingStory && (
-                <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+            {viewingStory && createPortal(
+                <div className="fixed inset-0 bg-black z-[9998] flex items-center justify-center">
                     {/* Left/Right tap zones */}
                     <div className="absolute inset-y-0 left-0 w-1/3 z-20 cursor-pointer" onClick={goToPrevStory} />
                     <div className="absolute inset-y-0 right-0 w-1/3 z-20 cursor-pointer" onClick={goToNextStory} />
@@ -686,12 +688,13 @@ function Feed({ onlineUsers = new Set() }) {
                             </form>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ===== STORY EDITOR MODAL ===== */}
-            {showStoryEditor && draftPreviewUrl && (
-                <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-4">
+            {showStoryEditor && draftPreviewUrl && createPortal(
+                <div className="fixed inset-0 bg-black z-[9998] flex flex-col items-center justify-center p-4">
                     <div className="relative w-full max-w-sm">
                         <button onClick={closeStoryEditor} className="absolute top-2 right-2 z-10 text-white bg-black/50 rounded-full p-1"><X size={20} /></button>
                         <div className="relative rounded-xl overflow-hidden border border-zinc-700 mb-3" style={{ filter: draftFilter }}>
@@ -771,7 +774,8 @@ function Feed({ onlineUsers = new Set() }) {
                             {uploadingStory ? 'Posting…' : 'Post Story'}
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ===== STORIES ROW ===== */}
@@ -908,12 +912,13 @@ function Feed({ onlineUsers = new Set() }) {
                 )}
 
                 {/* Image lightbox modal */}
-                {viewingPostImage && (
+                {viewingPostImage && createPortal(
                     <div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,0.97)',display:'flex',alignItems:'center',justifyContent:'center'}} onClick={() => setViewingPostImage(null)}>
                         <button style={{position:'absolute',top:'16px',right:'16px',background:'rgba(39,39,42,0.9)',border:'none',borderRadius:'50%',padding:'8px',cursor:'pointer',zIndex:10}} onClick={() => setViewingPostImage(null)}><X size={22} color="white" /></button>
                         <img src={viewingPostImage} onClick={e => e.stopPropagation()}
                             style={{maxWidth:'95vw', maxHeight:'92vh', objectFit:'contain', borderRadius:'16px', boxShadow:'0 25px 50px rgba(0,0,0,0.8)', display:'block', margin:'auto'}} />
-                    </div>
+                    </div>,
+                    document.body
                 )}
 
                 {/* Avatar popup menu (story / profile) */}
