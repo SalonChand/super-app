@@ -1070,7 +1070,7 @@ return (
 
         {/* 🔥 MAIN CONTENT AREA (FIXED PADDING FOR MOBILE SCROLLING) 🔥 */}
 
-        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[70px] sm:pb-0'}`} style={{ height: '100dvh' }}>
+        <main className={`w-full max-w-[600px] border-x border-zinc-800 relative bg-black ${location.pathname === '/chat' ? 'overflow-hidden pb-0' : 'overflow-y-auto pb-[72px] sm:pb-0'}`} style={{ height: '100dvh', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
 
           {location.pathname !== '/reels' && location.pathname !== '/chat' && (
 
@@ -1190,62 +1190,53 @@ return (
 
 
 
-        {/* 🔥 MOBILE BOTTOM NAV (ABSOLUTELY FIXED TO SCREEN BOTTOM) 🔥 */}
+        {/* 🔥 MOBILE BOTTOM NAV 🔥 */}
 
-        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/90 backdrop-blur-md border-t border-zinc-800 flex justify-around items-center px-1 pt-3 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" style={{paddingBottom: "max(12px, env(safe-area-inset-bottom))"}}>
+        <nav className="sm:hidden fixed bottom-0 left-0 w-full bg-black/95 backdrop-blur-xl border-t border-zinc-800/80 flex justify-around items-end px-2 pt-1.5 z-50" style={{paddingBottom: "max(6px, env(safe-area-inset-bottom))"}}>
 
           {currentUserId ? (
 
               <>
 
-                  <Link to="/" className="p-1.5 transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#a1a1aa' }}><Home size={22} /></Link>
-
-                  <Link to="/reels" className="p-1.5 transition-colors" style={{ color: location.pathname === '/reels' ? userThemeColor : '#a1a1aa' }}><Clapperboard size={22} /></Link>
-
-                  <Link to="/friends" onClick={clearFriendsBadge} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#a1a1aa' }}>
-
-                      <Users size={22} />
-
-                      {badges.pending_requests > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
-
-                  </Link> 
-
-                  <Link to="/chat" onClick={clearChatBadge} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/chat' ? userThemeColor : '#a1a1aa' }}>
-
-                      <MessageCircle size={22} />
-
-                      {badges.unread_messages > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black animate-pulse"></span>}
-
+                  <Link to="/" className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors" style={{ color: location.pathname === '/' ? userThemeColor : '#71717a' }}>
+                      <Home size={24} strokeWidth={location.pathname === '/' ? 2.5 : 1.8} />
+                      <span className="text-[10px] font-medium">Home</span>
                   </Link>
 
-                  <Link to="/notifications" onClick={clearNotifications} className="p-1.5 transition-colors relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#a1a1aa' }}>
+                  <Link to="/reels" className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors" style={{ color: location.pathname === '/reels' ? userThemeColor : '#71717a' }}>
+                      <Clapperboard size={24} strokeWidth={location.pathname === '/reels' ? 2.5 : 1.8} />
+                      <span className="text-[10px] font-medium">Watch</span>
+                  </Link>
 
-                      <Bell size={22} />
-
-                      {badges.total_notifications > 0 && (
-
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-bounce">
-
-                              {badges.total_notifications}
-
-                          </span>
-
-                      )}
-
+                  <Link to="/friends" onClick={clearFriendsBadge} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors relative" style={{ color: location.pathname === '/friends' ? userThemeColor : '#71717a' }}>
+                      <Users size={24} strokeWidth={location.pathname === '/friends' ? 2.5 : 1.8} />
+                      <span className="text-[10px] font-medium">Friends</span>
+                      {badges.pending_requests > 0 && <span className="absolute top-0.5 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black"></span>}
                   </Link> 
 
-                  <Link to={`/profile/${currentUserId}`} className="p-1.5 flex items-center justify-center">
+                  <Link to="/chat" onClick={clearChatBadge} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors relative" style={{ color: location.pathname === '/chat' ? userThemeColor : '#71717a' }}>
+                      <MessageCircle size={24} strokeWidth={location.pathname === '/chat' ? 2.5 : 1.8} />
+                      <span className="text-[10px] font-medium">Chat</span>
+                      {badges.unread_messages > 0 && <span className="absolute top-0.5 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black"></span>}
+                  </Link>
 
+                  <Link to="/notifications" onClick={clearNotifications} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px] transition-colors relative" style={{ color: location.pathname === '/notifications' ? userThemeColor : '#71717a' }}>
+                      <Bell size={24} strokeWidth={location.pathname === '/notifications' ? 2.5 : 1.8} />
+                      <span className="text-[10px] font-medium">Alerts</span>
+                      {badges.total_notifications > 0 && (
+                          <span className="absolute -top-0.5 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
+                              {badges.total_notifications > 9 ? '9+' : badges.total_notifications}
+                          </span>
+                      )}
+                  </Link> 
+
+                  <Link to={`/profile/${currentUserId}`} className="flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px]">
                     {currentUser?.profile_pic_url ? ( 
-
-                        <img src={`${currentUser.profile_pic_url}`} className="w-[26px] h-[26px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
-
+                        <img src={`${currentUser.profile_pic_url}`} className="w-[28px] h-[28px] rounded-full object-cover border-2" style={{ borderColor: location.pathname.includes('/profile') ? userThemeColor : 'transparent' }} /> 
                     ) : ( 
-
-                        <User size={22} style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#a1a1aa' }} /> 
-
+                        <User size={24} strokeWidth={location.pathname.includes('/profile') ? 2.5 : 1.8} style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#71717a' }} /> 
                     )}
-
+                    <span className="text-[10px] font-medium" style={{ color: location.pathname.includes('/profile') ? userThemeColor : '#71717a' }}>Me</span>
                   </Link>
 
               </>
@@ -1254,9 +1245,9 @@ return (
 
               <>
 
-                  <Link to="/login" className="p-2 text-zinc-400 hover:text-white"><LogIn size={26} /></Link>
+                  <Link to="/login" className="flex flex-col items-center gap-0.5 py-2 px-4 text-zinc-400 hover:text-white"><LogIn size={24} /><span className="text-[10px] font-medium">Login</span></Link>
 
-                  <Link to="/register" className="p-2 text-zinc-400 hover:text-white"><UserPlus size={26} /></Link>
+                  <Link to="/register" className="flex flex-col items-center gap-0.5 py-2 px-4 text-zinc-400 hover:text-white"><UserPlus size={24} /><span className="text-[10px] font-medium">Register</span></Link>
 
               </>
 
