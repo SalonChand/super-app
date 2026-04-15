@@ -796,7 +796,7 @@ function Profile({ onlineUsers = new Set(), themeColor = '#3b82f6' }) {
 
                                 {(() => {
                                     const imgs = (() => { try { return post.images ? JSON.parse(post.images) : null; } catch(e) { return null; } })();
-                                    const allImgs = imgs && imgs.length > 1 ? imgs : (post.image_url ? [post.image_url] : null);
+                                    const allImgs = (imgs && imgs.length > 0) ? imgs : (post.image_url ? [post.image_url] : null);
                                     if (!allImgs) return null;
                                     if (allImgs.length === 1) return <img onClick={() => setViewingImage(allImgs[0])} src={allImgs[0]} className="rounded-2xl border border-zinc-800 max-h-96 w-auto object-cover mb-3 cursor-pointer hover:opacity-90 transition"/>;
                                     return (
