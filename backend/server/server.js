@@ -539,21 +539,28 @@ io.on('connection', (socket) => {
             [data.from, data.userToCall, data.isVideo ? 'video' : 'audio', 'missed']).catch(() => {});
     });
     socket.on('answer_call', (data) => {
+        const from = socket._userId || data.from;
         io.to(data.to.toString()).emit('call_accepted', data.signal);
-        pool.query('UPDATE call_logs SET status="answered" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
-            [data.to, data.from]).catch(() => {});
+        if (from) {
+            pool.query('UPDATE call_logs SET status="answered" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
+                [data.to, from]).catch(() => {});
+        }
     });
     socket.on('decline_call', (data) => {
+        const from = socket._userId || data.from;
         io.to(data.to.toString()).emit('call_ended');
-        pool.query('UPDATE call_logs SET status="declined" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
-            [data.to, data.from]).catch(() => {});
+        if (from) {
+            pool.query('UPDATE call_logs SET status="declined" WHERE caller_id=? AND receiver_id=? AND status="missed" ORDER BY created_at DESC LIMIT 1',
+                [data.to, from]).catch(() => {});
+        }
     });
     socket.on('ice_candidate', (data) => { io.to(data.to.toString()).emit('ice_candidate', data.candidate); });
     socket.on('end_call', (data) => {
+        const from = socket._userId || data.from;
         io.to(data.to.toString()).emit('call_ended');
-        if (data.duration) {
+        if (data.duration && from) {
             pool.query('UPDATE call_logs SET duration_seconds=? WHERE ((caller_id=? AND receiver_id=?) OR (caller_id=? AND receiver_id=?)) AND status="answered" ORDER BY created_at DESC LIMIT 1',
-                [data.duration, data.from, data.to, data.to, data.from]).catch(() => {});
+                [data.duration, from, data.to, data.to, from]).catch(() => {});
         }
     });
 });
