@@ -293,6 +293,8 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const remoteStreamRef = React.useRef(new MediaStream());
 
+    const callStartTimeRef = React.useRef(null);
+
 
 
     const playRemoteAudio = () => {
@@ -347,6 +349,18 @@ function CallManager({ currentUserId, startCallRef }) {
 
                 { urls: 'stun:stun1.l.google.com:19302' },
 
+                { urls: 'stun:stun2.l.google.com:19302' },
+
+                { urls: 'stun:stun3.l.google.com:19302' },
+
+                { urls: 'turn:a.relay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+
+                { urls: 'turn:a.relay.metered.ca:80?transport=udp', username: 'openrelayproject', credential: 'openrelayproject' },
+
+                { urls: 'turn:a.relay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+
+                { urls: 'turn:a.relay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+
                 { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
 
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
@@ -395,6 +409,8 @@ function CallManager({ currentUserId, startCallRef }) {
 
             if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
 
+                if (!callStartTimeRef.current) callStartTimeRef.current = Date.now();
+
                 setCallStatus('connected');
 
                 setTimeout(playRemoteAudio, 300); // retry play after connection
@@ -413,7 +429,11 @@ function CallManager({ currentUserId, startCallRef }) {
 
         stopRinging();
 
-        if (notify && callTargetRef.current) globalSocket.emit('end_call', { to: callTargetRef.current });
+        if (notify && callTargetRef.current) {
+            const duration = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : undefined;
+            globalSocket.emit('end_call', { to: callTargetRef.current, from: currentUserId, duration });
+        }
+        callStartTimeRef.current = null;
 
         stopAllMedia();
 
@@ -479,7 +499,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
         if (!incomingCall) return;
 
-        stopRinging(); pendingIce.current = [];
+        stopRinging();
 
         const caller = incomingCall;
 
@@ -509,7 +529,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
             await pc.setLocalDescription(answer);
 
-            globalSocket.emit('answer_call', { signal: answer, to: caller.from });
+            globalSocket.emit('answer_call', { signal: answer, to: caller.from, from: currentUserId });
 
             // Play audio - we're inside a user gesture (button tap) so autoplay is allowed
 
@@ -536,6 +556,8 @@ function CallManager({ currentUserId, startCallRef }) {
         const onAccepted = async (signal) => {
 
             stopRinging(); setCallStatus('connected');
+
+            if (!callStartTimeRef.current) callStartTimeRef.current = Date.now();
 
             if (peerConnectionRef.current) {
 
@@ -591,6 +613,12 @@ function CallManager({ currentUserId, startCallRef }) {
 
     const toggleCam = () => { const t = myStreamRef.current?.getVideoTracks()[0]; if (t) { t.enabled = !t.enabled; setCamOn(t.enabled); } };
 
+    const handleDeclineCall = () => {
+        stopRinging();
+        globalSocket.emit('decline_call', { to: incomingCall.from, from: currentUserId });
+        setIncomingCall(null);
+    };
+
 
 
     return (
@@ -621,7 +649,7 @@ function CallManager({ currentUserId, startCallRef }) {
 
                         <div className="flex flex-col items-center gap-2">
 
-                            <button onClick={() => { stopRinging(); globalSocket.emit("end_call", { to: incomingCall.from }); setIncomingCall(null); }}
+                            <button onClick={handleDeclineCall}
 
                                 className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-lg shadow-red-500/50 hover:scale-110 transition">
 
